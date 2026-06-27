@@ -1,0 +1,4 @@
+-- Deprecated helper.
+-- Use:
+--   1. supabase/migrations/004_preflight_check.sql before applying 004
+--   2. supabase/tests/004_verification.sql after applying 004

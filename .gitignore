@@ -1,0 +1,16 @@
+.DS_Store
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.idea/
+.next/
+.vscode/
+build/
+builds/
+coverage/
+node_modules/
+pubspec.lock
+apps/web/node_modules/
+apps/web/.next/
+supabase/.temp/
+tmp/

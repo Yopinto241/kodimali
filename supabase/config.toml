@@ -1,0 +1,49 @@
+project_id = "kodimali-platform"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 17
+
+[studio]
+enabled = true
+port = 54323
+
+[functions.create-booking-request]
+verify_jwt = true
+
+[functions.create-guest-booking-request]
+verify_jwt = false
+
+[functions.update-booking-status]
+verify_jwt = true
+
+[functions.check-availability]
+verify_jwt = true
+
+[functions.notify-agent]
+verify_jwt = true
+
+[functions.approve-listing]
+verify_jwt = true
+
+[functions.verify-agent]
+verify_jwt = true
+
+[functions.create-agent-account]
+verify_jwt = true
+
+[functions.delete-empty-listing]
+verify_jwt = true
+
+[functions.admin-delete-listing]
+verify_jwt = true
+
+[functions.mark-agent-delayed]
+verify_jwt = true

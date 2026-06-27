@@ -1,0 +1,21 @@
+name: shared_constants
+description: "Shared constants for KODIMALI"
+version: 0.0.1
+homepage: https://kodimali.co.tz
+
+environment:
+  sdk: ^3.11.5
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  shared_models:
+    path: ../shared_models
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:

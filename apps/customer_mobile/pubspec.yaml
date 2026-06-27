@@ -1,0 +1,36 @@
+name: customer_mobile
+description: "KODIMALI customer app"
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  cached_network_image: ^3.4.1
+  flutter:
+    sdk: flutter
+  flutter_cache_manager: ^3.4.1
+  flutter_core:
+    path: ../../packages/flutter_core
+  flutter_design_system:
+    path: ../../packages/flutter_design_system
+  flutter_localizations:
+    sdk: flutter
+  geolocator: ^14.0.2
+  google_mobile_ads: ^9.0.0
+  shared_constants:
+    path: ../../packages/shared_constants
+  shared_models:
+    path: ../../packages/shared_models
+  shared_preferences: ^2.5.3
+  supabase_flutter: ^2.9.1
+  video_player: ^2.10.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

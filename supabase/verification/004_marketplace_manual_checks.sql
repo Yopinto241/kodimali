@@ -1,0 +1,2 @@
+-- Deprecated helper.
+-- Use supabase/tests/004_verification.sql for the final post-004 checks.
