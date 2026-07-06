@@ -134,12 +134,20 @@ begin
     from storage.buckets
     where id = 'listing-media'
       and public = false
-      and file_size_limit = 26214400
+      and file_size_limit = 31457280
       and allowed_mime_types @> array[
         'image/jpeg',
         'image/png',
         'image/webp',
-        'video/mp4'
+        'image/gif',
+        'image/heic',
+        'image/heif',
+        'video/mp4',
+        'video/quicktime',
+        'video/x-m4v',
+        'video/webm',
+        'video/x-msvideo',
+        'video/x-matroska'
       ]::text[]
   ) then
     raise exception 'listing-media bucket must stay private with the expected size and mime-type limits';

@@ -17,10 +17,78 @@ class ManageRepository {
   final SupabaseClient _client;
   static const String _agentPhotoBucket = "agent-profile-photos";
   static const int _agentPhotoMaxBytes = 5 * 1024 * 1024;
-  static const int _promotionMediaMaxBytes = 25 * 1024 * 1024;
+  static const int _listingVideoMaxBytes = 30 * 1024 * 1024;
+  static const int _promotionMediaMaxBytes = 30 * 1024 * 1024;
   static const int _signedMediaUrlSeconds = 60;
+  static const int _pagedQueryBatchSize = 1000;
+  static const Duration _registrationLookupCacheTtl = Duration(minutes: 3);
+
+  List<JsonMap>? _agentAssignmentCategoriesCache;
+  DateTime? _agentAssignmentCategoriesCachedAt;
+  List<JsonMap>? _agentLocationHierarchyCache;
+  DateTime? _agentLocationHierarchyCachedAt;
 
   User? get currentUser => _client.auth.currentUser;
+
+  bool _cacheFresh(DateTime? cachedAt) {
+    if (cachedAt == null) {
+      return false;
+    }
+    return DateTime.now().difference(cachedAt) <= _registrationLookupCacheTtl;
+  }
+
+  List<JsonMap> _cloneRows(List<JsonMap> rows) {
+    return rows
+        .map((JsonMap row) => Map<String, dynamic>.from(row))
+        .toList(growable: false);
+  }
+
+  void _invalidateLocationCaches() {
+    _agentLocationHierarchyCache = null;
+    _agentLocationHierarchyCachedAt = null;
+  }
+
+  Future<List<JsonMap>> _decodeListRows(Future<dynamic> response) async {
+    final dynamic data = await response;
+    if (data is List) {
+      return data
+          .map((dynamic row) => Map<String, dynamic>.from(row))
+          .toList(growable: false);
+    }
+    if (data is Map) {
+      return <JsonMap>[Map<String, dynamic>.from(data)];
+    }
+    return <JsonMap>[];
+  }
+
+  Future<List<JsonMap>> _decodePagedRows(
+    dynamic Function(int from, int to) queryBuilder, {
+    int batchSize = _pagedQueryBatchSize,
+  }) async {
+    final List<JsonMap> rows = <JsonMap>[];
+    int from = 0;
+
+    while (true) {
+      final int to = from + batchSize - 1;
+      final List<JsonMap> batch = await _decodeListRows(queryBuilder(from, to));
+      rows.addAll(batch);
+      if (batch.length < batchSize) {
+        break;
+      }
+      from += batchSize;
+    }
+
+    return rows;
+  }
+
+  bool _containsCategorySlug(List<JsonMap> rows, String slug) {
+    for (final JsonMap row in rows) {
+      if ((row["slug"] as String?) == slug) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   Future<void> signIn({
     required String identifier,
@@ -391,6 +459,42 @@ class ManageRepository {
     };
   }
 
+  Future<JsonMap> fetchMarketplaceSettings() async {
+    try {
+      final JsonMap? row = await _client
+          .from("marketplace_settings")
+          .select("contact_payments_enabled, updated_at")
+          .eq("id", true)
+          .maybeSingle();
+      return row ?? <String, dynamic>{"contact_payments_enabled": true};
+    } on PostgrestException catch (error) {
+      if (_isManageIdentifierCompatibilityError(error)) {
+        throw StateError(
+          "Marketplace settings need the latest Supabase migration before this toggle can be used.",
+        );
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> updateContactPaymentsEnabled(bool enabled) async {
+    final User user = _requireUser();
+    try {
+      await _client.from("marketplace_settings").upsert(<String, dynamic>{
+        "id": true,
+        "contact_payments_enabled": enabled,
+        "updated_by": user.id,
+      });
+    } on PostgrestException catch (error) {
+      if (_isManageIdentifierCompatibilityError(error)) {
+        throw StateError(
+          "Marketplace settings need the latest Supabase migration before this toggle can be used.",
+        );
+      }
+      rethrow;
+    }
+  }
+
   Future<void> submitAgentApplication({
     required String businessName,
     required String phoneNumber,
@@ -431,39 +535,52 @@ class ManageRepository {
 
   Future<List<JsonMap>> fetchOwnersForCurrentAgent() async {
     final JsonMap agent = await _currentAgent();
-    return (await _client
-            .from("owners")
-            .select(
-              "id, full_name, phone_number, notes, location_id, created_at",
-            )
-            .eq("agent_id", agent["id"] as String)
-            .order("created_at", ascending: false))
-        .cast<JsonMap>();
+    return _decodeListRows(
+      _client
+          .from("owners")
+          .select("id, full_name, phone_number, notes, location_id, created_at")
+          .eq("agent_id", agent["id"] as String)
+          .order("created_at", ascending: false),
+    );
   }
 
   Future<List<JsonMap>> fetchActiveCategories() async {
-    final JsonMap? agent = await _maybeCurrentAgent();
-    if (agent == null) {
-      return (await _client
-              .from("asset_categories")
-              .select(
-                "id, name, slug, description, icon_key, display_order, is_active, home_feed_weight, field_schema",
-              )
-              .eq("is_active", true)
-              .order("display_order")
-              .order("name"))
-          .cast<JsonMap>();
+    if (currentUser == null) {
+      return _decodeListRows(
+        _client
+            .from("asset_categories")
+            .select(
+              "id, name, slug, description, icon_key, display_order, is_active, home_feed_weight, field_schema",
+            )
+            .eq("is_active", true)
+            .order("display_order")
+            .order("name"),
+      );
     }
 
-    final List<JsonMap> rows =
-        (await _client
-                .from("agent_service_categories")
-                .select(
-                  "category_id, is_primary, asset_categories!inner(id, name, slug, description, icon_key, display_order, is_active, home_feed_weight, field_schema)",
-                )
-                .eq("agent_id", agent["id"] as String)
-                .order("is_primary", ascending: false))
-            .cast<JsonMap>();
+    final JsonMap? agent = await _maybeCurrentAgent();
+    if (agent == null) {
+      return _decodeListRows(
+        _client
+            .from("asset_categories")
+            .select(
+              "id, name, slug, description, icon_key, display_order, is_active, home_feed_weight, field_schema",
+            )
+            .eq("is_active", true)
+            .order("display_order")
+            .order("name"),
+      );
+    }
+
+    final List<JsonMap> rows = await _decodeListRows(
+      _client
+          .from("agent_service_categories")
+          .select(
+            "category_id, is_primary, asset_categories!inner(id, name, slug, description, icon_key, display_order, is_active, home_feed_weight, field_schema)",
+          )
+          .eq("agent_id", agent["id"] as String)
+          .order("is_primary", ascending: false),
+    );
 
     final List<JsonMap> categories = <JsonMap>[];
     for (final JsonMap row in rows) {
@@ -494,14 +611,15 @@ class ManageRepository {
   }
 
   Future<List<JsonMap>> fetchCategoriesForAdmin() async {
-    return (await _client
-            .from("asset_categories")
-            .select(
-              "id, name, slug, description, icon_key, display_order, is_active, home_feed_weight, field_schema",
-            )
-            .order("display_order")
-            .order("name"))
-        .cast<JsonMap>();
+    return _decodeListRows(
+      _client
+          .from("asset_categories")
+          .select(
+            "id, name, slug, description, icon_key, display_order, is_active, home_feed_weight, field_schema",
+          )
+          .order("display_order")
+          .order("name"),
+    );
   }
 
   Future<List<JsonMap>> fetchPromotionsForSurface({
@@ -535,34 +653,39 @@ class ManageRepository {
     required int limit,
   }) async {
     try {
-      return (await _client.rpc(
-        "get_active_platform_promotions",
-        params: <String, dynamic>{
-          "p_surface": surface,
-          "p_placement": placement,
-          "p_limit": limit,
-        },
-      )).cast<JsonMap>();
+      return _decodeListRows(
+        _client.rpc(
+          "get_active_platform_promotions",
+          params: <String, dynamic>{
+            "p_surface": surface,
+            "p_placement": placement,
+            "p_limit": limit,
+          },
+        ),
+      );
     } on PostgrestException catch (error) {
       if (!_isPromotionRpcCompatibilityError(error)) {
         rethrow;
       }
-      return (await _client.rpc(
-        "get_active_platform_promotions",
-        params: <String, dynamic>{"p_placement": placement, "p_limit": limit},
-      )).cast<JsonMap>();
+      return _decodeListRows(
+        _client.rpc(
+          "get_active_platform_promotions",
+          params: <String, dynamic>{"p_placement": placement, "p_limit": limit},
+        ),
+      );
     }
   }
 
   Future<List<JsonMap>> fetchPromotionsForAdmin() async {
-    return (await _client
-            .from("platform_promotions")
-            .select(
-              "id, title, description, cta_label, target_url, placement, visibility_scope, start_at, end_at, display_order, is_active, created_at, platform_promotion_media(id, media_type, media_path, thumbnail_path, display_order, is_primary)",
-            )
-            .order("display_order")
-            .order("created_at", ascending: false))
-        .cast<JsonMap>();
+    return _decodeListRows(
+      _client
+          .from("platform_promotions")
+          .select(
+            "id, title, description, cta_label, target_url, placement, visibility_scope, start_at, end_at, display_order, is_active, created_at, target_region_id, target_district_id, target_ward_id, target_area_id, target_region:locations!platform_promotions_target_region_id_fkey(id, name, location_type), target_district:locations!platform_promotions_target_district_id_fkey(id, name, location_type), target_ward:locations!platform_promotions_target_ward_id_fkey(id, name, location_type), target_area:locations!platform_promotions_target_area_id_fkey(id, name, location_type), platform_promotion_media(id, media_type, media_path, thumbnail_path, display_order, is_primary)",
+          )
+          .order("display_order")
+          .order("created_at", ascending: false),
+    );
   }
 
   Future<void> savePromotion({
@@ -577,6 +700,10 @@ class ManageRepository {
     required bool isActive,
     required String? startAtIso,
     required String? endAtIso,
+    required String targetRegionId,
+    required String? targetDistrictId,
+    required String? targetWardId,
+    required String? targetAreaId,
     PlatformFile? mediaFile,
   }) async {
     final User user = _requireUser();
@@ -592,6 +719,10 @@ class ManageRepository {
       "is_active": isActive,
       "start_at": startAtIso == null || startAtIso.isEmpty ? null : startAtIso,
       "end_at": endAtIso == null || endAtIso.isEmpty ? null : endAtIso,
+      "target_region_id": targetRegionId,
+      "target_district_id": targetDistrictId,
+      "target_ward_id": targetWardId,
+      "target_area_id": targetAreaId,
     };
 
     final JsonMap promotion = promotionId == null
@@ -644,12 +775,12 @@ class ManageRepository {
   }
 
   Future<void> deletePromotion(String promotionId) async {
-    final List<JsonMap> mediaRows =
-        (await _client
-                .from("platform_promotion_media")
-                .select("media_path, thumbnail_path")
-                .eq("promotion_id", promotionId))
-            .cast<JsonMap>();
+    final List<JsonMap> mediaRows = await _decodeListRows(
+      _client
+          .from("platform_promotion_media")
+          .select("media_path, thumbnail_path")
+          .eq("promotion_id", promotionId),
+    );
     final List<String> paths = mediaRows
         .expand(
           (JsonMap row) => <String?>[
@@ -705,11 +836,12 @@ class ManageRepository {
     query = parentId == null
         ? query.filter("parent_id", "is", "null")
         : query.eq("parent_id", parentId);
-    return (await query
-            .eq("location_type", type.storageValue)
-            .eq("is_active", true)
-            .order("name"))
-        .cast<JsonMap>();
+    return _decodeListRows(
+      query
+          .eq("location_type", type.storageValue)
+          .eq("is_active", true)
+          .order("name"),
+    );
   }
 
   Future<List<JsonMap>> fetchMyListings({
@@ -734,7 +866,7 @@ class ManageRepository {
     if (status != null && status.isNotEmpty) {
       query = query.eq("status", status);
     }
-    final List<JsonMap> listings = (await query).cast<JsonMap>();
+    final List<JsonMap> listings = await _decodeListRows(query);
     return _withInquiryCounts(listings);
   }
 
@@ -747,15 +879,15 @@ class ManageRepository {
         .eq("id", listingId)
         .single();
 
-    final List<JsonMap> media =
-        (await _client
-                .from("listing_media")
-                .select(
-                  "id, media_type, storage_path, thumbnail_path, display_order, is_cover",
-                )
-                .eq("listing_id", listingId)
-                .order("display_order"))
-            .cast<JsonMap>();
+    final List<JsonMap> media = await _decodeListRows(
+      _client
+          .from("listing_media")
+          .select(
+            "id, media_type, storage_path, thumbnail_path, display_order, is_cover",
+          )
+          .eq("listing_id", listingId)
+          .order("display_order"),
+    );
     final JsonMap? privateLocation = await _fetchPrivateLocation(listingId);
     return <String, dynamic>{
       ...listing,
@@ -1122,12 +1254,13 @@ class ManageRepository {
 
   Future<List<JsonMap>> fetchNotifications() async {
     final User user = _requireUser();
-    return (await _client
-            .from("notifications")
-            .select("id, title, body, created_at, read_at, type, payload")
-            .eq("user_id", user.id)
-            .order("created_at", ascending: false))
-        .cast<JsonMap>();
+    return _decodeListRows(
+      _client
+          .from("notifications")
+          .select("id, title, body, created_at, read_at, type, payload")
+          .eq("user_id", user.id)
+          .order("created_at", ascending: false),
+    );
   }
 
   Future<void> markNotificationRead(String notificationId) async {
@@ -1142,75 +1275,153 @@ class ManageRepository {
   Future<List<JsonMap>> fetchPendingAgents() async {
     List<JsonMap> agents;
     try {
-      agents =
-          (await _client
-                  .from("agents")
-                  .select(
-                    "id, profile_id, display_name, phone_number, contact_email, nida_number, public_location_label, profile_photo_path, verified_at, business_name, business_description, verification_status, account_status, activated_at, deactivated_at, deactivation_reason, created_at, profiles!inner(full_name, username, account_email, account_email_confirmed_at, preferred_language, phone_number, avatar_url), agent_documents(id, document_type, storage_path), agent_service_categories(category_id, is_primary, asset_categories(id, name, slug, icon_key))",
-                  )
-                  .order("created_at", ascending: false))
-              .cast<JsonMap>();
+      agents = await _decodeListRows(
+        _client
+            .from("agents")
+            .select(
+              "id, profile_id, display_name, phone_number, contact_email, nida_number, public_location_label, profile_photo_path, verified_at, business_name, business_description, verification_status, account_status, activated_at, deactivated_at, deactivation_reason, created_at, profiles!inner(full_name, username, account_email, account_email_confirmed_at, preferred_language, phone_number, avatar_url), agent_documents(id, document_type, storage_path), agent_service_categories(category_id, is_primary, asset_categories(id, name, slug, icon_key))",
+            )
+            .order("created_at", ascending: false),
+      );
     } on PostgrestException catch (error) {
       if (!_isManageIdentifierCompatibilityError(error)) {
         rethrow;
       }
-      agents =
-          (await _client
-                  .from("agents")
-                  .select(
-                    "id, profile_id, display_name, phone_number, contact_email, nida_number, public_location_label, profile_photo_path, verified_at, business_name, business_description, verification_status, account_status, activated_at, deactivated_at, deactivation_reason, created_at, profiles!inner(full_name, phone_number, avatar_url), agent_documents(id, document_type, storage_path), agent_service_categories(category_id, is_primary, asset_categories(id, name, slug, icon_key))",
-                  )
-                  .order("created_at", ascending: false))
-              .cast<JsonMap>();
+      agents = await _decodeListRows(
+        _client
+            .from("agents")
+            .select(
+              "id, profile_id, display_name, phone_number, contact_email, nida_number, public_location_label, profile_photo_path, verified_at, business_name, business_description, verification_status, account_status, activated_at, deactivated_at, deactivation_reason, created_at, profiles!inner(full_name, phone_number, avatar_url), agent_documents(id, document_type, storage_path), agent_service_categories(category_id, is_primary, asset_categories(id, name, slug, icon_key))",
+            )
+            .order("created_at", ascending: false),
+      );
     }
-    return agents
-        .map(
-          (JsonMap agent) => <String, dynamic>{
-            ...agent,
-            "display_name":
-                agent["display_name"] ??
-                (agent["profiles"] as Map?)?["full_name"] ??
-                agent["business_name"],
-            "phone_number":
-                agent["phone_number"] ??
-                (agent["profiles"] as Map?)?["phone_number"],
-            "contact_email": agent["contact_email"],
-            "nida_number": agent["nida_number"],
-            "public_location_label": agent["public_location_label"],
-            "profile_photo_path": agent["profile_photo_path"],
-            "verified_at": agent["verified_at"],
-            "profile_photo_url":
-                _publicAgentPhotoUrl(agent["profile_photo_path"] as String?) ??
-                ((agent["profiles"] as Map?)?["avatar_url"] as String?),
+    return agents.map(_normalizeAdminAgent).toList();
+  }
+
+  Future<JsonMap> fetchAdminAgents({
+    String searchText = "",
+    String? accountStatus,
+    String? verificationStatus,
+    int limit = 40,
+    int offset = 0,
+  }) async {
+    final String normalizedSearch = searchText.trim();
+    final String? normalizedAccountStatus =
+        accountStatus?.trim().isEmpty == true ? null : accountStatus?.trim();
+    final String? normalizedVerificationStatus =
+        verificationStatus?.trim().isEmpty == true
+        ? null
+        : verificationStatus?.trim();
+
+    try {
+      final List<JsonMap> rows = await _decodeListRows(
+        _client.rpc(
+          "search_admin_agents",
+          params: <String, dynamic>{
+            "p_search_text": normalizedSearch.isEmpty ? null : normalizedSearch,
+            "p_account_status": normalizedAccountStatus,
+            "p_verification_status": normalizedVerificationStatus,
+            "p_limit": limit,
+            "p_offset": offset,
           },
-        )
-        .toList();
+        ),
+      );
+
+      final List<JsonMap> items = rows.map((JsonMap row) {
+        final JsonMap agent = <String, dynamic>{
+          "id": row["agent_id"],
+          "profile_id": row["profile_id"],
+          "display_name": row["display_name"],
+          "phone_number": row["phone_number"],
+          "contact_email": row["contact_email"],
+          "nida_number": row["nida_number"],
+          "public_location_label": row["public_location_label"],
+          "profile_photo_path": row["profile_photo_path"],
+          "verified_at": row["verified_at"],
+          "business_name": row["business_name"],
+          "business_description": row["business_description"],
+          "verification_status": row["verification_status"],
+          "account_status": row["account_status"],
+          "activated_at": row["activated_at"],
+          "deactivated_at": row["deactivated_at"],
+          "deactivation_reason": row["deactivation_reason"],
+          "created_at": row["created_at"],
+          "profiles": <String, dynamic>{
+            "full_name": row["profile_full_name"],
+            "username": row["profile_username"],
+            "account_email": row["profile_account_email"],
+            "account_email_confirmed_at":
+                row["profile_account_email_confirmed_at"],
+            "preferred_language": row["profile_preferred_language"],
+            "phone_number": row["profile_phone_number"],
+            "avatar_url": row["profile_avatar_url"],
+          },
+          "agent_documents":
+              (row["agent_documents"] as List<dynamic>? ?? <dynamic>[]),
+          "agent_service_categories":
+              (row["agent_service_categories"] as List<dynamic>? ??
+              <dynamic>[]),
+        };
+        return _normalizeAdminAgent(agent);
+      }).toList();
+
+      final int totalCount = rows.isEmpty
+          ? 0
+          : (rows.first["total_count"] as num?)?.toInt() ??
+                int.tryParse(rows.first["total_count"]?.toString() ?? "") ??
+                items.length;
+
+      return <String, dynamic>{"items": items, "total_count": totalCount};
+    } on PostgrestException catch (error) {
+      if (!_isManageIdentifierCompatibilityError(error) &&
+          (error.code ?? "") != "PGRST202") {
+        rethrow;
+      }
+
+      final List<JsonMap> fallbackAgents = await fetchPendingAgents();
+      final List<JsonMap> filtered = fallbackAgents.where((JsonMap agent) {
+        final String nextAccountStatus =
+            agent["account_status"] as String? ?? "";
+        final String nextVerificationStatus =
+            agent["verification_status"] as String? ?? "";
+        if (normalizedAccountStatus != null &&
+            nextAccountStatus != normalizedAccountStatus) {
+          return false;
+        }
+        if (normalizedVerificationStatus != null &&
+            nextVerificationStatus != normalizedVerificationStatus) {
+          return false;
+        }
+        return _matchesAdminAgentSearch(agent, normalizedSearch);
+      }).toList();
+      final List<JsonMap> paged = filtered.skip(offset).take(limit).toList();
+      return <String, dynamic>{"items": paged, "total_count": filtered.length};
+    }
   }
 
   Future<List<JsonMap>> fetchProfilesAvailableForAgentCreation() async {
     List<JsonMap> profiles;
     try {
-      profiles =
-          (await _client
-                  .from("profiles")
-                  .select(
-                    "id, full_name, username, account_email, phone_number",
-                  )
-                  .order("full_name"))
-              .cast<JsonMap>();
+      profiles = await _decodeListRows(
+        _client
+            .from("profiles")
+            .select("id, full_name, username, account_email, phone_number")
+            .order("full_name"),
+      );
     } on PostgrestException catch (error) {
       if (!_isManageIdentifierCompatibilityError(error)) {
         rethrow;
       }
-      profiles =
-          (await _client
-                  .from("profiles")
-                  .select("id, full_name, phone_number")
-                  .order("full_name"))
-              .cast<JsonMap>();
+      profiles = await _decodeListRows(
+        _client
+            .from("profiles")
+            .select("id, full_name, phone_number")
+            .order("full_name"),
+      );
     }
     final Set<String> usedProfileIds =
-        ((await _client.from("agents").select("profile_id")).cast<JsonMap>())
+        (await _decodeListRows(_client.from("agents").select("profile_id")))
             .map((JsonMap row) => row["profile_id"] as String?)
             .whereType<String>()
             .toSet();
@@ -1269,12 +1480,12 @@ class ManageRepository {
         .toSet();
     normalized.add(primaryCategoryId);
 
-    final List<JsonMap> existing =
-        (await _client
-                .from("agent_service_categories")
-                .select("category_id")
-                .eq("agent_id", agentId))
-            .cast<JsonMap>();
+    final List<JsonMap> existing = await _decodeListRows(
+      _client
+          .from("agent_service_categories")
+          .select("category_id")
+          .eq("agent_id", agentId),
+    );
     final Set<String> existingIds = existing
         .map((JsonMap row) => row["category_id"] as String?)
         .whereType<String>()
@@ -1341,7 +1552,39 @@ class ManageRepository {
   }
 
   Future<List<JsonMap>> fetchCategoriesForAgentAssignment() async {
-    return fetchCategoriesForAdmin();
+    if (_agentAssignmentCategoriesCache != null &&
+        _cacheFresh(_agentAssignmentCategoriesCachedAt) &&
+        _containsCategorySlug(_agentAssignmentCategoriesCache!, "apartment")) {
+      return _cloneRows(_agentAssignmentCategoriesCache!);
+    }
+    final List<JsonMap> rows = await _decodeListRows(
+      _client
+          .from("asset_categories")
+          .select(
+            "id, name, slug, description, icon_key, display_order, is_active, home_feed_weight, field_schema",
+          )
+          .eq("is_active", true)
+          .order("display_order")
+          .order("name"),
+    );
+
+    final List<JsonMap> sorted = rows
+        .where((JsonMap row) => row["slug"] is String && row["name"] is String)
+        .map((JsonMap row) => Map<String, dynamic>.from(row))
+        .toList(growable: false);
+
+    sorted.sort((JsonMap a, JsonMap b) {
+      final int displayCompare = ((a["display_order"] as num?)?.toInt() ?? 0)
+          .compareTo((b["display_order"] as num?)?.toInt() ?? 0);
+      if (displayCompare != 0) {
+        return displayCompare;
+      }
+      return (a["name"] as String? ?? "").compareTo(b["name"] as String? ?? "");
+    });
+
+    _agentAssignmentCategoriesCache = _cloneRows(sorted);
+    _agentAssignmentCategoriesCachedAt = DateTime.now();
+    return sorted;
   }
 
   Future<void> updateAgentVerification({
@@ -1369,19 +1612,16 @@ class ManageRepository {
   }
 
   Future<List<JsonMap>> fetchAgentRegistrationLocations() async {
-    final List<JsonMap> rows =
-        (await _client
-                .from("locations")
-                .select("id, parent_id, name, location_type")
-                .eq("is_active", true)
-                .inFilter("location_type", <String>[
-                  "region",
-                  "district",
-                  "ward",
-                  "area",
-                ])
-                .order("name"))
-            .cast<JsonMap>();
+    final List<JsonMap> rows = (await fetchAgentLocationHierarchy())
+        .where((JsonMap row) {
+          final String? type = row["location_type"] as String?;
+          return type == "region" ||
+              type == "district" ||
+              type == "ward" ||
+              type == "area";
+        })
+        .map((JsonMap row) => Map<String, dynamic>.from(row))
+        .toList(growable: false);
     final Map<String, JsonMap> byId = <String, JsonMap>{
       for (final JsonMap row in rows) row["id"] as String: row,
     };
@@ -1398,6 +1638,32 @@ class ManageRepository {
       }
       return <String, dynamic>{...row, "display_label": names.join(", ")};
     }).toList();
+  }
+
+  Future<List<JsonMap>> fetchAgentLocationHierarchy() async {
+    if (_agentLocationHierarchyCache != null &&
+        _cacheFresh(_agentLocationHierarchyCachedAt)) {
+      return _cloneRows(_agentLocationHierarchyCache!);
+    }
+    final List<JsonMap> rows = await _decodePagedRows(
+      (int from, int to) => _client
+          .from("locations")
+          .select("id, parent_id, name, location_type")
+          .eq("is_active", true)
+          .inFilter("location_type", <String>[
+            "country",
+            "region",
+            "district",
+            "ward",
+            "area",
+            "street",
+          ])
+          .order("name")
+          .range(from, to),
+    );
+    _agentLocationHierarchyCache = _cloneRows(rows);
+    _agentLocationHierarchyCachedAt = DateTime.now();
+    return rows;
   }
 
   Future<String> resolveWardAreaLocation({
@@ -1442,6 +1708,9 @@ class ManageRepository {
           "We could not save that area right now. Please try again.",
         );
       }
+      if (area["created_new"] == true) {
+        _invalidateLocationCaches();
+      }
       return areaId;
     } on PostgrestException catch (error) {
       throw StateError(_friendlyAreaError(error));
@@ -1478,6 +1747,54 @@ class ManageRepository {
 
   bool _isInternalManageAccountEmail(String email) {
     return email.trim().toLowerCase().endsWith("@agent.kodimali.local");
+  }
+
+  JsonMap _normalizeAdminAgent(JsonMap agent) {
+    return <String, dynamic>{
+      ...agent,
+      "display_name":
+          agent["display_name"] ??
+          (agent["profiles"] as Map?)?["full_name"] ??
+          agent["business_name"],
+      "phone_number":
+          agent["phone_number"] ?? (agent["profiles"] as Map?)?["phone_number"],
+      "contact_email": agent["contact_email"],
+      "nida_number": agent["nida_number"],
+      "public_location_label": agent["public_location_label"],
+      "profile_photo_path": agent["profile_photo_path"],
+      "verified_at": agent["verified_at"],
+      "profile_photo_url":
+          _publicAgentPhotoUrl(agent["profile_photo_path"] as String?) ??
+          ((agent["profiles"] as Map?)?["avatar_url"] as String?),
+    };
+  }
+
+  bool _matchesAdminAgentSearch(JsonMap agent, String searchText) {
+    final String normalizedSearch = searchText.trim().toLowerCase();
+    if (normalizedSearch.isEmpty) {
+      return true;
+    }
+    final Map<String, dynamic>? profile = (agent["profiles"] as Map?)
+        ?.cast<String, dynamic>();
+    final Iterable<String> haystack = <String>[
+      agent["display_name"]?.toString() ?? "",
+      agent["business_name"]?.toString() ?? "",
+      agent["business_description"]?.toString() ?? "",
+      agent["phone_number"]?.toString() ?? "",
+      agent["contact_email"]?.toString() ?? "",
+      agent["nida_number"]?.toString() ?? "",
+      agent["public_location_label"]?.toString() ?? "",
+      profile?["full_name"]?.toString() ?? "",
+      profile?["username"]?.toString() ?? "",
+      profile?["account_email"]?.toString() ?? "",
+      profile?["phone_number"]?.toString() ?? "",
+    ];
+    for (final String value in haystack) {
+      if (value.toLowerCase().contains(normalizedSearch)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   String _friendlyAuthError(AuthException error) {
@@ -1635,14 +1952,14 @@ class ManageRepository {
   }
 
   Future<List<JsonMap>> fetchListingsForModeration() async {
-    final List<JsonMap> listings =
-        (await _client
-                .from("listings")
-                .select(
-                  "id, title, category_id, public_location_label, status, removed_from_market_at, removed_reason, created_at, agent_id, asset_categories(id, name, slug)",
-                )
-                .order("created_at", ascending: false))
-            .cast<JsonMap>();
+    final List<JsonMap> listings = await _decodeListRows(
+      _client
+          .from("listings")
+          .select(
+            "id, title, category_id, public_location_label, status, removed_from_market_at, removed_reason, created_at, agent_id, asset_categories(id, name, slug)",
+          )
+          .order("created_at", ascending: false),
+    );
     return _withInquiryCounts(listings);
   }
 
@@ -1669,12 +1986,14 @@ class ManageRepository {
   }
 
   Future<List<JsonMap>> fetchLocationsForAdmin() async {
-    return (await _client
-            .from("locations")
-            .select("id, parent_id, name, location_type, is_active, created_at")
-            .order("location_type")
-            .order("name"))
-        .cast<JsonMap>();
+    return _decodePagedRows(
+      (int from, int to) => _client
+          .from("locations")
+          .select("id, parent_id, name, location_type, is_active, created_at")
+          .order("location_type")
+          .order("name")
+          .range(from, to),
+    );
   }
 
   Future<void> addLocation({
@@ -1687,6 +2006,70 @@ class ManageRepository {
       "location_type": type.storageValue,
       "parent_id": parentId,
     });
+    _invalidateLocationCaches();
+  }
+
+  Future<void> deleteLocation(String locationId) async {
+    final String trimmedLocationId = locationId.trim();
+    if (trimmedLocationId.isEmpty) {
+      throw StateError("Location id is required.");
+    }
+
+    final int childCount = (await _decodeListRows(
+      _client.from("locations").select("id").eq("parent_id", trimmedLocationId),
+    )).length;
+    if (childCount > 0) {
+      throw StateError(
+        "This location still has child locations. Delete the child locations first.",
+      );
+    }
+
+    final int listingCount = (await _decodeListRows(
+      _client
+          .from("listings")
+          .select("id")
+          .eq("location_id", trimmedLocationId),
+    )).length;
+    if (listingCount > 0) {
+      throw StateError(
+        "This location is already used by active or historical listings, so it cannot be deleted.",
+      );
+    }
+
+    final int agentCount = (await _decodeListRows(
+      _client.from("agents").select("id").eq("location_id", trimmedLocationId),
+    )).length;
+    if (agentCount > 0) {
+      throw StateError(
+        "This location is already linked to one or more agent profiles, so it cannot be deleted.",
+      );
+    }
+
+    final int ownerCount = (await _decodeListRows(
+      _client.from("owners").select("id").eq("location_id", trimmedLocationId),
+    )).length;
+    if (ownerCount > 0) {
+      throw StateError(
+        "This location is already linked to owner records, so it cannot be deleted.",
+      );
+    }
+
+    final int promotionCount = (await _decodeListRows(
+      _client
+          .from("platform_promotions")
+          .select("id")
+          .or(
+            "target_region_id.eq.$trimmedLocationId,target_district_id.eq.$trimmedLocationId,target_ward_id.eq.$trimmedLocationId,target_area_id.eq.$trimmedLocationId",
+          ),
+    )).length;
+    if (promotionCount > 0) {
+      throw StateError(
+        "This location is already targeted by platform promotions, so it cannot be deleted.",
+      );
+    }
+
+    await _client.from("locations").delete().eq("id", trimmedLocationId);
+    _invalidateLocationCaches();
   }
 
   Future<List<JsonMap>> fetchReports() async {
@@ -1699,13 +2082,10 @@ class ManageRepository {
     final dynamic base = _client
         .from("booking_requests")
         .select(
-          "id, listing_id, request_reference, customer_name, customer_phone_number, booking_status, created_at, listings!inner(title)",
+          "id, listing_id, request_reference, customer_name, customer_phone_number, customer_email, requested_start_at, requested_end_at, guest_count, request_message, requested_service_codes, booking_status, created_at, listings!inner(title, asset_categories(name, slug))",
         );
     final dynamic filtered = queryBuilder(base);
-    return (await filtered.order(
-      "created_at",
-      ascending: false,
-    )).cast<JsonMap>();
+    return _decodeListRows(filtered.order("created_at", ascending: false));
   }
 
   Future<Map<String, int>> _fetchInquiryCounts(
@@ -1718,10 +2098,12 @@ class ManageRepository {
     if (ids.isEmpty) {
       return <String, int>{};
     }
-    final List<JsonMap> rows = (await _client.rpc(
-      "get_listing_inquiry_counts",
-      params: <String, dynamic>{"p_listing_ids": ids},
-    )).cast<JsonMap>();
+    final List<JsonMap> rows = await _decodeListRows(
+      _client.rpc(
+        "get_listing_inquiry_counts",
+        params: <String, dynamic>{"p_listing_ids": ids},
+      ),
+    );
     final Map<String, int> counts = <String, int>{};
     for (final JsonMap row in rows) {
       final String listingId = row["listing_id"] as String;
@@ -1760,6 +2142,9 @@ class ManageRepository {
   }
 
   Future<JsonMap?> _maybeCurrentAgent() async {
+    if (currentUser == null) {
+      return null;
+    }
     final List<dynamic> rows = await _client.rpc("get_my_agent_status");
     if (rows.isEmpty) {
       return null;
@@ -1809,6 +2194,31 @@ class ManageRepository {
         return "image/png";
       case "webp":
         return "image/webp";
+      case "gif":
+        return "image/gif";
+      case "heic":
+        return "image/heic";
+      case "heif":
+        return "image/heif";
+      default:
+        return "application/octet-stream";
+    }
+  }
+
+  String _contentTypeForVideoExtension(String extension) {
+    switch (extension) {
+      case "mp4":
+        return "video/mp4";
+      case "mov":
+        return "video/quicktime";
+      case "m4v":
+        return "video/x-m4v";
+      case "webm":
+        return "video/webm";
+      case "avi":
+        return "video/x-msvideo";
+      case "mkv":
+        return "video/x-matroska";
       default:
         return "application/octet-stream";
     }
@@ -1942,6 +2352,8 @@ class ManageRepository {
     for (int index = 0; index < images.length; index += 1) {
       _throwIfCancelled(uploadController);
       final XFile image = images[index];
+      _validateListingImageFile(image);
+      final String extension = _fileExtension(image.name).toLowerCase();
       final String fileName = _safeFileName(image.name);
       final String path = "$userId/$listingId/$fileName";
       reportItem("Uploading image ${index + 1} of $totalItems...");
@@ -1950,7 +2362,10 @@ class ManageRepository {
           .uploadBinary(
             path,
             await image.readAsBytes(),
-            fileOptions: const FileOptions(upsert: true),
+            fileOptions: FileOptions(
+              upsert: true,
+              contentType: _contentTypeForImageExtension(extension),
+            ),
             retryController: uploadController?.retryController,
           );
       uploadedPaths?.add(path);
@@ -1967,6 +2382,8 @@ class ManageRepository {
     }
     if (video != null) {
       _throwIfCancelled(uploadController);
+      final String extension = _fileExtension(video.name).toLowerCase();
+      await _validateListingVideoFile(video);
       final String path = "$userId/$listingId/${_safeFileName(video.name)}";
       reportItem("Uploading video...");
       await _client.storage
@@ -1974,7 +2391,10 @@ class ManageRepository {
           .uploadBinary(
             path,
             await video.readAsBytes(),
-            fileOptions: const FileOptions(upsert: true),
+            fileOptions: FileOptions(
+              upsert: true,
+              contentType: _contentTypeForVideoExtension(extension),
+            ),
             retryController: uploadController?.retryController,
           );
       uploadedPaths?.add(path);
@@ -1988,6 +2408,43 @@ class ManageRepository {
       });
       completedItems += 1;
       reportItem("Video uploaded.");
+    }
+  }
+
+  void _validateListingImageFile(XFile file) {
+    final String extension = _fileExtension(file.name).toLowerCase();
+    if (!<String>{
+      "jpg",
+      "jpeg",
+      "png",
+      "webp",
+      "gif",
+      "heic",
+      "heif",
+    }.contains(extension)) {
+      throw StateError(
+        "Listing images must be JPG, PNG, WebP, GIF, HEIC, or HEIF.",
+      );
+    }
+  }
+
+  Future<void> _validateListingVideoFile(XFile file) async {
+    final String extension = _fileExtension(file.name).toLowerCase();
+    if (!<String>{
+      "mp4",
+      "mov",
+      "m4v",
+      "webm",
+      "avi",
+      "mkv",
+    }.contains(extension)) {
+      throw StateError(
+        "Listing video must be MP4, MOV, M4V, WebM, AVI, or MKV.",
+      );
+    }
+    final int bytes = await file.length();
+    if (bytes > _listingVideoMaxBytes) {
+      throw StateError("Listing video must be 30 MB or smaller.");
     }
   }
 
@@ -2031,34 +2488,48 @@ class ManageRepository {
       ".jpeg",
       ".png",
       ".webp",
+      ".gif",
+      ".heic",
+      ".heif",
       ".mp4",
+      ".mov",
+      ".m4v",
+      ".webm",
+      ".avi",
+      ".mkv",
     };
     final bool allowedExtension = allowed.any(lower.endsWith);
     if (!allowedExtension) {
-      throw StateError("Promotion media must be JPG, PNG, WebP, or MP4");
+      throw StateError(
+        "Promotion media must be JPG, PNG, WebP, GIF, HEIC, HEIF, MP4, MOV, M4V, WebM, AVI, or MKV",
+      );
     }
     if (file.size > _promotionMediaMaxBytes) {
-      throw StateError("Promotion media must be 25 MB or smaller");
+      throw StateError("Promotion media must be 30 MB or smaller");
     }
   }
 
   String _promotionMediaKind(String fileName) {
-    final String lower = fileName.toLowerCase();
-    return lower.endsWith(".mp4") ? "video" : "image";
+    final String extension = _fileExtension(fileName).toLowerCase();
+    return <String>{
+          "mp4",
+          "mov",
+          "m4v",
+          "webm",
+          "avi",
+          "mkv",
+        }.contains(extension)
+        ? "video"
+        : "image";
   }
 
   String _promotionMediaContentType(String fileName) {
-    final String lower = fileName.toLowerCase();
-    if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
-      return "image/jpeg";
+    final String extension = _fileExtension(fileName).toLowerCase();
+    final String imageContentType = _contentTypeForImageExtension(extension);
+    if (imageContentType != "application/octet-stream") {
+      return imageContentType;
     }
-    if (lower.endsWith(".png")) {
-      return "image/png";
-    }
-    if (lower.endsWith(".webp")) {
-      return "image/webp";
-    }
-    return "video/mp4";
+    return _contentTypeForVideoExtension(extension);
   }
 
   String _safeFileName(String raw) {

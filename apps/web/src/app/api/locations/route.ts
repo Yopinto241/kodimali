@@ -1,5 +1,7 @@
 import { fetchLocations } from "@/lib/supabase-public";
 
+export const revalidate = 3600;
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const locationType = searchParams.get("locationType");

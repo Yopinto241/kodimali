@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { SiteFooter } from "@/components/site-footer";
+import { SiteHeader } from "@/components/site-header";
 import "./globals.css";
 import { bodyFont, headingFont } from "./fonts";
 
@@ -23,7 +25,11 @@ export default function RootLayout({
       lang="en"
       className={`${bodyFont.variable} ${headingFont.variable} h-full antialiased`}
     >
-      <body className="min-h-full font-sans">{children}</body>
+      <body className="min-h-full font-sans">
+        <SiteHeader />
+        <div className="page-frame">{children}</div>
+        <SiteFooter />
+      </body>
     </html>
   );
 }

@@ -5,7 +5,13 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       listing_id: string;
       customer_name: string;
-      customer_phone_number: string;
+      customer_email?: string;
+      customer_phone_number?: string;
+      requested_start_at?: string;
+      requested_end_at?: string;
+      guest_count?: number;
+      request_message?: string;
+      requested_service_codes?: string[];
     };
 
     const payload = await submitGuestRequest(body);

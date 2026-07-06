@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:shared_constants/shared_constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
 import 'core/ads/admob_support.dart';
@@ -16,6 +18,35 @@ import 'core/cache/customer_snapshot_store.dart';
 import 'core/data/customer_public_repository.dart';
 import 'core/localization/customer_localization.dart';
 import 'core/media/customer_media_cache.dart';
+
+String _readableErrorMessage(
+  Object error, {
+  String fallback = "Something went wrong. Please try again.",
+}) {
+  final String text = error
+      .toString()
+      .replaceFirst("Bad state: ", "")
+      .replaceFirst("Exception: ", "")
+      .trim();
+  if (text.isEmpty) {
+    return fallback;
+  }
+  return text;
+}
+
+void _openListingDetails(
+  BuildContext context, {
+  required CustomerPublicRepository repository,
+  required String listingId,
+}) {
+  unawaited(repository.prefetchListingDetail(listingId));
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) =>
+          ListingDetailScreen(repository: repository, listingId: listingId),
+    ),
+  );
+}
 
 class CustomerApp extends StatefulWidget {
   const CustomerApp({super.key});
@@ -95,9 +126,14 @@ class CustomerRoot extends StatefulWidget {
 }
 
 class _CustomerRootState extends State<CustomerRoot> {
+  static const String _helpBubbleXPrefKey = "customer_help_bubble_x";
+  static const String _helpBubbleYPrefKey = "customer_help_bubble_y";
+  static const double _helpBubbleWidth = 136;
+  static const double _helpBubbleHeight = 56;
   int _index = 0;
   int _refreshTick = 0;
   final Set<int> _visitedIndexes = <int>{0};
+  List<Map<String, dynamic>> _categoryMenuItems = <Map<String, dynamic>>[];
   String? _regionId;
   String? _districtId;
   String? _wardId;
@@ -106,6 +142,8 @@ class _CustomerRootState extends State<CustomerRoot> {
   double? _longitude;
   bool _bannerHidden = false;
   bool _loadingPrefs = true;
+  double _helpBubbleX = 1;
+  double _helpBubbleY = 1;
 
   @override
   void initState() {
@@ -135,12 +173,16 @@ class _CustomerRootState extends State<CustomerRoot> {
       _areaId = prefs.getString("customer_area_id");
       _latitude = prefs.getDouble("customer_latitude");
       _longitude = prefs.getDouble("customer_longitude");
+      _helpBubbleX = (prefs.getDouble(_helpBubbleXPrefKey) ?? 1).clamp(0, 1);
+      _helpBubbleY = (prefs.getDouble(_helpBubbleYPrefKey) ?? 1).clamp(0, 1);
       _bannerHidden =
           hiddenUntil != null &&
           DateTime.now().millisecondsSinceEpoch < hiddenUntil;
+      _categoryMenuItems = CustomerSnapshotStore.categories;
       _loadingPrefs = false;
     });
     _prewarmTabData();
+    unawaited(_loadCategoryMenu());
   }
 
   Future<void> _savePreference({
@@ -198,12 +240,41 @@ class _CustomerRootState extends State<CustomerRoot> {
     setState(() => _bannerHidden = true);
   }
 
+  Future<void> _saveHelpBubblePosition() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_helpBubbleXPrefKey, _helpBubbleX);
+    await prefs.setDouble(_helpBubbleYPrefKey, _helpBubbleY);
+  }
+
+  void _updateHelpBubblePosition(
+    DragUpdateDetails details,
+    BoxConstraints constraints,
+  ) {
+    final double horizontalRange = math.max(
+      constraints.maxWidth - _helpBubbleWidth - 24,
+      1,
+    );
+    final double verticalRange = math.max(
+      constraints.maxHeight - _helpBubbleHeight - 24,
+      1,
+    );
+    setState(() {
+      _helpBubbleX = (_helpBubbleX + (details.delta.dx / horizontalRange))
+          .clamp(0, 1);
+      _helpBubbleY = (_helpBubbleY + (details.delta.dy / verticalRange)).clamp(
+        0,
+        1,
+      );
+    });
+  }
+
   void _handleAppResume() {
     if (!mounted) {
       return;
     }
     widget.repository.invalidatePublicDataCache(includeCategories: true);
     setState(() => _refreshTick += 1);
+    unawaited(_loadCategoryMenu());
   }
 
   Future<void> _useGps() async {
@@ -273,6 +344,70 @@ class _CustomerRootState extends State<CustomerRoot> {
     _prewarmTabData();
   }
 
+  Future<void> _openHelp() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => const _HelpSupportScreen()),
+    );
+  }
+
+  Future<void> _loadCategoryMenu() async {
+    try {
+      final List<Map<String, dynamic>> categories = await widget.repository
+          .fetchCategories();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _categoryMenuItems = categories);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _categoryMenuItems = CustomerSnapshotStore.categories);
+    }
+  }
+
+  void _openCategoriesOverview() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => Scaffold(
+          appBar: AppBar(
+            title: Text(context.tr("nav.categories")),
+            actions: const <Widget>[_LanguageSwitcherButton()],
+          ),
+          body: SafeArea(
+            child: CategoriesScreen(
+              repository: widget.repository,
+              refreshTick: _refreshTick,
+              regionId: _regionId,
+              districtId: _districtId,
+              wardId: _wardId,
+              areaId: _areaId,
+              latitude: _latitude,
+              longitude: _longitude,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openCategoryFromRoot(Map<String, dynamic> category) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CategoryListingsScreen(
+          repository: widget.repository,
+          category: category,
+          regionId: _regionId,
+          districtId: _districtId,
+          wardId: _wardId,
+          areaId: _areaId,
+          latitude: _latitude,
+          longitude: _longitude,
+        ),
+      ),
+    );
+  }
+
   void _prewarmTabData() {
     final CustomerPublicRepository repository = widget.repository;
     unawaited(repository.fetchCategories());
@@ -286,6 +421,19 @@ class _CustomerRootState extends State<CustomerRoot> {
         latitude: _latitude,
         longitude: _longitude,
         sessionSeed: DateTime.now().day.toString(),
+      ),
+    );
+    unawaited(
+      repository.fetchPublicListings(
+        categorySlug: "apartment",
+        limit: 12,
+        regionId: _regionId,
+        districtId: _districtId,
+        wardId: _wardId,
+        areaId: _areaId,
+        latitude: _latitude,
+        longitude: _longitude,
+        sessionSeed: "tab:apartment",
       ),
     );
     unawaited(
@@ -337,6 +485,23 @@ class _CustomerRootState extends State<CustomerRoot> {
         onUseGps: _useGps,
         onChooseLocation: _chooseLocation,
         onSkipBanner: _skipBanner,
+        categoryMenuItems: _categoryMenuItems,
+        onOpenCategoriesOverview: _openCategoriesOverview,
+        onOpenCategory: _openCategoryFromRoot,
+      ),
+      PopularCategoryFeedScreen(
+        key: const PageStorageKey<String>("customer_apartments"),
+        repository: widget.repository,
+        refreshTick: _refreshTick,
+        categorySlug: "apartment",
+        title: context.tr("popular.apartments.title"),
+        subtitle: context.tr("popular.apartments.subtitle"),
+        regionId: _regionId,
+        districtId: _districtId,
+        wardId: _wardId,
+        areaId: _areaId,
+        latitude: _latitude,
+        longitude: _longitude,
       ),
       PopularCategoryFeedScreen(
         key: const PageStorageKey<String>("customer_houses"),
@@ -377,30 +542,87 @@ class _CustomerRootState extends State<CustomerRoot> {
         latitude: _latitude,
         longitude: _longitude,
       ),
-      CategoriesScreen(
-        key: const PageStorageKey<String>("customer_categories"),
-        repository: widget.repository,
-        refreshTick: _refreshTick,
-        regionId: _regionId,
-        districtId: _districtId,
-        wardId: _wardId,
-        areaId: _areaId,
-        latitude: _latitude,
-        longitude: _longitude,
-      ),
     ];
 
     return Scaffold(
-      body: SafeArea(
-        child: IndexedStack(
-          index: _index,
-          children: List<Widget>.generate(pages.length, (int pageIndex) {
-            if (_visitedIndexes.contains(pageIndex)) {
-              return pages[pageIndex];
-            }
-            return const SizedBox.shrink();
-          }),
-        ),
+      body: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final double maxLeft = math.max(
+            constraints.maxWidth - _helpBubbleWidth - 12,
+            12,
+          );
+          final double maxTop = math.max(
+            constraints.maxHeight - _helpBubbleHeight - 12,
+            12,
+          );
+          final double helpLeft = 12 + ((maxLeft - 12) * _helpBubbleX);
+          final double helpTop = 12 + ((maxTop - 12) * _helpBubbleY);
+          return Stack(
+            children: <Widget>[
+              SafeArea(
+                child: IndexedStack(
+                  index: _index,
+                  children: List<Widget>.generate(pages.length, (
+                    int pageIndex,
+                  ) {
+                    if (_visitedIndexes.contains(pageIndex)) {
+                      return pages[pageIndex];
+                    }
+                    return const SizedBox.shrink();
+                  }),
+                ),
+              ),
+              Positioned(
+                left: helpLeft.clamp(12, maxLeft),
+                top: helpTop.clamp(12, maxTop),
+                child: GestureDetector(
+                  onPanUpdate: (DragUpdateDetails details) {
+                    _updateHelpBubblePosition(details, constraints);
+                  },
+                  onPanEnd: (_) => unawaited(_saveHelpBubblePosition()),
+                  child: SizedBox(
+                    width: _helpBubbleWidth,
+                    height: _helpBubbleHeight,
+                    child: Material(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      elevation: 6,
+                      borderRadius: BorderRadius.circular(20),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: _openHelp,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          child: Row(
+                            children: <Widget>[
+                              const Icon(Icons.help_rounded),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  context.tr("help.bubble"),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Icon(
+                                Icons.drag_indicator_rounded,
+                                size: 18,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onPrimaryContainer,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
@@ -416,6 +638,10 @@ class _CustomerRootState extends State<CustomerRoot> {
             label: context.tr("nav.home"),
           ),
           NavigationDestination(
+            icon: const Icon(Icons.apartment_outlined),
+            label: context.tr("nav.apartments"),
+          ),
+          NavigationDestination(
             icon: const Icon(Icons.house_outlined),
             label: context.tr("nav.houses"),
           ),
@@ -427,10 +653,6 @@ class _CustomerRootState extends State<CustomerRoot> {
             icon: const Icon(Icons.search_outlined),
             label: context.tr("nav.search"),
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.category_outlined),
-            label: context.tr("nav.categories"),
-          ),
         ],
       ),
     );
@@ -438,9 +660,15 @@ class _CustomerRootState extends State<CustomerRoot> {
 }
 
 class _ErrorMessageCard extends StatelessWidget {
-  const _ErrorMessageCard({required this.message});
+  const _ErrorMessageCard({
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
 
   final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -456,14 +684,201 @@ class _ErrorMessageCard extends StatelessWidget {
               color: Theme.of(context).colorScheme.errorContainer,
               borderRadius: BorderRadius.circular(20),
             ),
-            child: SelectableText(
-              message,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onErrorContainer,
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                SelectableText(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onErrorContainer,
+                  ),
+                ),
+                if (actionLabel != null && onAction != null) ...<Widget>[
+                  const SizedBox(height: KodimaliSpacing.md),
+                  FilledButton.tonal(
+                    onPressed: onAction,
+                    child: Text(actionLabel!),
+                  ),
+                ],
+              ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HelpSupportScreen extends StatelessWidget {
+  const _HelpSupportScreen();
+
+  static const String _whatsAppOne = "255684684972";
+  static const String _whatsAppTwo = "255628621737";
+  static const String _callOne = "0684684972";
+  static const String _callTwo = "0628621737";
+  static final Uri _instagramUri = Uri.parse(
+    "https://www.instagram.com/kodimali1/",
+  );
+  static final Uri _facebookUri = Uri.parse(
+    "https://www.facebook.com/search/top/?q=Kodimali%20Tanzania",
+  );
+
+  Future<void> _openUri(
+    BuildContext context,
+    Uri uri, {
+    LaunchMode mode = LaunchMode.externalApplication,
+  }) async {
+    final bool launched = await launchUrl(uri, mode: mode);
+    if (!launched && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("We could not open that link right now.")),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(context.tr("help.title"))),
+      body: ListView(
+        padding: KodimaliSpacing.screenPadding,
+        children: <Widget>[
+          _HelpSectionCard(
+            title: context.tr("help.introTitle"),
+            body: context.tr("help.introBody"),
+            icon: Icons.info_outline_rounded,
+          ),
+          const SizedBox(height: KodimaliSpacing.md),
+          _HelpSectionCard(
+            title: context.tr("help.paymentTitle"),
+            body: context.tr("help.paymentBody"),
+            icon: Icons.payments_outlined,
+          ),
+          const SizedBox(height: KodimaliSpacing.md),
+          _HelpSectionCard(
+            title: context.tr("help.paymentHowTitle"),
+            body: context.tr("help.paymentHowBody"),
+            icon: Icons.phone_android_rounded,
+          ),
+          const SizedBox(height: KodimaliSpacing.md),
+          _HelpSectionCard(
+            title: context.tr("help.platformTitle"),
+            body: context.tr("help.platformBody"),
+            icon: Icons.devices_other_outlined,
+          ),
+          const SizedBox(height: KodimaliSpacing.md),
+          _HelpSectionCard(
+            title: context.tr("help.supportTitle"),
+            body: context.tr("help.supportBody"),
+            icon: Icons.support_agent_rounded,
+            child: Wrap(
+              spacing: KodimaliSpacing.sm,
+              runSpacing: KodimaliSpacing.sm,
+              children: <Widget>[
+                FilledButton.icon(
+                  onPressed: () => _openUri(
+                    context,
+                    Uri.parse("https://wa.me/$_whatsAppOne"),
+                  ),
+                  icon: const Icon(Icons.chat_bubble_outline_rounded),
+                  label: Text(context.tr("help.whatsappOne")),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _openUri(
+                    context,
+                    Uri.parse("tel:$_callOne"),
+                    mode: LaunchMode.platformDefault,
+                  ),
+                  icon: const Icon(Icons.call_outlined),
+                  label: Text(context.tr("help.callOne")),
+                ),
+                FilledButton.icon(
+                  onPressed: () => _openUri(
+                    context,
+                    Uri.parse("https://wa.me/$_whatsAppTwo"),
+                  ),
+                  icon: const Icon(Icons.chat_bubble_outline_rounded),
+                  label: Text(context.tr("help.whatsappTwo")),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _openUri(
+                    context,
+                    Uri.parse("tel:$_callTwo"),
+                    mode: LaunchMode.platformDefault,
+                  ),
+                  icon: const Icon(Icons.call_outlined),
+                  label: Text(context.tr("help.callTwo")),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: KodimaliSpacing.md),
+          _HelpSectionCard(
+            title: context.tr("help.socialTitle"),
+            body: context.tr("help.socialBody"),
+            icon: Icons.public_rounded,
+            child: Wrap(
+              spacing: KodimaliSpacing.sm,
+              runSpacing: KodimaliSpacing.sm,
+              children: <Widget>[
+                FilledButton.icon(
+                  onPressed: () => _openUri(context, _instagramUri),
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  label: Text(context.tr("help.instagram")),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _openUri(context, _facebookUri),
+                  icon: const Icon(Icons.facebook_rounded),
+                  label: Text(context.tr("help.facebook")),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HelpSectionCard extends StatelessWidget {
+  const _HelpSectionCard({
+    required this.title,
+    required this.body,
+    required this.icon,
+    this.child,
+  });
+
+  final String title;
+  final String body;
+  final IconData icon;
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(KodimaliSpacing.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Icon(icon, color: theme.colorScheme.primary),
+                const SizedBox(width: KodimaliSpacing.sm),
+                Expanded(
+                  child: Text(title, style: theme.textTheme.titleMedium),
+                ),
+              ],
+            ),
+            const SizedBox(height: KodimaliSpacing.sm),
+            Text(body, style: theme.textTheme.bodyMedium),
+            if (child != null) ...<Widget>[
+              const SizedBox(height: KodimaliSpacing.md),
+              child!,
+            ],
+          ],
         ),
       ),
     );
@@ -485,6 +900,9 @@ class PublicHomeScreen extends StatefulWidget {
     required this.onUseGps,
     required this.onChooseLocation,
     required this.onSkipBanner,
+    required this.categoryMenuItems,
+    required this.onOpenCategoriesOverview,
+    required this.onOpenCategory,
   });
 
   final CustomerPublicRepository repository;
@@ -499,6 +917,9 @@ class PublicHomeScreen extends StatefulWidget {
   final Future<void> Function() onUseGps;
   final Future<void> Function() onChooseLocation;
   final Future<void> Function() onSkipBanner;
+  final List<Map<String, dynamic>> categoryMenuItems;
+  final VoidCallback onOpenCategoriesOverview;
+  final void Function(Map<String, dynamic> category) onOpenCategory;
 
   @override
   State<PublicHomeScreen> createState() => _PublicHomeScreenState();
@@ -507,6 +928,7 @@ class PublicHomeScreen extends StatefulWidget {
 class _PublicHomeScreenState extends State<PublicHomeScreen> {
   _PublicHomeData? _data;
   bool _loading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -562,14 +984,25 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
   }
 
   Future<void> _refresh() async {
-    final _PublicHomeData data = await _load();
-    if (!mounted) {
-      return;
+    try {
+      final _PublicHomeData data = await _load();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _data = data;
+        _errorMessage = null;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = _readableErrorMessage(error);
+        _loading = false;
+      });
     }
-    setState(() {
-      _data = data;
-      _loading = false;
-    });
   }
 
   Future<_PublicHomeData> _load() async {
@@ -589,6 +1022,10 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
         surface: "customer_app",
         placement: "home_feed",
         limit: 6,
+        regionId: widget.regionId,
+        districtId: widget.districtId,
+        wardId: widget.wardId,
+        areaId: widget.areaId,
       ),
     ]);
     return _PublicHomeData(
@@ -626,6 +1063,13 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
     if (_loading && _data == null) {
       return const Center(child: CircularProgressIndicator());
     }
+    if (_data == null && _errorMessage != null) {
+      return _ErrorMessageCard(
+        message: _errorMessage!,
+        actionLabel: context.tr("location.retry"),
+        onAction: _refresh,
+      );
+    }
     final _PublicHomeData data =
         _data ??
         const _PublicHomeData(
@@ -633,6 +1077,10 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
           feed: <Map<String, dynamic>>[],
           promotions: <Map<String, dynamic>>[],
         );
+    final List<Map<String, dynamic>> apartments = _filterBySlugs(
+      data.feed,
+      <String>["apartment"],
+    );
     final List<Map<String, dynamic>> houses = _filterBySlugs(
       data.feed,
       <String>["house"],
@@ -644,6 +1092,10 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
     final List<Map<String, dynamic>> officesAndHalls = _filterBySlugs(
       data.feed,
       <String>["office", "meeting-hall", "ceremony-hall"],
+    );
+    final Map<String, dynamic>? apartmentCategory = _findCategoryBySlug(
+      data.categories,
+      "apartment",
     );
     final Map<String, dynamic>? houseCategory = _findCategoryBySlug(
       data.categories,
@@ -668,6 +1120,7 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
     final List<Map<String, dynamic>> otherListings = data.feed
         .where(
           (Map<String, dynamic> item) => !<String>[
+            "apartment",
             "house",
             "car",
             "motorcycle",
@@ -731,6 +1184,9 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
             onOpenSearch: openSearch,
             onChooseLocation: widget.onChooseLocation,
             onUseGps: widget.onUseGps,
+            categoryMenuItems: widget.categoryMenuItems,
+            onOpenCategoriesOverview: widget.onOpenCategoriesOverview,
+            onOpenCategory: widget.onOpenCategory,
           ),
         ),
         Expanded(
@@ -751,6 +1207,10 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
               ),
               children: <Widget>[
                 const CustomerAdPrivacyButton(),
+                if (_errorMessage != null) ...<Widget>[
+                  const SizedBox(height: KodimaliSpacing.md),
+                  _ErrorMessageCard(message: _errorMessage!),
+                ],
                 if (!widget.bannerHidden) ...<Widget>[
                   const SizedBox(height: KodimaliSpacing.md),
                   Card(
@@ -817,7 +1277,12 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                       ),
-                      if (houseCategory != null)
+                      if (apartmentCategory != null)
+                        TextButton(
+                          onPressed: () => openCategory(apartmentCategory),
+                          child: Text(context.tr("hero.browseApartments")),
+                        )
+                      else if (houseCategory != null)
                         TextButton(
                           onPressed: () => openCategory(houseCategory),
                           child: Text(context.tr("hero.browseHouses")),
@@ -849,6 +1314,11 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
                   ),
                 ],
                 const CustomerInlineBannerAdCard(),
+                _FeedSection(
+                  title: context.tr("feed.apartments"),
+                  listings: apartments,
+                  repository: widget.repository,
+                ),
                 _FeedSection(
                   title: context.tr("feed.houses"),
                   listings: houses,
@@ -969,6 +1439,10 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
       surface: "customer_app",
       placement: "category_page",
       limit: 6,
+      regionId: widget.regionId,
+      districtId: widget.districtId,
+      wardId: widget.wardId,
+      areaId: widget.areaId,
     );
   }
 
@@ -1037,7 +1511,7 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
         return;
       }
       setState(() {
-        _errorMessage = error.toString();
+        _errorMessage = _readableErrorMessage(error);
         _isLoading = false;
         _isSearching = false;
       });
@@ -1057,13 +1531,10 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
   }
 
   void _openListing(String listingId) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => ListingDetailScreen(
-          repository: widget.repository,
-          listingId: listingId,
-        ),
-      ),
+    _openListingDetails(
+      context,
+      repository: widget.repository,
+      listingId: listingId,
     );
   }
 
@@ -1401,6 +1872,7 @@ class _PopularCategoryFeedScreenState extends State<PopularCategoryFeedScreen> {
   List<Map<String, dynamic>> _listings = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _promotions = <Map<String, dynamic>>[];
   bool _loading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -1459,32 +1931,55 @@ class _PopularCategoryFeedScreenState extends State<PopularCategoryFeedScreen> {
   }
 
   Future<void> _refresh() async {
-    final List<dynamic> results = await Future.wait<dynamic>(<Future<dynamic>>[
-      _load(),
-      widget.repository.fetchPromotions(
-        surface: "customer_app",
-        placement: "category_page",
-        limit: 6,
-      ),
-    ]);
-    final List<Map<String, dynamic>> listings = (results[0] as List<dynamic>)
-        .cast<Map<String, dynamic>>();
-    final List<Map<String, dynamic>> promotions = (results[1] as List<dynamic>)
-        .cast<Map<String, dynamic>>();
-    if (!mounted) {
-      return;
+    try {
+      final List<dynamic> results =
+          await Future.wait<dynamic>(<Future<dynamic>>[
+            _load(),
+            widget.repository.fetchPromotions(
+              surface: "customer_app",
+              placement: "category_page",
+              limit: 6,
+              regionId: widget.regionId,
+              districtId: widget.districtId,
+              wardId: widget.wardId,
+              areaId: widget.areaId,
+            ),
+          ]);
+      final List<Map<String, dynamic>> listings = (results[0] as List<dynamic>)
+          .cast<Map<String, dynamic>>();
+      final List<Map<String, dynamic>> promotions =
+          (results[1] as List<dynamic>).cast<Map<String, dynamic>>();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _listings = listings;
+        _promotions = promotions;
+        _errorMessage = null;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = _readableErrorMessage(error);
+        _loading = false;
+      });
     }
-    setState(() {
-      _listings = listings;
-      _promotions = promotions;
-      _loading = false;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading && _listings.isEmpty) {
       return const Center(child: CircularProgressIndicator());
+    }
+    if (_listings.isEmpty && _errorMessage != null) {
+      return _ErrorMessageCard(
+        message: _errorMessage!,
+        actionLabel: context.tr("location.retry"),
+        onAction: _refresh,
+      );
     }
     final List<Map<String, dynamic>> listings = _listings;
     return RefreshIndicator(
@@ -1524,6 +2019,10 @@ class _PopularCategoryFeedScreenState extends State<PopularCategoryFeedScreen> {
               ),
             ),
           ),
+          if (_errorMessage != null) ...<Widget>[
+            const SizedBox(height: KodimaliSpacing.md),
+            _ErrorMessageCard(message: _errorMessage!),
+          ],
           if (listings.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: KodimaliSpacing.lg),
@@ -1577,6 +2076,7 @@ class CategoriesScreen extends StatefulWidget {
 class _CategoriesScreenState extends State<CategoriesScreen> {
   List<Map<String, dynamic>> _categories = <Map<String, dynamic>>[];
   bool _loading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -1598,21 +2098,39 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   }
 
   Future<void> _refresh() async {
-    final List<Map<String, dynamic>> categories = await widget.repository
-        .fetchCategories();
-    if (!mounted) {
-      return;
+    try {
+      final List<Map<String, dynamic>> categories = await widget.repository
+          .fetchCategories();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _categories = categories;
+        _errorMessage = null;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = _readableErrorMessage(error);
+        _loading = false;
+      });
     }
-    setState(() {
-      _categories = categories;
-      _loading = false;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading && _categories.isEmpty) {
       return const Center(child: CircularProgressIndicator());
+    }
+    if (_categories.isEmpty && _errorMessage != null) {
+      return _ErrorMessageCard(
+        message: _errorMessage!,
+        actionLabel: context.tr("location.retry"),
+        onAction: _refresh,
+      );
     }
     final List<Map<String, dynamic>> categories = _categories;
     return RefreshIndicator(
@@ -1635,6 +2153,10 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
               const _LanguageSwitcherButton(),
             ],
           ),
+          if (_errorMessage != null) ...<Widget>[
+            const SizedBox(height: KodimaliSpacing.md),
+            _ErrorMessageCard(message: _errorMessage!),
+          ],
           const SizedBox(height: KodimaliSpacing.md),
           ...List<Widget>.generate(categories.length, (int index) {
             final Map<String, dynamic> category = categories[index];
@@ -1723,6 +2245,10 @@ class CategoryListingsScreen extends StatelessWidget {
         surface: "customer_app",
         placement: "category_page",
         limit: 6,
+        regionId: regionId,
+        districtId: districtId,
+        wardId: wardId,
+        areaId: areaId,
       ),
     ]);
     return _CategoryListingsData(
@@ -2018,13 +2544,10 @@ class PublicListingCard extends StatelessWidget {
               color: Colors.transparent,
               child: InkWell(
                 onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => ListingDetailScreen(
-                        repository: repository,
-                        listingId: listing["listing_id"] as String,
-                      ),
-                    ),
+                  _openListingDetails(
+                    context,
+                    repository: repository,
+                    listingId: listing["listing_id"] as String,
                   );
                 },
                 child: AspectRatio(
@@ -2125,13 +2648,10 @@ class PublicListingCard extends StatelessWidget {
                     const SizedBox(width: KodimaliSpacing.sm),
                     FilledButton.icon(
                       onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => ListingDetailScreen(
-                              repository: repository,
-                              listingId: listing["listing_id"] as String,
-                            ),
-                          ),
+                        _openListingDetails(
+                          context,
+                          repository: repository,
+                          listingId: listing["listing_id"] as String,
                         );
                       },
                       icon: const Icon(Icons.arrow_forward_rounded),
@@ -2148,7 +2668,7 @@ class PublicListingCard extends StatelessWidget {
   }
 }
 
-class ListingDetailScreen extends StatelessWidget {
+class ListingDetailScreen extends StatefulWidget {
   const ListingDetailScreen({
     super.key,
     required this.repository,
@@ -2159,189 +2679,268 @@ class ListingDetailScreen extends StatelessWidget {
   final String listingId;
 
   @override
+  State<ListingDetailScreen> createState() => _ListingDetailScreenState();
+}
+
+class _ListingDetailScreenState extends State<ListingDetailScreen> {
+  Map<String, dynamic>? _listing;
+  String? _errorMessage;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _listing = widget.repository.savedListingDetail(widget.listingId);
+    _loading = _listing == null;
+    unawaited(_refreshListing());
+  }
+
+  Future<void> _refreshListing() async {
+    try {
+      final Map<String, dynamic> listing = await widget.repository
+          .fetchListingDetail(widget.listingId);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _listing = listing;
+        _errorMessage = null;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = _readableErrorMessage(error);
+        _loading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final Map<String, dynamic>? listing = _listing;
     return Scaffold(
       appBar: AppBar(
         title: Text(context.tr("listing.details")),
         actions: const <Widget>[_LanguageSwitcherButton()],
       ),
-      body: FutureBuilder<Map<String, dynamic>>(
-        future: repository.fetchListingDetail(listingId),
-        builder:
-            (
-              BuildContext context,
-              AsyncSnapshot<Map<String, dynamic>> snapshot,
-            ) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.hasError) {
-                return _ErrorMessageCard(message: snapshot.error.toString());
-              }
-              final Map<String, dynamic> listing =
-                  snapshot.data ?? <String, dynamic>{};
-              final Map<String, dynamic>? category =
-                  listing["asset_categories"] as Map<String, dynamic>?;
-              final List<Map<String, dynamic>> fieldSchema =
-                  (category?["field_schema"] as List<dynamic>? ?? <dynamic>[])
-                      .map(
-                        (dynamic item) => (item as Map).cast<String, dynamic>(),
-                      )
-                      .toList();
-              final Map<String, dynamic> attributes =
-                  listing["listing_attributes"] as Map<String, dynamic>? ??
-                  <String, dynamic>{};
-              final Map<String, dynamic> agentSummary =
-                  listing["agent_summary"] as Map<String, dynamic>? ??
-                  <String, dynamic>{};
-              final List<dynamic> media =
-                  listing["listing_media"] as List<dynamic>? ?? <dynamic>[];
-              final List<_ListingAttributeItem> detailItems =
-                  _buildListingAttributeItems(
-                    context: context,
-                    attributes: attributes,
-                    fieldSchema: fieldSchema,
-                  );
+      body: _loading && listing == null
+          ? const Center(child: CircularProgressIndicator())
+          : listing == null
+          ? _ErrorMessageCard(
+              message:
+                  _errorMessage ?? "We could not load this listing right now.",
+              actionLabel: context.tr("location.retry"),
+              onAction: _refreshListing,
+            )
+          : _buildListingView(context, listing),
+    );
+  }
 
-              return ListView(
-                padding: KodimaliSpacing.screenPadding,
+  Widget _buildListingView(BuildContext context, Map<String, dynamic> listing) {
+    final Map<String, dynamic>? category =
+        listing["asset_categories"] as Map<String, dynamic>?;
+    final List<Map<String, dynamic>> fieldSchema =
+        (category?["field_schema"] as List<dynamic>? ?? <dynamic>[])
+            .map((dynamic item) => (item as Map).cast<String, dynamic>())
+            .toList();
+    final Map<String, dynamic> attributes =
+        listing["listing_attributes"] as Map<String, dynamic>? ??
+        <String, dynamic>{};
+    final Map<String, dynamic> agentSummary =
+        listing["agent_summary"] as Map<String, dynamic>? ??
+        <String, dynamic>{};
+    final List<dynamic> media =
+        listing["listing_media"] as List<dynamic>? ?? <dynamic>[];
+    final List<_ListingAttributeItem> detailItems = _buildListingAttributeItems(
+      context: context,
+      attributes: attributes,
+      fieldSchema: fieldSchema,
+    );
+    final List<Map<String, String>> apartmentServices =
+        _apartmentServiceOptions(context, attributes);
+    final String? categorySlug = category?["slug"] as String?;
+
+    return RefreshIndicator(
+      onRefresh: _refreshListing,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: KodimaliSpacing.screenPadding,
+        children: <Widget>[
+          if (_errorMessage != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: KodimaliSpacing.md),
+              child: _ErrorMessageCard(
+                message: _errorMessage!,
+                actionLabel: context.tr("location.retry"),
+                onAction: _refreshListing,
+              ),
+            ),
+          _ListingMediaGallery(media: media),
+          if (media.isNotEmpty) const SizedBox(height: KodimaliSpacing.md),
+          KodimaliStatusBadge(
+            label: category?["name"] as String? ?? "-",
+            tone: KodimaliStatusTone.info,
+          ),
+          const SizedBox(height: KodimaliSpacing.sm),
+          Text(
+            listing["title"] as String? ?? "-",
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: KodimaliSpacing.xs),
+          Text(
+            listing["public_location_label"] as String? ?? "-",
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          const SizedBox(height: KodimaliSpacing.md),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(KodimaliSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  _ListingMediaGallery(media: media),
-                  if (media.isNotEmpty)
-                    const SizedBox(height: KodimaliSpacing.md),
-                  KodimaliStatusBadge(
-                    label: category?["name"] as String? ?? "-",
-                    tone: KodimaliStatusTone.info,
-                  ),
-                  const SizedBox(height: KodimaliSpacing.sm),
                   Text(
-                    listing["title"] as String? ?? "-",
-                    style: Theme.of(context).textTheme.headlineSmall,
+                    "TZS ${listing["price_amount"] ?? "-"} / ${listing["price_period"] ?? "-"}",
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: KodimaliSpacing.xs),
                   Text(
-                    listing["public_location_label"] as String? ?? "-",
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: KodimaliSpacing.md),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(KodimaliSpacing.md),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            "TZS ${listing["price_amount"] ?? "-"} / ${listing["price_period"] ?? "-"}",
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: KodimaliSpacing.xs),
-                          Text(
-                            listing["description"] as String? ?? "-",
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: KodimaliSpacing.md),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      style: KodimaliButtonStyles.success(context),
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => GuestRequestScreen(
-                              repository: repository,
-                              listingId: listingId,
-                            ),
-                          ),
-                        );
-                      },
-                      child: Text(context.tr("listing.request")),
-                    ),
-                  ),
-                  const SizedBox(height: KodimaliSpacing.md),
-                  _AgentSummaryCard(agentSummary: agentSummary),
-                  if ((category?["slug"] as String?) == "farms") ...<Widget>[
-                    const SizedBox(height: KodimaliSpacing.md),
-                    _FarmHighlights(
-                      categorySlug: category?["slug"] as String?,
-                      attributes: attributes,
-                    ),
-                  ],
-                  if (detailItems.isNotEmpty) ...<Widget>[
-                    const SizedBox(height: KodimaliSpacing.md),
-                    Text(
-                      context.tr("listing.additionalDetails"),
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: KodimaliSpacing.sm),
-                    ...detailItems.map(
-                      (_ListingAttributeItem item) => Padding(
-                        padding: const EdgeInsets.only(
-                          bottom: KodimaliSpacing.xs,
-                        ),
-                        child: Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(KodimaliSpacing.md),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Expanded(
-                                  child: Text(
-                                    item.label,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleSmall,
-                                  ),
-                                ),
-                                const SizedBox(width: KodimaliSpacing.sm),
-                                Expanded(
-                                  child: Text(
-                                    item.value,
-                                    textAlign: TextAlign.right,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodyMedium,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                  FutureBuilder<List<Map<String, dynamic>>>(
-                    future: repository.fetchPromotions(
-                      surface: "customer_app",
-                      placement: "listing_detail",
-                      limit: 1,
-                    ),
-                    builder:
-                        (
-                          BuildContext context,
-                          AsyncSnapshot<List<Map<String, dynamic>>>
-                          promotionSnapshot,
-                        ) {
-                          final List<Map<String, dynamic>> promotions =
-                              promotionSnapshot.data ??
-                              <Map<String, dynamic>>[];
-                          if (promotions.isEmpty) {
-                            return const SizedBox.shrink();
-                          }
-                          return Padding(
-                            padding: const EdgeInsets.only(
-                              top: KodimaliSpacing.md,
-                            ),
-                            child: _PromotionBlock(promotions: promotions),
-                          );
-                        },
+                    listing["description"] as String? ?? "-",
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ],
-              );
-            },
+              ),
+            ),
+          ),
+          const SizedBox(height: KodimaliSpacing.md),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              style: KodimaliButtonStyles.success(context),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => GuestRequestScreen(
+                      repository: widget.repository,
+                      listingId: widget.listingId,
+                      listingTitle: listing["title"] as String? ?? "",
+                      categorySlug: categorySlug,
+                      availableServices: apartmentServices,
+                    ),
+                  ),
+                );
+              },
+              child: Text(context.tr("listing.request")),
+            ),
+          ),
+          const SizedBox(height: KodimaliSpacing.md),
+          _AgentSummaryCard(
+            repository: widget.repository,
+            listingId: widget.listingId,
+            agentSummary: agentSummary,
+          ),
+          if ((category?["slug"] as String?) == "farms") ...<Widget>[
+            const SizedBox(height: KodimaliSpacing.md),
+            _FarmHighlights(
+              categorySlug: category?["slug"] as String?,
+              attributes: attributes,
+            ),
+          ],
+          if (categorySlug == "apartment" && apartmentServices.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: KodimaliSpacing.md),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(KodimaliSpacing.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        context.tr("apartment.servicesTitle"),
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: KodimaliSpacing.sm),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: apartmentServices
+                            .map(
+                              (Map<String, String> option) =>
+                                  Chip(label: Text(option["label"] ?? "-")),
+                            )
+                            .toList(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          if (detailItems.isNotEmpty) ...<Widget>[
+            const SizedBox(height: KodimaliSpacing.md),
+            Text(
+              context.tr("listing.additionalDetails"),
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: KodimaliSpacing.sm),
+            ...detailItems.map(
+              (_ListingAttributeItem item) => Padding(
+                padding: const EdgeInsets.only(bottom: KodimaliSpacing.xs),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(KodimaliSpacing.md),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            item.label,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                        ),
+                        const SizedBox(width: KodimaliSpacing.sm),
+                        Expanded(
+                          child: Text(
+                            item.value,
+                            textAlign: TextAlign.right,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+          FutureBuilder<List<Map<String, dynamic>>>(
+            future: widget.repository.fetchPromotions(
+              surface: "customer_app",
+              placement: "listing_detail",
+              limit: 1,
+              regionId: listing["region_id"] as String?,
+              districtId: listing["district_id"] as String?,
+              wardId: listing["ward_id"] as String?,
+              areaId: listing["area_id"] as String?,
+            ),
+            builder:
+                (
+                  BuildContext context,
+                  AsyncSnapshot<List<Map<String, dynamic>>> promotionSnapshot,
+                ) {
+                  final List<Map<String, dynamic>> promotions =
+                      promotionSnapshot.data ?? <Map<String, dynamic>>[];
+                  if (promotions.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(top: KodimaliSpacing.md),
+                    child: _PromotionBlock(promotions: promotions),
+                  );
+                },
+          ),
+        ],
       ),
     );
   }
@@ -2742,10 +3341,16 @@ class GuestRequestScreen extends StatefulWidget {
     super.key,
     required this.repository,
     required this.listingId,
+    required this.listingTitle,
+    required this.availableServices,
+    this.categorySlug,
   });
 
   final CustomerPublicRepository repository;
   final String listingId;
+  final String listingTitle;
+  final String? categorySlug;
+  final List<Map<String, String>> availableServices;
 
   @override
   State<GuestRequestScreen> createState() => _GuestRequestScreenState();
@@ -2754,26 +3359,99 @@ class GuestRequestScreen extends StatefulWidget {
 class _GuestRequestScreenState extends State<GuestRequestScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _guestCountController = TextEditingController();
+  final TextEditingController _messageController = TextEditingController();
+  final Set<String> _selectedServiceKeys = <String>{};
+  DateTime? _checkInDate;
+  DateTime? _checkOutDate;
   bool _submitting = false;
+
+  bool get _isApartment => widget.categorySlug == "apartment";
 
   @override
   void dispose() {
     _nameController.dispose();
+    _emailController.dispose();
     _phoneController.dispose();
+    _guestCountController.dispose();
+    _messageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDate({required bool checkIn}) async {
+    final DateTime now = DateTime.now();
+    final DateTime initialDate = checkIn
+        ? (_checkInDate ?? now)
+        : (_checkOutDate ?? _checkInDate?.add(const Duration(days: 1)) ?? now);
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: now.add(const Duration(days: 730)),
+    );
+    if (picked == null || !mounted) {
+      return;
+    }
+    setState(() {
+      if (checkIn) {
+        _checkInDate = DateTime.utc(picked.year, picked.month, picked.day);
+        if (_checkOutDate != null && !_checkOutDate!.isAfter(_checkInDate!)) {
+          _checkOutDate = null;
+        }
+      } else {
+        _checkOutDate = DateTime.utc(picked.year, picked.month, picked.day);
+      }
+    });
+  }
+
+  String _formatSelectedDate(DateTime? value) {
+    if (value == null) {
+      return "-";
+    }
+    return MaterialLocalizations.of(context).formatMediumDate(value.toLocal());
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    if (_isApartment &&
+        (_checkInDate == null ||
+            _checkOutDate == null ||
+            !_checkOutDate!.isAfter(_checkInDate!))) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.tr("request.dateError"))));
+      return;
+    }
     setState(() => _submitting = true);
     try {
+      if (_isApartment) {
+        final Map<String, dynamic> availability = await widget.repository
+            .checkListingAvailability(
+              listingId: widget.listingId,
+              requestedStartAt: _checkInDate,
+              requestedEndAt: _checkOutDate,
+            );
+        if (availability["available"] != true) {
+          throw StateError(
+            availability["reason"] as String? ??
+                "The apartment is not available for the selected dates.",
+          );
+        }
+      }
       final String reference = await widget.repository.submitGuestRequest(
         listingId: widget.listingId,
         customerName: _nameController.text.trim(),
+        customerEmail: _emailController.text.trim(),
         customerPhoneNumber: _phoneController.text.trim(),
+        requestedStartAt: _checkInDate,
+        requestedEndAt: _checkOutDate,
+        guestCount: int.tryParse(_guestCountController.text.trim()),
+        requestMessage: _messageController.text.trim(),
+        requestedServiceCodes: _selectedServiceKeys.toList(),
       );
       if (!mounted) {
         return;
@@ -2789,7 +3467,7 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      ).showSnackBar(SnackBar(content: Text(_readableErrorMessage(error))));
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
@@ -2799,9 +3477,14 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isApartment = _isApartment;
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr("request.form")),
+        title: Text(
+          isApartment
+              ? context.tr("apartment.bookingTitle")
+              : context.tr("request.form"),
+        ),
         actions: const <Widget>[_LanguageSwitcherButton()],
       ),
       body: ListView(
@@ -2819,9 +3502,18 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                   ),
                   const SizedBox(height: KodimaliSpacing.sm),
                   Text(
-                    "Tuma jina na namba ya simu tu. Wakala anayehusika atakufuata kwa simu au WhatsApp kuthibitisha upatikanaji.",
+                    isApartment
+                        ? context.tr("apartment.bookingBody")
+                        : "Leave your name plus phone or email. The agent will reply with availability and the next step.",
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
+                  if (widget.listingTitle.trim().isNotEmpty) ...<Widget>[
+                    const SizedBox(height: KodimaliSpacing.sm),
+                    Text(
+                      widget.listingTitle,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -2844,17 +3536,134 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                 ),
                 const SizedBox(height: KodimaliSpacing.md),
                 TextFormField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: isApartment
+                        ? context.tr("request.email")
+                        : "${context.tr("request.email")} (optional)",
+                    helperText: isApartment
+                        ? "Used for agent follow-up and booking updates."
+                        : "Optional for most categories, but useful for travelers and email follow-up.",
+                  ),
+                  validator: (String? value) {
+                    final String text = value?.trim() ?? "";
+                    if (isApartment && text.isEmpty) {
+                      return context.tr("request.emailError");
+                    }
+                    if (text.isNotEmpty &&
+                        !RegExp(r"^[^\s@]+@[^\s@]+\.[^\s@]+$").hasMatch(text)) {
+                      return context.tr("request.emailError");
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: KodimaliSpacing.md),
+                TextFormField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
                   decoration: InputDecoration(
-                    labelText: context.tr("request.phone"),
-                    helperText: "Tutaitumia kwa simu au WhatsApp tu.",
+                    labelText: context.tr("request.phoneOptional"),
+                    helperText: isApartment
+                        ? "Optional, but useful for WhatsApp or local follow-up."
+                        : "Optional. Add phone, email, or both so the agent can reach you.",
                   ),
-                  validator: (String? value) =>
-                      value == null || value.trim().length < 8
-                      ? context.tr("request.phoneError")
-                      : null,
+                  validator: (String? value) {
+                    final String text = value?.trim() ?? "";
+                    if (text.isNotEmpty && text.length < 8) {
+                      return context.tr("request.phoneError");
+                    }
+                    return null;
+                  },
                 ),
+                if (isApartment) ...<Widget>[
+                  const SizedBox(height: KodimaliSpacing.md),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _submitting
+                              ? null
+                              : () => _pickDate(checkIn: true),
+                          icon: const Icon(Icons.calendar_month_outlined),
+                          label: Text(
+                            "${context.tr('request.checkIn')}: ${_formatSelectedDate(_checkInDate)}",
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: KodimaliSpacing.sm),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _submitting
+                              ? null
+                              : () => _pickDate(checkIn: false),
+                          icon: const Icon(Icons.event_available_outlined),
+                          label: Text(
+                            "${context.tr('request.checkOut')}: ${_formatSelectedDate(_checkOutDate)}",
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: KodimaliSpacing.md),
+                  TextFormField(
+                    controller: _guestCountController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: context.tr("request.guestCount"),
+                    ),
+                  ),
+                  if (widget.availableServices.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: KodimaliSpacing.md),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        context.tr("request.services"),
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    const SizedBox(height: KodimaliSpacing.sm),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: widget.availableServices
+                          .map(
+                            (Map<String, String> option) => FilterChip(
+                              label: Text(option["label"] ?? "-"),
+                              selected: _selectedServiceKeys.contains(
+                                option["key"],
+                              ),
+                              onSelected: (bool value) {
+                                final String key = option["key"] ?? "";
+                                if (key.isEmpty) {
+                                  return;
+                                }
+                                setState(() {
+                                  if (value) {
+                                    _selectedServiceKeys.add(key);
+                                  } else {
+                                    _selectedServiceKeys.remove(key);
+                                  }
+                                });
+                              },
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ],
+                  const SizedBox(height: KodimaliSpacing.md),
+                  TextFormField(
+                    controller: _messageController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      labelText: context.tr("request.message"),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: KodimaliSpacing.lg),
                 SizedBox(
                   width: double.infinity,
@@ -2906,7 +3715,9 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                         ),
                         const SizedBox(height: KodimaliSpacing.xs),
                         Text(
-                          "Baada ya kutuma ombi, wakala atakuthibitishia bei, upatikanaji, na hatua ya kuona mali hiyo.",
+                          isApartment
+                              ? "Baada ya kutuma booking request, wakala atathibitisha tarehe, huduma, bei, na hatua inayofuata kwa email au simu."
+                              : "Baada ya kutuma ombi, wakala atakuthibitishia bei, upatikanaji, na hatua ya kuona mali hiyo.",
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ],
@@ -3084,7 +3895,7 @@ class _LocationSelectorSheetState extends State<LocationSelectorSheet> {
       }
       setState(() {
         _loading = false;
-        _errorMessage = error.toString();
+        _errorMessage = _readableErrorMessage(error);
       });
     }
   }
@@ -3119,22 +3930,33 @@ class _LocationSelectorSheetState extends State<LocationSelectorSheet> {
       _wardId = null;
       _areaId = null;
     });
-    final List<Map<String, dynamic>> districts = await widget.repository
-        .fetchLocations(parentId: regionId, locationType: "district");
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _districts = districts;
-      _districtId = _pickExistingId(districts, initialDistrictId);
-      _loadingChildren = false;
-    });
-    if (_districtId != null) {
-      await _loadWards(
-        _districtId!,
-        initialWardId: initialWardId,
-        initialAreaId: initialAreaId,
-      );
+    try {
+      final List<Map<String, dynamic>> districts = await widget.repository
+          .fetchLocations(parentId: regionId, locationType: "district");
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _districts = districts;
+        _districtId = _pickExistingId(districts, initialDistrictId);
+        _errorMessage = null;
+        _loadingChildren = false;
+      });
+      if (_districtId != null) {
+        await _loadWards(
+          _districtId!,
+          initialWardId: initialWardId,
+          initialAreaId: initialAreaId,
+        );
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loadingChildren = false;
+        _errorMessage = _readableErrorMessage(error);
+      });
     }
   }
 
@@ -3153,27 +3975,38 @@ class _LocationSelectorSheetState extends State<LocationSelectorSheet> {
       });
     }
 
-    final List<Map<String, dynamic>> wards = await widget.repository
-        .fetchLocations(parentId: districtId, locationType: "ward");
-    final String? nextWardId = _pickExistingId(wards, initialWardId);
-    List<Map<String, dynamic>> areas = <Map<String, dynamic>>[];
-    if (nextWardId != null) {
-      areas = await widget.repository.fetchLocations(
-        parentId: nextWardId,
-        locationType: "area",
-      );
-    }
+    try {
+      final List<Map<String, dynamic>> wards = await widget.repository
+          .fetchLocations(parentId: districtId, locationType: "ward");
+      final String? nextWardId = _pickExistingId(wards, initialWardId);
+      List<Map<String, dynamic>> areas = <Map<String, dynamic>>[];
+      if (nextWardId != null) {
+        areas = await widget.repository.fetchLocations(
+          parentId: nextWardId,
+          locationType: "area",
+        );
+      }
 
-    if (!mounted) {
-      return;
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _wards = wards;
+        _areas = areas;
+        _wardId = nextWardId;
+        _areaId = _pickExistingId(areas, initialAreaId);
+        _errorMessage = null;
+        _loadingChildren = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loadingChildren = false;
+        _errorMessage = _readableErrorMessage(error);
+      });
     }
-    setState(() {
-      _wards = wards;
-      _areas = areas;
-      _wardId = nextWardId;
-      _areaId = _pickExistingId(areas, initialAreaId);
-      _loadingChildren = false;
-    });
   }
 
   Future<void> _loadAreasForWard(String? wardId) async {
@@ -3189,15 +4022,26 @@ class _LocationSelectorSheetState extends State<LocationSelectorSheet> {
       });
       return;
     }
-    final List<Map<String, dynamic>> areas = await widget.repository
-        .fetchLocations(parentId: wardId, locationType: "area");
-    if (!mounted) {
-      return;
+    try {
+      final List<Map<String, dynamic>> areas = await widget.repository
+          .fetchLocations(parentId: wardId, locationType: "area");
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _areas = areas;
+        _errorMessage = null;
+        _loadingChildren = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loadingChildren = false;
+        _errorMessage = _readableErrorMessage(error);
+      });
     }
-    setState(() {
-      _areas = areas;
-      _loadingChildren = false;
-    });
   }
 
   @override
@@ -3539,11 +4383,17 @@ class _HomeHeroCard extends StatefulWidget {
     required this.onOpenSearch,
     required this.onChooseLocation,
     required this.onUseGps,
+    required this.categoryMenuItems,
+    required this.onOpenCategoriesOverview,
+    required this.onOpenCategory,
   });
 
   final void Function([String initialQuery]) onOpenSearch;
   final Future<void> Function() onChooseLocation;
   final Future<void> Function() onUseGps;
+  final List<Map<String, dynamic>> categoryMenuItems;
+  final VoidCallback onOpenCategoriesOverview;
+  final void Function(Map<String, dynamic> category) onOpenCategory;
 
   @override
   State<_HomeHeroCard> createState() => _HomeHeroCardState();
@@ -3592,6 +4442,27 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
     _searchFocusNode.unfocus();
   }
 
+  List<PopupMenuEntry<String>> _buildCategoryMenuItems(BuildContext context) {
+    final List<PopupMenuEntry<String>> items = <PopupMenuEntry<String>>[
+      PopupMenuItem<String>(
+        value: "__all__",
+        child: Text(context.tr("nav.categories")),
+      ),
+    ];
+    if (widget.categoryMenuItems.isNotEmpty) {
+      items.add(const PopupMenuDivider());
+      items.addAll(
+        widget.categoryMenuItems.map(
+          (Map<String, dynamic> category) => PopupMenuItem<String>(
+            value: "slug:${category["slug"]}",
+            child: Text(category["name"] as String? ?? "-"),
+          ),
+        ),
+      );
+    }
+    return items;
+  }
+
   @override
   Widget build(BuildContext context) {
     const Color heroBrownDark = Color(0xFF6B4328);
@@ -3613,19 +4484,78 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
       child: Column(
         children: <Widget>[
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(
-                "KODIMALI",
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    "KODIMALI",
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: KodimaliSpacing.xs),
+                  PopupMenuButton<String>(
+                    tooltip: context.tr("nav.categories"),
+                    onSelected: (String value) {
+                      if (value == "__all__") {
+                        widget.onOpenCategoriesOverview();
+                        return;
+                      }
+                      final String slug = value.replaceFirst("slug:", "");
+                      for (final Map<String, dynamic> category
+                          in widget.categoryMenuItems) {
+                        if (category["slug"] == slug) {
+                          widget.onOpenCategory(category);
+                          return;
+                        }
+                      }
+                    },
+                    itemBuilder: (BuildContext context) =>
+                        _buildCategoryMenuItems(context),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 9,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(
+                          KodimaliRadii.input,
+                        ),
+                        border: Border.all(color: Colors.white30),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          const Icon(
+                            Icons.menu_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          const SizedBox(width: KodimaliSpacing.xs),
+                          Text(
+                            context.tr("nav.categories"),
+                            style: Theme.of(context).textTheme.labelLarge
+                                ?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(width: KodimaliSpacing.sm),
               Expanded(
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
                   height: 40,
+                  margin: const EdgeInsets.only(top: 2),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(KodimaliRadii.input),
@@ -3694,7 +4624,10 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
                 ),
               ),
               const SizedBox(width: KodimaliSpacing.xs),
-              const _LanguageSwitcherButton(compact: false),
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: _LanguageSwitcherButton(compact: false),
+              ),
             ],
           ),
           const SizedBox(height: KodimaliSpacing.xs),
@@ -3989,13 +4922,63 @@ class _FullscreenImageScreen extends StatelessWidget {
   }
 }
 
-class _AgentSummaryCard extends StatelessWidget {
-  const _AgentSummaryCard({required this.agentSummary});
+class _AgentSummaryCard extends StatefulWidget {
+  const _AgentSummaryCard({
+    required this.repository,
+    required this.listingId,
+    required this.agentSummary,
+  });
 
+  final CustomerPublicRepository repository;
+  final String listingId;
   final Map<String, dynamic> agentSummary;
 
   @override
+  State<_AgentSummaryCard> createState() => _AgentSummaryCardState();
+}
+
+class _AgentSummaryCardState extends State<_AgentSummaryCard> {
+  String? _unlockedPhoneNumber;
+  String? _statusMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    final Map<String, dynamic>? saved = widget.repository.savedContactAccess(
+      widget.listingId,
+    );
+    _unlockedPhoneNumber =
+        saved?["phone_number"] as String? ??
+        (widget.agentSummary["phone_number"] as String?);
+    _statusMessage = saved?["message"] as String?;
+  }
+
+  Future<void> _openUnlockFlow(String displayName) async {
+    final String? unlockedPhone = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _ListingContactUnlockScreen(
+        repository: widget.repository,
+        listingId: widget.listingId,
+        agentDisplayName: displayName,
+      ),
+    );
+    if (!mounted) {
+      return;
+    }
+    final Map<String, dynamic>? saved = widget.repository.savedContactAccess(
+      widget.listingId,
+    );
+    setState(() {
+      _unlockedPhoneNumber = unlockedPhone ?? saved?["phone_number"] as String?;
+      _statusMessage = saved?["message"] as String?;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final Map<String, dynamic> agentSummary = widget.agentSummary;
     if (agentSummary.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -4010,6 +4993,8 @@ class _AgentSummaryCard extends StatelessWidget {
         (agentSummary["verification_status"] as String?) == "approved";
     final String? profilePhotoUrl =
         agentSummary["profile_photo_url"] as String?;
+    final String? visiblePhoneNumber =
+        _unlockedPhoneNumber ?? (agentSummary["phone_number"] as String?);
 
     return Card(
       child: Padding(
@@ -4066,22 +5051,44 @@ class _AgentSummaryCard extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Row(
-                        children: <Widget>[
-                          Icon(
-                            Icons.lock_outline_rounded,
-                            size: 18,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              context.tr("agent.phoneHidden"),
-                              style: theme.textTheme.bodyMedium,
+                      if (visiblePhoneNumber != null &&
+                          visiblePhoneNumber.trim().isNotEmpty)
+                        Row(
+                          children: <Widget>[
+                            Icon(
+                              Icons.phone_rounded,
+                              size: 18,
+                              color: theme.colorScheme.primary,
                             ),
-                          ),
-                        ],
-                      ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                visiblePhoneNumber,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                        Row(
+                          children: <Widget>[
+                            Icon(
+                              Icons.lock_outline_rounded,
+                              size: 18,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                context.tr("agent.phoneHidden"),
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),
@@ -4096,6 +5103,380 @@ class _AgentSummaryCard extends StatelessWidget {
                   ? KodimaliStatusTone.active
                   : KodimaliStatusTone.pending,
             ),
+            if (_statusMessage != null &&
+                _statusMessage!.trim().isNotEmpty) ...<Widget>[
+              const SizedBox(height: KodimaliSpacing.sm),
+              Text(
+                _statusMessage!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+            if (visiblePhoneNumber == null ||
+                visiblePhoneNumber.trim().isEmpty) ...<Widget>[
+              const SizedBox(height: KodimaliSpacing.sm),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => _openUnlockFlow(displayName),
+                  child: Text(context.tr("agent.unlockCta")),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ListingContactUnlockScreen extends StatefulWidget {
+  const _ListingContactUnlockScreen({
+    required this.repository,
+    required this.listingId,
+    required this.agentDisplayName,
+  });
+
+  final CustomerPublicRepository repository;
+  final String listingId;
+  final String agentDisplayName;
+
+  @override
+  State<_ListingContactUnlockScreen> createState() =>
+      _ListingContactUnlockScreenState();
+}
+
+class _ListingContactUnlockScreenState
+    extends State<_ListingContactUnlockScreen>
+    with WidgetsBindingObserver {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  Map<String, dynamic>? _session;
+  Timer? _statusTimer;
+  bool _submitting = false;
+  bool _checking = false;
+  String? _message;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _session = widget.repository.savedContactAccess(widget.listingId);
+    _message = _session?["message"] as String?;
+    _refreshPaymentMonitoring();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _statusTimer?.cancel();
+    _nameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        _shouldMonitorPayment(_session) &&
+        !_checking) {
+      unawaited(_checkPayment(silent: true));
+    }
+  }
+
+  bool _shouldMonitorPayment(Map<String, dynamic>? session) {
+    if (session == null) {
+      return false;
+    }
+    final String status = (session["status"] as String? ?? "").trim();
+    final String phoneNumber = (session["phone_number"] as String? ?? "")
+        .trim();
+    return phoneNumber.isEmpty &&
+        (status.isEmpty || status == "pending" || status == "processing");
+  }
+
+  void _refreshPaymentMonitoring() {
+    _statusTimer?.cancel();
+    if (!_shouldMonitorPayment(_session)) {
+      return;
+    }
+    _statusTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      if (!mounted || _checking) {
+        return;
+      }
+      unawaited(_checkPayment(silent: true));
+    });
+  }
+
+  void _handleUnlockedPhone(String phoneNumber) {
+    _statusTimer?.cancel();
+    Navigator.of(context).pop(phoneNumber);
+  }
+
+  Future<void> _startPayment() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _message = null;
+    });
+    try {
+      final Map<String, dynamic> session = await widget.repository
+          .createListingContactPayment(
+            listingId: widget.listingId,
+            customerName: _nameController.text.trim(),
+            customerPhoneNumber: _phoneController.text.trim(),
+          );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _session = session;
+        _message =
+            session["message"] as String? ?? context.tr("agent.paymentStarted");
+      });
+      _refreshPaymentMonitoring();
+      final String phoneNumber = session["phone_number"] as String? ?? "";
+      if (phoneNumber.isNotEmpty) {
+        _handleUnlockedPhone(phoneNumber);
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _message = _readableErrorMessage(error));
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
+  }
+
+  Future<void> _checkPayment({bool silent = false}) async {
+    if (_session == null || _checking) {
+      return;
+    }
+    setState(() {
+      _checking = true;
+      if (!silent) {
+        _message = null;
+      }
+    });
+    try {
+      final Map<String, dynamic> result = await widget.repository
+          .checkListingContactPayment(widget.listingId);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _session = result;
+        _message = result["message"] as String?;
+      });
+      _refreshPaymentMonitoring();
+      final String phoneNumber = result["phone_number"] as String? ?? "";
+      if (phoneNumber.isNotEmpty) {
+        _handleUnlockedPhone(phoneNumber);
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      if (!silent) {
+        setState(() => _message = _readableErrorMessage(error));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _checking = false);
+      }
+    }
+  }
+
+  Future<void> _startAgain() async {
+    await widget.repository.clearSavedContactAccess(widget.listingId);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _session = null;
+      _message = null;
+    });
+    _refreshPaymentMonitoring();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Map<String, dynamic>? session = _session;
+    final String paymentMethod = session?["payment_method"] as String? ?? "";
+    final String paymentPhone =
+        session?["customer_phone_number"] as String? ?? "";
+
+    return FractionallySizedBox(
+      heightFactor: 0.92,
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        child: ListView(
+          padding: KodimaliSpacing.screenPadding,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    context.tr("agent.unlockTitle"),
+                    style: theme.textTheme.titleLarge,
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            const SizedBox(height: KodimaliSpacing.sm),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(KodimaliSpacing.md),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      widget.agentDisplayName,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: KodimaliSpacing.xs),
+                    Text(
+                      context.tr("agent.unlockBody"),
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: KodimaliSpacing.md),
+            if (session == null)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(KodimaliSpacing.md),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: <Widget>[
+                        TextFormField(
+                          controller: _nameController,
+                          decoration: InputDecoration(
+                            labelText: context.tr("agent.paymentName"),
+                          ),
+                          validator: (String? value) =>
+                              value == null || value.trim().length < 2
+                              ? context.tr("request.nameError")
+                              : null,
+                        ),
+                        const SizedBox(height: KodimaliSpacing.md),
+                        TextFormField(
+                          controller: _phoneController,
+                          keyboardType: TextInputType.phone,
+                          decoration: InputDecoration(
+                            labelText: context.tr("agent.paymentPhone"),
+                          ),
+                          validator: (String? value) =>
+                              value == null || value.trim().length < 8
+                              ? context.tr("request.phoneError")
+                              : null,
+                        ),
+                        const SizedBox(height: KodimaliSpacing.lg),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed: _submitting ? null : _startPayment,
+                            child: Text(
+                              _submitting
+                                  ? context.tr("request.submitting")
+                                  : context.tr("agent.paymentContinue"),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            else
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(KodimaliSpacing.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        context.tr(
+                          "agent.paymentAmount",
+                          values: <String, String>{
+                            "amount": "${session["amount"] ?? "-"}",
+                            "currency": session["currency"] as String? ?? "TZS",
+                          },
+                        ),
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: KodimaliSpacing.sm),
+                      Text(
+                        _message ?? context.tr("agent.paymentStarted"),
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      if (paymentMethod.trim().isNotEmpty) ...<Widget>[
+                        const SizedBox(height: KodimaliSpacing.sm),
+                        Text(
+                          context.tr(
+                            "agent.paymentMethod",
+                            values: <String, String>{"method": paymentMethod},
+                          ),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                      if (paymentPhone.trim().isNotEmpty) ...<Widget>[
+                        const SizedBox(height: KodimaliSpacing.sm),
+                        Text(
+                          context.tr(
+                            "agent.paymentPromptTo",
+                            values: <String, String>{"phone": paymentPhone},
+                          ),
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
+                      const SizedBox(height: KodimaliSpacing.lg),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: _checking ? null : _checkPayment,
+                          child: Text(
+                            _checking
+                                ? context.tr("request.submitting")
+                                : context.tr("agent.paymentCheck"),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: KodimaliSpacing.xs),
+                      TextButton(
+                        onPressed: _startAgain,
+                        child: const Text("Start a new payment"),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (_message != null && _message!.trim().isNotEmpty) ...<Widget>[
+              const SizedBox(height: KodimaliSpacing.md),
+              Text(
+                _message!,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -4301,6 +5682,8 @@ String _humanizeAttributeKey(String key) {
 
 IconData _categoryIconForSlug(String slug) {
   switch (slug) {
+    case "apartment":
+      return Icons.apartment_rounded;
     case "house":
       return Icons.house_rounded;
     case "car":
@@ -4319,6 +5702,55 @@ IconData _categoryIconForSlug(String slug) {
     default:
       return Icons.category_rounded;
   }
+}
+
+List<Map<String, String>> _apartmentServiceOptions(
+  BuildContext context,
+  Map<String, dynamic> attributes,
+) {
+  final List<(Map<String, String>, bool)> options =
+      <(Map<String, String>, bool)>[
+        (
+          <String, String>{
+            "key": "wifi_available",
+            "label": context.tr("apartment.service.wifi"),
+          },
+          attributes["wifi_available"] == true,
+        ),
+        (
+          <String, String>{
+            "key": "food_available",
+            "label": context.tr("apartment.service.food"),
+          },
+          attributes["food_available"] == true,
+        ),
+        (
+          <String, String>{
+            "key": "transport_available",
+            "label": context.tr("apartment.service.transport"),
+          },
+          attributes["transport_available"] == true,
+        ),
+        (
+          <String, String>{
+            "key": "cleaning_available",
+            "label": context.tr("apartment.service.cleaning"),
+          },
+          attributes["cleaning_available"] == true,
+        ),
+        (
+          <String, String>{
+            "key": "laundry_available",
+            "label": context.tr("apartment.service.laundry"),
+          },
+          attributes["laundry_available"] == true,
+        ),
+      ];
+
+  return options
+      .where(((Map<String, String>, bool) item) => item.$2)
+      .map(((Map<String, String>, bool) item) => item.$1)
+      .toList();
 }
 
 class _FarmHighlights extends StatelessWidget {
@@ -4380,20 +5812,33 @@ class _HighlightTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme colorScheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.black12),
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(label, style: Theme.of(context).textTheme.labelLarge),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(value, style: Theme.of(context).textTheme.bodyLarge),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );

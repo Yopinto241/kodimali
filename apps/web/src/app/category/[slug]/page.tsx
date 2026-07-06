@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { BackNavButton } from "@/components/back-nav-button";
 import { GoogleAdSlot } from "@/components/google-ad-slot";
 import { PageHero } from "@/components/page-hero";
 import { PageShell } from "@/components/page-shell";
@@ -11,7 +12,35 @@ import {
   fetchPublicListings,
 } from "@/lib/supabase-public";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 120;
+
+const pageSize = 20;
+
+function buildPageHref(
+  slug: string,
+  params: Record<string, string | string[] | undefined>,
+  nextPage: number,
+) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        query.append(key, item);
+      }
+      continue;
+    }
+    if (value) {
+      query.set(key, value);
+    }
+  }
+  if (nextPage <= 1) {
+    query.delete("page");
+  } else {
+    query.set("page", String(nextPage));
+  }
+  const serialized = query.toString();
+  return serialized ? `/category/${slug}?${serialized}` : `/category/${slug}`;
+}
 
 export default async function CategoryPage({
   params,
@@ -24,6 +53,10 @@ export default async function CategoryPage({
   const adsenseCategorySlot = process.env.ADSENSE_SLOT_CATEGORY ?? "";
   const { slug } = await params;
   const query = await searchParams;
+  const currentPage = Math.max(
+    1,
+    typeof query.page === "string" ? Number.parseInt(query.page, 10) || 1 : 1,
+  );
   const regionId = typeof query.regionId === "string" ? query.regionId : undefined;
   const districtId =
     typeof query.districtId === "string" ? query.districtId : undefined;
@@ -35,7 +68,8 @@ export default async function CategoryPage({
     fetchCategories(),
     fetchPublicListings({
       categorySlug: slug,
-      limit: 30,
+      limit: pageSize,
+      page: currentPage - 1,
       regionId,
       districtId,
       wardId,
@@ -58,9 +92,12 @@ export default async function CategoryPage({
           "Angalia listings zilizo kwenye kundi hili na fungua detail ya inayokufaa."
         }
         actions={
-          <Link href="/listings" className="btn btn-outline">
-            Rudi kwenye listings zote
-          </Link>
+          <>
+            <BackNavButton fallbackHref="/listings" label="Back" />
+            <Link href="/listings" className="btn btn-outline">
+              Rudi kwenye listings zote
+            </Link>
+          </>
         }
       />
 
@@ -71,6 +108,23 @@ export default async function CategoryPage({
         clientId={adsenseClientId}
         slotId={adsenseCategorySlot}
       />
+      <section className="mt-8 flex flex-wrap items-center justify-between gap-3">
+        <p className="section-copy text-sm">
+          Page {currentPage} ya category hii imepunguzwa kwa batch ndogo ili ifunguke kwa haraka.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          {currentPage > 1 ? (
+            <Link href={buildPageHref(slug, query, currentPage - 1)} className="btn btn-outline">
+              Page iliyopita
+            </Link>
+          ) : null}
+          {listings.length === pageSize ? (
+            <Link href={buildPageHref(slug, query, currentPage + 1)} className="btn btn-primary">
+              Page inayofuata
+            </Link>
+          ) : null}
+        </div>
+      </section>
       <GoogleAdSlot
         slot="category"
         clientId={adsenseClientId}

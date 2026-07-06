@@ -102,5 +102,5 @@ const List<MediaLimitRule> mediaLimits = <MediaLimitRule>[
   MediaLimitRule(label: 'Maximum images', value: '8'),
   MediaLimitRule(label: 'Maximum video files', value: '1'),
   MediaLimitRule(label: 'Maximum video length', value: '30 seconds'),
-  MediaLimitRule(label: 'Maximum video size', value: '25 MB'),
+  MediaLimitRule(label: 'Maximum video size', value: '30 MB'),
 ];

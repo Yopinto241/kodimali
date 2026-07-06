@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_design_system/flutter_design_system.dart';
 import 'package:go_router/go_router.dart';
@@ -22,19 +24,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
       TextEditingController();
   final TextEditingController _nidaController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
   final TextEditingController _businessNameController = TextEditingController();
   final TextEditingController _businessDescriptionController =
       TextEditingController();
 
   bool _submitting = false;
   bool _initialized = false;
-  late Future<List<Map<String, dynamic>>> _future;
+  bool _loadingOptions = true;
+  String? _optionsError;
+  List<Map<String, dynamic>> _categories = <Map<String, dynamic>>[];
   AgentLocationSelection _locationSelection = const AgentLocationSelection();
   String? _selectedCategoryId;
   bool _checkingUsername = false;
   bool? _usernameAvailable;
   String? _usernameStatusText;
   int _usernameLookupToken = 0;
+  Timer? _usernameDebounce;
 
   @override
   void didChangeDependencies() {
@@ -43,27 +50,50 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
     _initialized = true;
-    _future = _loadOptions();
+    unawaited(_loadOptions());
   }
 
-  Future<List<Map<String, dynamic>>> _loadOptions() async {
+  Future<void> _loadOptions() async {
     final repository = AppScope.of(context).repository;
-    final List<Map<String, dynamic>> categories = await repository
-        .fetchCategoriesForAgentAssignment();
-    if (categories.isNotEmpty) {
-      _selectedCategoryId = categories.first["id"] as String?;
+    setState(() {
+      _loadingOptions = true;
+      _optionsError = null;
+    });
+    try {
+      final List<Map<String, dynamic>> categories =
+          await repository.fetchCategoriesForAgentAssignment();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _categories = categories;
+        _selectedCategoryId ??= categories.isNotEmpty
+            ? categories.first["id"] as String?
+            : null;
+        _loadingOptions = false;
+        _optionsError = null;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loadingOptions = false;
+        _optionsError = userFacingError(error);
+      });
     }
-    return categories;
   }
 
   @override
   void dispose() {
+    _usernameDebounce?.cancel();
     _fullNameController.dispose();
     _usernameController.dispose();
     _phoneController.dispose();
     _activationEmailController.dispose();
     _nidaController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     _businessNameController.dispose();
     _businessDescriptionController.dispose();
     super.dispose();
@@ -90,12 +120,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
+    _usernameDebounce?.cancel();
     setState(() {
       _checkingUsername = true;
       _usernameAvailable = null;
       _usernameStatusText = "Checking username...";
     });
-    _checkUsernameAvailability(normalized, lookupToken);
+    _usernameDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted || lookupToken != _usernameLookupToken) {
+        return;
+      }
+      unawaited(_checkUsernameAvailability(normalized, lookupToken));
+    });
   }
 
   Future<void> _checkUsernameAvailability(
@@ -153,6 +189,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final String normalizedUsername = _usernameController.text
         .trim()
         .toLowerCase();
+    if (_passwordController.text != _confirmPasswordController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Passwords do not match yet.")),
+      );
+      return;
+    }
     if (_usernameAvailable == false) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Choose another username first.")),
@@ -207,31 +249,133 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  String _selectedCategoryLabel() {
+    for (final Map<String, dynamic> category in _categories) {
+      if (category["id"] == _selectedCategoryId) {
+        return category["name"] as String? ?? "-";
+      }
+    }
+    return "Choose base category";
+  }
+
+  bool _matchesSearch(String label, String query) {
+    final String normalizedQuery = query.trim().toLowerCase();
+    if (normalizedQuery.isEmpty) {
+      return true;
+    }
+    return label.toLowerCase().contains(normalizedQuery);
+  }
+
+  Future<String?> _pickCategory() async {
+    final TextEditingController searchController = TextEditingController();
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setSheetState) {
+            final String query = searchController.text;
+            final List<Map<String, dynamic>> filteredCategories = _categories
+                .where((Map<String, dynamic> category) {
+                  final String label = category["name"] as String? ?? "";
+                  return _matchesSearch(label, query);
+                })
+                .toList(growable: false);
+            return FractionallySizedBox(
+              heightFactor: 0.92,
+              child: Column(
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            "Choose base category",
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                    child: TextField(
+                      controller: searchController,
+                      onChanged: (_) => setSheetState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: "Search category",
+                        prefixIcon: Icon(Icons.search_rounded),
+                      ),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: filteredCategories.isEmpty
+                        ? const Center(
+                            child: Text("No category matches your search."),
+                          )
+                        : ListView(
+                            children: filteredCategories.map((
+                              Map<String, dynamic> category,
+                            ) {
+                              final String value =
+                                  category["id"] as String? ?? "";
+                              final String label =
+                                  category["name"] as String? ?? "-";
+                              return ListTile(
+                                title: Text(label),
+                                trailing: _selectedCategoryId == value
+                                    ? const Icon(Icons.check_rounded)
+                                    : null,
+                                onTap: () =>
+                                    Navigator.of(context).pop(value),
+                              );
+                            }).toList(),
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    ).whenComplete(searchController.dispose);
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     return Scaffold(
       body: SafeArea(
-        child: FutureBuilder<List<Map<String, dynamic>>>(
-          future: _future,
-          builder: (BuildContext context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(
-                child: Text(userFacingError(snapshot.error ?? "Unknown error")),
-              );
-            }
-            final List<Map<String, dynamic>> categories =
-                snapshot.data ?? <Map<String, dynamic>>[];
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
             return Center(
               child: SingleChildScrollView(
-                padding: KodimaliSpacing.screenPadding,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: EdgeInsets.fromLTRB(
+                  KodimaliSpacing.screenPadding.left,
+                  KodimaliSpacing.screenPadding.top,
+                  KodimaliSpacing.screenPadding.right,
+                  KodimaliSpacing.screenPadding.bottom +
+                      MediaQuery.of(context).viewInsets.bottom,
+                ),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
+                  constraints: BoxConstraints(
+                    maxWidth: 520,
+                    minHeight:
+                        constraints.maxHeight -
+                        KodimaliSpacing.screenPadding.vertical,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: <Widget>[
                       Container(
                         width: double.infinity,
@@ -278,6 +422,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                       ),
                       const SizedBox(height: KodimaliSpacing.md),
+                      if (_optionsError != null) ...<Widget>[
+                        Card(
+                          color: theme.colorScheme.errorContainer,
+                          child: Padding(
+                            padding: const EdgeInsets.all(KodimaliSpacing.md),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                const Icon(Icons.error_outline),
+                                const SizedBox(width: KodimaliSpacing.sm),
+                                Expanded(
+                                  child: Text(
+                                    _optionsError!,
+                                    style: theme.textTheme.bodyMedium,
+                                  ),
+                                ),
+                                const SizedBox(width: KodimaliSpacing.sm),
+                                TextButton(
+                                  onPressed: _loadOptions,
+                                  child: const Text("Retry"),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: KodimaliSpacing.md),
+                      ],
                       Card(
                         child: Padding(
                           padding: const EdgeInsets.all(KodimaliSpacing.lg),
@@ -286,6 +457,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
+                                if (_loadingOptions) ...<Widget>[
+                                  const LinearProgressIndicator(),
+                                  const SizedBox(height: KodimaliSpacing.sm),
+                                  Text(
+                                    "Loading registration options...",
+                                    style: theme.textTheme.bodySmall,
+                                  ),
+                                  const SizedBox(height: KodimaliSpacing.md),
+                                ],
                                 TextFormField(
                                   controller: _fullNameController,
                                   decoration: const InputDecoration(
@@ -368,11 +548,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   controller: _phoneController,
                                   keyboardType: TextInputType.phone,
                                   decoration: const InputDecoration(
-                                    labelText: "Mobile number",
+                                    labelText: "Mobile number (optional)",
                                   ),
                                   validator: (String? value) {
-                                    if (value == null ||
-                                        value.trim().length < 8) {
+                                    final String normalized =
+                                        value?.trim() ?? "";
+                                    if (normalized.isNotEmpty &&
+                                        normalized.length < 8) {
                                       return "Enter a valid phone number.";
                                     }
                                     return null;
@@ -432,6 +614,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                                 const SizedBox(height: KodimaliSpacing.md),
                                 TextFormField(
+                                  controller: _confirmPasswordController,
+                                  obscureText: true,
+                                  decoration: const InputDecoration(
+                                    labelText: "Re-enter password",
+                                    helperText:
+                                        "Type the same password again to confirm it.",
+                                  ),
+                                  validator: (String? value) {
+                                    if (value == null || value.isEmpty) {
+                                      return "Re-enter the password.";
+                                    }
+                                    if (value != _passwordController.text) {
+                                      return "Passwords do not match.";
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: KodimaliSpacing.md),
+                                TextFormField(
                                   controller: _businessNameController,
                                   decoration: const InputDecoration(
                                     labelText: "Business name",
@@ -444,24 +645,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   },
                                 ),
                                 const SizedBox(height: KodimaliSpacing.md),
-                                DropdownButtonFormField<String>(
-                                  initialValue: _selectedCategoryId,
-                                  decoration: const InputDecoration(
-                                    labelText: "Base category",
+                                InkWell(
+                                  onTap: _categories.isEmpty
+                                      ? null
+                                      : () async {
+                                          final String? value =
+                                              await _pickCategory();
+                                          if (!mounted || value == null) {
+                                            return;
+                                          }
+                                          setState(
+                                            () => _selectedCategoryId = value,
+                                          );
+                                        },
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: InputDecorator(
+                                    decoration: const InputDecoration(
+                                      labelText: "Base category",
+                                    ),
+                                    child: Row(
+                                      children: <Widget>[
+                                        Expanded(
+                                          child: Text(_selectedCategoryLabel()),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        const Icon(
+                                          Icons.keyboard_arrow_down_rounded,
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  items: categories.map((
-                                    Map<String, dynamic> category,
-                                  ) {
-                                    return DropdownMenuItem<String>(
-                                      value: category["id"] as String,
-                                      child: Text(
-                                        category["name"] as String? ?? "-",
-                                      ),
-                                    );
-                                  }).toList(),
-                                  onChanged: (String? value) {
-                                    setState(() => _selectedCategoryId = value);
-                                  },
                                 ),
                                 const SizedBox(height: KodimaliSpacing.md),
                                 TextFormField(
@@ -481,7 +694,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 SizedBox(
                                   width: double.infinity,
                                   child: FilledButton(
-                                    onPressed: _submitting ? null : _submit,
+                                    onPressed:
+                                        _submitting ||
+                                            _loadingOptions ||
+                                            _categories.isEmpty
+                                        ? null
+                                        : _submit,
                                     child: Text(
                                       _submitting
                                           ? "Inahifadhi..."

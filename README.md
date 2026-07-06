@@ -88,7 +88,7 @@ The first launch stays intentionally focused:
 
 - Geography: Arusha first
 - Categories: houses, cars, motorcycles, offices, meeting halls, ceremony halls
-- Media limits: up to 8 images, up to 1 video, 30 seconds, 25 MB max
+- Media limits: up to 8 images, up to 1 video, 30 seconds, 30 MB max
 - No payments yet
 - No SMS yet
 - No in-app messaging yet
@@ -109,4 +109,3 @@ The first launch stays intentionally focused:
 3. Implement listing posting with category-specific forms and location pickers.
 4. Add scheduled handling for `agent_delayed` and `no_response` workflows.
 5. Wire Firebase Cloud Messaging for live operational alerts.
-

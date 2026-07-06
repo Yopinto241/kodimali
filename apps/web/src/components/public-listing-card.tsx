@@ -1,6 +1,5 @@
-/* eslint-disable @next/next/no-img-element */
-
 import Link from "next/link";
+import { DirectMediaImage } from "@/components/direct-media-image";
 import { StatusPill } from "@/components/status-pill";
 
 type Listing = {
@@ -39,9 +38,10 @@ export function PublicListingCard({ listing }: { listing: Listing }) {
       </div>
       <div className="relative overflow-hidden rounded-[16px] border border-brand-border bg-brand-card-soft">
         {listing.cover_url ? (
-          <img
+          <DirectMediaImage
             src={listing.cover_url}
             alt={listing.title}
+            sizes="(min-width: 768px) 50vw, 100vw"
             className="aspect-[4/3] w-full object-cover"
           />
         ) : (

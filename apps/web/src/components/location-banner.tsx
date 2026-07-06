@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 
 import { StatusPill } from "@/components/status-pill";
 
@@ -13,6 +14,8 @@ export function LocationBanner({
   visibleByDefault: boolean;
   regions: LocationOption[];
 }) {
+  const router = useRouter();
+  const [isNavigating, startTransition] = useTransition();
   const [visible, setVisible] = useState(() => {
     if (typeof window === "undefined") {
       return visibleByDefault;
@@ -38,6 +41,13 @@ export function LocationBanner({
     return new URL(window.location.href);
   }
 
+  function navigateTo(baseUrl: URL) {
+    const target = `${baseUrl.pathname}${baseUrl.search}${baseUrl.hash}`;
+    startTransition(() => {
+      router.push(target);
+    });
+  }
+
   async function useGps() {
     if (!navigator.geolocation) {
       return;
@@ -60,7 +70,7 @@ export function LocationBanner({
       baseUrl.searchParams.delete("areaId");
       baseUrl.searchParams.set("lat", String(position.coords.latitude));
       baseUrl.searchParams.set("lng", String(position.coords.longitude));
-      window.location.href = baseUrl.toString();
+      navigateTo(baseUrl);
     });
   }
 
@@ -151,7 +161,7 @@ export function LocationBanner({
     }
     baseUrl.searchParams.delete("lat");
     baseUrl.searchParams.delete("lng");
-    window.location.href = baseUrl.toString();
+    navigateTo(baseUrl);
   }
 
   if (!visible) {
@@ -176,17 +186,28 @@ export function LocationBanner({
         </div>
       </div>
       <div className="mt-5 flex flex-wrap gap-3">
-        <button type="button" onClick={useGps} className="btn btn-primary">
+        <button
+          type="button"
+          onClick={useGps}
+          disabled={isNavigating}
+          className="btn btn-primary"
+        >
           Tumia eneo langu
         </button>
         <button
           type="button"
           onClick={() => setManualOpen((value) => !value)}
+          disabled={isNavigating}
           className="btn btn-outline"
         >
           Chagua eneo
         </button>
-        <button type="button" onClick={skipBanner} className="btn btn-ghost">
+        <button
+          type="button"
+          onClick={skipBanner}
+          disabled={isNavigating}
+          className="btn btn-ghost"
+        >
           Ruka
         </button>
       </div>
@@ -278,10 +299,10 @@ export function LocationBanner({
             <button
               type="button"
               onClick={applyManualLocation}
-              disabled={!regionId || !districtId}
+              disabled={!regionId || !districtId || isNavigating}
               className="btn btn-success"
             >
-              Tumia eneo hili
+              {isNavigating ? "Inafungua..." : "Tumia eneo hili"}
             </button>
           </div>
         </div>

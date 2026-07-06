@@ -1,15 +1,16 @@
-/* eslint-disable @next/next/no-img-element */
-
 import Link from "next/link";
 
+import { AgentContactCard } from "@/components/agent-contact-card";
+import { BackNavButton } from "@/components/back-nav-button";
 import { GuestRequestForm } from "@/components/guest-request-form";
 import { GoogleAdSlot } from "@/components/google-ad-slot";
+import { ListingMediaGallery } from "@/components/listing-media-gallery";
 import { PageShell } from "@/components/page-shell";
 import { PromotionStrip } from "@/components/promotion-strip";
 import { StatusPill } from "@/components/status-pill";
 import { fetchListingDetail, fetchPromotions } from "@/lib/supabase-public";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 120;
 
 function displayValue(value: unknown) {
   if (Array.isArray(value)) {
@@ -49,6 +50,33 @@ function farmHighlights(attributes: Record<string, unknown>) {
   ];
 }
 
+function apartmentServices(attributes: Record<string, unknown>) {
+  const options = [
+    {
+      key: "wifi_available",
+      label: "WiFi",
+    },
+    {
+      key: "food_available",
+      label: "Food",
+    },
+    {
+      key: "transport_available",
+      label: "Transport",
+    },
+    {
+      key: "cleaning_available",
+      label: "Cleaning",
+    },
+    {
+      key: "laundry_available",
+      label: "Laundry",
+    },
+  ];
+
+  return options.filter((item) => attributes[item.key] === true);
+}
+
 export default async function ListingPage({
   params,
 }: {
@@ -72,7 +100,9 @@ export default async function ListingPage({
 
   const attributes = (listing.listing_attributes ?? {}) as Record<string, unknown>;
   const showFarmHighlights = listing.asset_categories?.slug === "farms";
+  const showApartmentServices = listing.asset_categories?.slug === "apartment";
   const highlights = showFarmHighlights ? farmHighlights(attributes) : [];
+  const services = showApartmentServices ? apartmentServices(attributes) : [];
   const media = ((listing.listing_media ?? []) as Array<{
     media_type?: string | null;
     signed_url?: string | null;
@@ -86,6 +116,9 @@ export default async function ListingPage({
 
   return (
     <PageShell className="pb-20">
+      <div className="mb-4">
+        <BackNavButton fallbackHref="/listings" label="Back" />
+      </div>
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <section className="surface-card rounded-[20px] p-6 sm:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -124,45 +157,7 @@ export default async function ListingPage({
             </Link>
           </div>
 
-          {media.length > 0 ? (
-            <div className="mt-8">
-              <p className="eyebrow">Media</p>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                {media.map((item, index) =>
-                  item.signed_url ? (
-                    <div
-                      key={`${item.signed_url}-${index}`}
-                      className="overflow-hidden rounded-[16px] border border-brand-border bg-brand-card-soft"
-                    >
-                      {item.media_type === "video" ? (
-                        <video
-                          className="aspect-[16/9] w-full bg-black object-cover"
-                          controls
-                          playsInline
-                          preload="none"
-                        >
-                          <source src={item.signed_url} type="video/mp4" />
-                        </video>
-                      ) : (
-                        <Link
-                          href={item.signed_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="block"
-                        >
-                          <img
-                            src={item.signed_url}
-                            alt={`${listing.title} media ${index + 1}`}
-                            className="aspect-[16/9] w-full object-cover"
-                          />
-                        </Link>
-                      )}
-                    </div>
-                  ) : null,
-                )}
-              </div>
-            </div>
-          ) : null}
+          <ListingMediaGallery media={media} title={listing.title} />
 
           {showFarmHighlights ? (
             <div className="soft-panel mt-8 p-5">
@@ -178,6 +173,22 @@ export default async function ListingPage({
                       {item.value}
                     </p>
                   </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {showApartmentServices && services.length > 0 ? (
+            <div className="soft-panel mt-8 p-5">
+              <p className="eyebrow">Available services</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {services.map((service) => (
+                  <span
+                    key={service.key}
+                    className="rounded-full border border-brand-border-strong bg-card px-4 py-2 text-sm font-semibold text-brand-navy"
+                  >
+                    {service.label}
+                  </span>
                 ))}
               </div>
             </div>
@@ -204,7 +215,16 @@ export default async function ListingPage({
         </section>
 
         <aside className="space-y-6">
-          <GuestRequestForm listingId={id} />
+          <AgentContactCard
+            listingId={id}
+            agentSummary={listing.agent_summary as never}
+          />
+          <GuestRequestForm
+            listingId={id}
+            listingTitle={listing.title}
+            categorySlug={listing.asset_categories?.slug}
+            availableServices={services}
+          />
           <PromotionStrip promotions={promotions as never} />
           <GoogleAdSlot
             slot="detail"

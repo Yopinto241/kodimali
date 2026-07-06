@@ -16,6 +16,7 @@ class AgentListingsTab extends StatefulWidget {
 }
 
 class _AgentListingsTabState extends State<AgentListingsTab> {
+  static const double _menuMaxHeight = 360;
   final TextEditingController _searchController = TextEditingController();
   String? _selectedCategoryId;
   String? _selectedStatus;
@@ -131,6 +132,8 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                     builder: (BuildContext context, BoxConstraints constraints) {
                       final bool stacked = constraints.maxWidth < 680;
                       final Widget categoryField = DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        menuMaxHeight: _menuMaxHeight,
                         initialValue: _selectedCategoryId,
                         decoration: const InputDecoration(labelText: "Category"),
                         items: <DropdownMenuItem<String>>[
@@ -150,6 +153,8 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                         },
                       );
                       final Widget statusField = DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        menuMaxHeight: _menuMaxHeight,
                         initialValue: _selectedStatus,
                         decoration: const InputDecoration(labelText: "Status"),
                         items: const <DropdownMenuItem<String>>[

@@ -61,5 +61,5 @@ export const mediaRules = [
   "Maximum 8 images",
   "Maximum 1 video",
   "Video max 30 seconds",
-  "Video max 25 MB",
+  "Video max 30 MB",
 ];

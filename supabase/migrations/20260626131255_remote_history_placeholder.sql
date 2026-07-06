@@ -1,0 +1,2 @@
+-- Placeholder migration kept to match remote Supabase migration history.
+-- The original SQL for this version is not present in this repository.

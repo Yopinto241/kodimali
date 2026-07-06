@@ -86,6 +86,8 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
               ),
             ),
             const SizedBox(height: 18),
+            const _ContactPaymentSettingsPanel(),
+            const SizedBox(height: 18),
             ManageMetricGrid(
               children: <Widget>[
                 ManageMetricCard(
@@ -151,6 +153,85 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
               title: "Global promotions",
             ),
           ],
+        );
+      },
+    );
+  }
+}
+
+class _ContactPaymentSettingsPanel extends StatefulWidget {
+  const _ContactPaymentSettingsPanel();
+
+  @override
+  State<_ContactPaymentSettingsPanel> createState() =>
+      _ContactPaymentSettingsPanelState();
+}
+
+class _ContactPaymentSettingsPanelState
+    extends State<_ContactPaymentSettingsPanel> {
+  late Future<Map<String, dynamic>> _future;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<Map<String, dynamic>> _load() {
+    return AppScope.of(context).repository.fetchMarketplaceSettings();
+  }
+
+  Future<void> _setEnabled(bool enabled) async {
+    setState(() => _saving = true);
+    try {
+      await AppScope.of(
+        context,
+      ).repository.updateContactPaymentsEnabled(enabled);
+      if (!mounted) {
+        return;
+      }
+      setState(() => _future = _load());
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _future,
+      builder: (BuildContext context, AsyncSnapshot<Map<String, dynamic>> snapshot) {
+        final bool enabled =
+            snapshot.data?["contact_payments_enabled"] as bool? ?? true;
+        return ManagePanel(
+          title: "Agent number payment",
+          subtitle: enabled
+              ? "Payments are on. Customer app and website hide agent numbers until contact payment is confirmed."
+              : "Payments are off. Customer app and website can show agent numbers for free.",
+          child: SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: enabled,
+            title: Text(enabled ? "Payment required" : "Free contact"),
+            subtitle: Text(
+              _saving
+                  ? "Saving..."
+                  : "Turn this off when you want customers to see agent numbers without payment.",
+            ),
+            onChanged:
+                snapshot.connectionState == ConnectionState.waiting || _saving
+                ? null
+                : _setEnabled,
+          ),
         );
       },
     );

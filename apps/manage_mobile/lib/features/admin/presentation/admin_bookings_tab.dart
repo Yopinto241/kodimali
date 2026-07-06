@@ -7,6 +7,44 @@ import '../../../core/widgets/kodimali_empty_state.dart';
 import '../../../core/widgets/kodimali_status_chip.dart';
 import '../../../core/widgets/manage_ui.dart';
 
+String _formatRequestedService(dynamic value) {
+  final String text = value?.toString() ?? "";
+  if (text.isEmpty) {
+    return "";
+  }
+  return text
+      .replaceAll("_available", "")
+      .replaceAll("_", " ")
+      .split(" ")
+      .where((String part) => part.isNotEmpty)
+      .map((String part) => "${part[0].toUpperCase()}${part.substring(1)}")
+      .join(" ");
+}
+
+bool _looksLikeEmail(String value) {
+  return value.contains("@");
+}
+
+String _normalizedBookingPhone(String value) {
+  final String trimmed = value.trim();
+  if (trimmed.isEmpty || _looksLikeEmail(trimmed)) {
+    return "";
+  }
+  return trimmed;
+}
+
+String _normalizedBookingEmail(String phoneValue, String emailValue) {
+  final String trimmedEmail = emailValue.trim();
+  if (trimmedEmail.isNotEmpty) {
+    return trimmedEmail;
+  }
+  final String trimmedPhone = phoneValue.trim();
+  if (_looksLikeEmail(trimmedPhone)) {
+    return trimmedPhone;
+  }
+  return "";
+}
+
 class AdminBookingsTab extends StatefulWidget {
   const AdminBookingsTab({super.key});
 
@@ -40,10 +78,9 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
   }
 
   Future<void> _updateStatus(String bookingId, BookingStatus status) async {
-    await AppScope.of(context).repository.updateBookingStatus(
-      bookingId: bookingId,
-      status: status,
-    );
+    await AppScope.of(
+      context,
+    ).repository.updateBookingStatus(bookingId: bookingId, status: status);
     await _refresh();
   }
 
@@ -51,10 +88,7 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
   Widget build(BuildContext context) {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _future,
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
-      ) {
+      builder: (BuildContext context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -88,6 +122,19 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
             ...bookings.map((Map<String, dynamic> booking) {
               final Map<String, dynamic>? listing =
                   booking["listings"] as Map<String, dynamic>?;
+              final String rawPhone =
+                  booking["customer_phone_number"] as String? ?? "";
+              final String rawEmail = booking["customer_email"] as String? ?? "";
+              final String phone = _normalizedBookingPhone(rawPhone);
+              final String email = _normalizedBookingEmail(rawPhone, rawEmail);
+              final List<dynamic> requestedServices =
+                  booking["requested_service_codes"] as List<dynamic>? ??
+                  <dynamic>[];
+              final String requestedDates =
+                  booking["requested_start_at"] != null &&
+                      booking["requested_end_at"] != null
+                  ? "${DateFormatters.formatDateTime(booking['requested_start_at'] as String?)} to ${DateFormatters.formatDateTime(booking['requested_end_at'] as String?)}"
+                  : "";
               return Padding(
                 padding: const EdgeInsets.only(bottom: 14),
                 child: ManagePanel(
@@ -106,7 +153,9 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
                                   style: Theme.of(context).textTheme.titleLarge,
                                 ),
                                 const SizedBox(height: 6),
-                                Text("Customer: ${booking["customer_name"] ?? "-"}"),
+                                Text(
+                                  "Customer: ${booking["customer_name"] ?? "-"}",
+                                ),
                               ],
                             ),
                           ),
@@ -119,23 +168,42 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
                       const SizedBox(height: 14),
                       ManageMetaWrap(
                         items: <String>[
-                          "Phone: ${booking["customer_phone_number"] ?? "-"}",
+                          "Phone: ${phone.isEmpty ? "-" : phone}",
+                          "Email: ${email.isEmpty ? "-" : email}",
                           "Reference: ${booking["request_reference"] ?? "-"}",
                           "Requested ${DateFormatters.formatDateTime(booking["created_at"] as String?)}",
+                          if (requestedDates.isNotEmpty)
+                            "Stay: $requestedDates",
+                          if (booking["guest_count"] != null)
+                            "Guests: ${booking["guest_count"]}",
+                          if (requestedServices.isNotEmpty)
+                            "Services: ${requestedServices.map(_formatRequestedService).where((String item) => item.isNotEmpty).join(", ")}",
                         ],
                       ),
+                      if ((booking["request_message"] as String?)
+                              ?.trim()
+                              .isNotEmpty ==
+                          true) ...<Widget>[
+                        const SizedBox(height: 12),
+                        Text(
+                          booking["request_message"] as String,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
                       const SizedBox(height: 14),
                       Align(
                         alignment: Alignment.centerLeft,
                         child: PopupMenuButton<BookingStatus>(
                           onSelected: (BookingStatus value) =>
                               _updateStatus(booking["id"] as String, value),
-                          itemBuilder: (BuildContext context) => BookingStatus.values
+                          itemBuilder: (BuildContext context) => BookingStatus
+                              .values
                               .map(
-                                (BookingStatus item) => PopupMenuItem<BookingStatus>(
-                                  value: item,
-                                  child: Text(item.label),
-                                ),
+                                (BookingStatus item) =>
+                                    PopupMenuItem<BookingStatus>(
+                                      value: item,
+                                      child: Text(item.label),
+                                    ),
                               )
                               .toList(),
                           child: Container(

@@ -43,12 +43,13 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
   bool _bootstrapped = false;
   bool _loading = true;
   String? _error;
-  String? _countryId;
   String? _regionId;
   String? _districtId;
   String? _wardId;
   String? _savedAreaId;
 
+  Map<String, List<Map<String, dynamic>>> _childrenCache =
+      <String, List<Map<String, dynamic>>>{};
   List<Map<String, dynamic>> _regions = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _districts = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _wards = <Map<String, dynamic>>[];
@@ -85,22 +86,44 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
     });
     try {
       final repository = AppScope.of(context).repository;
-      final List<Map<String, dynamic>> countries = await repository
-          .fetchLocations(parentId: null, type: LocationType.country);
+      final List<Map<String, dynamic>> locations = await repository
+          .fetchAgentLocationHierarchy();
+      final List<Map<String, dynamic>> countries = locations
+          .where(
+            (Map<String, dynamic> item) =>
+                item["location_type"] == LocationType.country.storageValue,
+          )
+          .toList(growable: false);
       if (countries.length != 1) {
         throw StateError(
           "Expected one active country before agent location registration can continue.",
         );
       }
-      _countryId = countries.first["id"] as String;
-      _regions = await repository.fetchLocations(
-        parentId: _countryId,
-        type: LocationType.region,
-      );
       if (!mounted) {
         return;
       }
-      setState(() => _loading = false);
+      final String countryId = countries.first["id"] as String;
+      final Map<String, List<Map<String, dynamic>>> childrenCache =
+          <String, List<Map<String, dynamic>>>{};
+      for (final Map<String, dynamic> item in locations) {
+        final String? parentId = item["parent_id"] as String?;
+        final String? locationType = item["location_type"] as String?;
+        if (parentId == null || locationType == null) {
+          continue;
+        }
+        final String cacheKey = "$parentId::$locationType";
+        final List<Map<String, dynamic>> bucket =
+            childrenCache.putIfAbsent(
+              cacheKey,
+              () => <Map<String, dynamic>>[],
+            );
+        bucket.add(Map<String, dynamic>.from(item));
+      }
+      setState(() {
+        _childrenCache = childrenCache;
+        _regions = _childrenOf(parentId: countryId, type: LocationType.region);
+        _loading = false;
+      });
       _emit();
     } catch (error) {
       if (!mounted) {
@@ -113,19 +136,23 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
     }
   }
 
-  Future<void> _loadDistricts(String? regionId) async {
-    final repository = AppScope.of(context).repository;
-    final List<Map<String, dynamic>> districts = regionId == null
-        ? <Map<String, dynamic>>[]
-        : await repository.fetchLocations(
-            parentId: regionId,
-            type: LocationType.district,
-          );
-    if (!mounted) {
-      return;
-    }
+  List<Map<String, dynamic>> _childrenOf({
+    required String parentId,
+    required LocationType type,
+  }) {
+    final List<Map<String, dynamic>> children =
+        _childrenCache["$parentId::${type.storageValue}"] ??
+        <Map<String, dynamic>>[];
+    return children
+        .map((Map<String, dynamic> item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+  }
+
+  void _loadDistricts(String? regionId) {
     setState(() {
-      _districts = districts;
+      _districts = regionId == null
+          ? <Map<String, dynamic>>[]
+          : _childrenOf(parentId: regionId, type: LocationType.district);
       _districtId = null;
       _wards = <Map<String, dynamic>>[];
       _wardId = null;
@@ -136,19 +163,11 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
     _emit();
   }
 
-  Future<void> _loadWards(String? districtId) async {
-    final repository = AppScope.of(context).repository;
-    final List<Map<String, dynamic>> wards = districtId == null
-        ? <Map<String, dynamic>>[]
-        : await repository.fetchLocations(
-            parentId: districtId,
-            type: LocationType.ward,
-          );
-    if (!mounted) {
-      return;
-    }
+  void _loadWards(String? districtId) {
     setState(() {
-      _wards = wards;
+      _wards = districtId == null
+          ? <Map<String, dynamic>>[]
+          : _childrenOf(parentId: districtId, type: LocationType.ward);
       _wardId = null;
       _areas = <Map<String, dynamic>>[];
       _savedAreaId = null;
@@ -157,19 +176,11 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
     _emit();
   }
 
-  Future<void> _loadAreas(String? wardId) async {
-    final repository = AppScope.of(context).repository;
-    final List<Map<String, dynamic>> areas = wardId == null
-        ? <Map<String, dynamic>>[]
-        : await repository.fetchLocations(
-            parentId: wardId,
-            type: LocationType.area,
-          );
-    if (!mounted) {
-      return;
-    }
+  void _loadAreas(String? wardId) {
     setState(() {
-      _areas = areas;
+      _areas = wardId == null
+          ? <Map<String, dynamic>>[]
+          : _childrenOf(parentId: wardId, type: LocationType.area);
       _savedAreaId = null;
       _manualAreaController.clear();
     });
@@ -196,8 +207,152 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
     );
   }
 
+  String? _labelFor(List<Map<String, dynamic>> items, String? id) {
+    if (id == null) {
+      return null;
+    }
+    for (final Map<String, dynamic> item in items) {
+      if (item["id"] == id) {
+        return item["name"] as String?;
+      }
+    }
+    return null;
+  }
+
   Widget _menuText(String value) {
     return Text(value, maxLines: 1, overflow: TextOverflow.ellipsis);
+  }
+
+  bool _matchesSearch(String label, String query) {
+    final String normalizedQuery = query.trim().toLowerCase();
+    if (normalizedQuery.isEmpty) {
+      return true;
+    }
+    return label.toLowerCase().contains(normalizedQuery);
+  }
+
+  Future<String?> _pickLocation({
+    required String title,
+    required List<Map<String, dynamic>> items,
+    String? selectedId,
+    String? emptyValue,
+    String? emptyLabel,
+  }) async {
+    final TextEditingController searchController = TextEditingController();
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setSheetState) {
+            final String query = searchController.text;
+            final List<Map<String, dynamic>> filteredItems = items
+                .where((Map<String, dynamic> item) {
+                  final String label = item["name"] as String? ?? "";
+                  return _matchesSearch(label, query);
+                })
+                .toList(growable: false);
+            return FractionallySizedBox(
+              heightFactor: 0.92,
+              child: Column(
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                    child: TextField(
+                      controller: searchController,
+                      onChanged: (_) => setSheetState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: "Search",
+                        prefixIcon: Icon(Icons.search_rounded),
+                      ),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: filteredItems.isEmpty &&
+                            (emptyValue == null || emptyLabel == null)
+                        ? const Center(
+                            child: Text("No matching locations found."),
+                          )
+                        : ListView(
+                            children: <Widget>[
+                              if (emptyValue != null && emptyLabel != null)
+                                ListTile(
+                                  title: Text(emptyLabel),
+                                  trailing: selectedId == emptyValue
+                                      ? const Icon(Icons.check_rounded)
+                                      : null,
+                                  onTap: () =>
+                                      Navigator.of(context).pop(emptyValue),
+                                ),
+                              ...filteredItems.map((Map<String, dynamic> item) {
+                                final String value = item["id"] as String? ?? "";
+                                final String label =
+                                    item["name"] as String? ?? "-";
+                                return ListTile(
+                                  title: _menuText(label),
+                                  trailing: selectedId == value
+                                      ? const Icon(Icons.check_rounded)
+                                      : null,
+                                  onTap: () =>
+                                      Navigator.of(context).pop(value),
+                                );
+                              }),
+                            ],
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    ).whenComplete(searchController.dispose);
+  }
+
+  Widget _selectionField({
+    required String label,
+    required String valueText,
+    required bool enabled,
+    String? helperText,
+    required Future<void> Function() onTap,
+  }) {
+    return InkWell(
+      onTap: enabled ? () => unawaited(onTap()) : null,
+      borderRadius: BorderRadius.circular(16),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          helperText: helperText,
+          enabled: enabled,
+        ),
+        child: Row(
+          children: <Widget>[
+            Expanded(child: _menuText(valueText)),
+            const SizedBox(width: 12),
+            const Icon(Icons.keyboard_arrow_down_rounded),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -221,97 +376,86 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        DropdownButtonFormField<String>(
-          isExpanded: true,
-          initialValue: _regionId,
-          decoration: const InputDecoration(labelText: "Region *"),
-          items: _regions
-              .map(
-                (Map<String, dynamic> item) => DropdownMenuItem<String>(
-                  value: item["id"] as String,
-                  child: _menuText(item["name"] as String? ?? "-"),
-                ),
-              )
-              .toList(),
-          onChanged: (String? value) async {
+        _selectionField(
+          label: "Region *",
+          valueText: _labelFor(_regions, _regionId) ?? "Choose region",
+          enabled: _regions.isNotEmpty,
+          onTap: () async {
+            final String? value = await _pickLocation(
+              title: "Choose region",
+              items: _regions,
+              selectedId: _regionId,
+            );
+            if (!mounted || value == null) {
+              return;
+            }
             setState(() => _regionId = value);
-            await _loadDistricts(value);
+            _loadDistricts(value);
           },
         ),
         const SizedBox(height: 16),
-        DropdownButtonFormField<String>(
-          isExpanded: true,
-          initialValue: _districtId,
-          decoration: const InputDecoration(labelText: "District *"),
-          items: _districts
-              .map(
-                (Map<String, dynamic> item) => DropdownMenuItem<String>(
-                  value: item["id"] as String,
-                  child: _menuText(item["name"] as String? ?? "-"),
-                ),
-              )
-              .toList(),
-          onChanged: (String? value) async {
+        _selectionField(
+          label: "District *",
+          valueText: _labelFor(_districts, _districtId) ?? "Choose district",
+          enabled: _districts.isNotEmpty,
+          onTap: () async {
+            final String? value = await _pickLocation(
+              title: "Choose district",
+              items: _districts,
+              selectedId: _districtId,
+            );
+            if (!mounted || value == null) {
+              return;
+            }
             setState(() => _districtId = value);
-            await _loadWards(value);
+            _loadWards(value);
           },
         ),
         const SizedBox(height: 16),
-        DropdownButtonFormField<String>(
-          isExpanded: true,
-          initialValue: _wardId,
-          decoration: const InputDecoration(labelText: "Ward *"),
-          items: _wards
-              .map(
-                (Map<String, dynamic> item) => DropdownMenuItem<String>(
-                  value: item["id"] as String,
-                  child: _menuText(item["name"] as String? ?? "-"),
-                ),
-              )
-              .toList(),
-          onChanged: (String? value) async {
+        _selectionField(
+          label: "Ward *",
+          valueText: _labelFor(_wards, _wardId) ?? "Choose ward",
+          enabled: _wards.isNotEmpty,
+          onTap: () async {
+            final String? value = await _pickLocation(
+              title: "Choose ward",
+              items: _wards,
+              selectedId: _wardId,
+            );
+            if (!mounted || value == null) {
+              return;
+            }
             setState(() => _wardId = value);
-            await _loadAreas(value);
+            _loadAreas(value);
           },
         ),
         const SizedBox(height: 16),
-        DropdownButtonFormField<String>(
-          isExpanded: true,
-          initialValue: _savedAreaId ?? "",
-          decoration: const InputDecoration(
-            labelText: "Saved area",
-            helperText:
-                "Reuse an existing area in this ward if it already exists.",
-          ),
-          items: <DropdownMenuItem<String>>[
-            const DropdownMenuItem<String>(
-              value: "",
-              child: Text(
-                "Type a new area or choose one below",
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            ..._areas.map(
-              (Map<String, dynamic> item) => DropdownMenuItem<String>(
-                value: item["id"] as String,
-                child: _menuText(item["name"] as String? ?? "-"),
-              ),
-            ),
-          ],
-          onChanged: !wardReady
-              ? null
-              : (String? value) {
-                  setState(() {
-                    _savedAreaId = value == null || value.isEmpty
-                        ? null
-                        : value;
-                    if (_savedAreaId != null) {
-                      _manualAreaController.clear();
-                    }
-                  });
-                  _emit();
-                },
+        _selectionField(
+          label: "Saved area",
+          helperText: "Reuse an existing area in this ward if it already exists.",
+          valueText: _savedAreaId == null
+              ? "Type a new area or choose one below"
+              : (_labelFor(_areas, _savedAreaId) ?? "Saved area selected"),
+          enabled: wardReady,
+          onTap: () async {
+            final String? value = await _pickLocation(
+              title: "Choose saved area",
+              items: _areas,
+              selectedId: _savedAreaId ?? "",
+              emptyValue: "",
+              emptyLabel: "Type a new area or choose one below",
+            );
+            if (!mounted || value == null) {
+              return;
+            }
+            setState(() {
+              _savedAreaId = value.isEmpty ? null : value;
+              if (_savedAreaId != null) {
+                _manualAreaController.clear();
+              }
+            });
+            _emit();
+          },
         ),
         const SizedBox(height: 8),
         Text(

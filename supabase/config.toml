@@ -47,3 +47,15 @@ verify_jwt = true
 
 [functions.mark-agent-delayed]
 verify_jwt = true
+
+[functions.create-listing-contact-payment]
+verify_jwt = false
+
+[functions.check-listing-contact-payment]
+verify_jwt = false
+
+[functions.clickpesa-payment-webhook]
+verify_jwt = false
+
+[functions.clickpesa-return-page]
+verify_jwt = false

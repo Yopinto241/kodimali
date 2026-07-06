@@ -18,6 +18,8 @@ class AddAssetScreen extends StatefulWidget {
 }
 
 class _AddAssetScreenState extends State<AddAssetScreen> {
+  static const double _menuMaxHeight = 360;
+  static const int _listingVideoMaxBytes = 30 * 1024 * 1024;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final ImagePicker _picker = ImagePicker();
 
@@ -32,6 +34,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
   final TextEditingController _exactAddressController = TextEditingController();
   final TextEditingController _latitudeController = TextEditingController();
   final TextEditingController _longitudeController = TextEditingController();
+  final TextEditingController _manualAreaController = TextEditingController();
 
   final Map<String, TextEditingController> _attributeControllers =
       <String, TextEditingController>{};
@@ -60,6 +63,8 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
   String? _areaId;
   String? _streetId;
 
+  Map<String, List<Map<String, dynamic>>> _locationChildrenCache =
+      <String, List<Map<String, dynamic>>>{};
   List<Map<String, dynamic>> _regions = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _districts = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _wards = <Map<String, dynamic>>[];
@@ -69,6 +74,12 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
   List<XFile> _images = <XFile>[];
   XFile? _video;
   int _coverImageIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _manualAreaController.addListener(_handleManualAreaChanged);
+  }
 
   @override
   void didChangeDependencies() {
@@ -88,7 +99,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
     try {
       await Future.wait<void>(<Future<void>>[
         _loadOwners(),
-        _loadCountries(),
+        _loadLocationHierarchy(),
         _loadCategories(),
       ]);
       if (!mounted) {
@@ -120,6 +131,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
       _exactAddressController,
       _latitudeController,
       _longitudeController,
+      _manualAreaController,
       ..._attributeControllers.values,
     ]) {
       controller.dispose();
@@ -143,19 +155,52 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
     });
   }
 
-  Future<void> _loadCountries() async {
-    final List<Map<String, dynamic>> countries = await AppScope.of(
+  Future<void> _loadLocationHierarchy() async {
+    final List<Map<String, dynamic>> locations = await AppScope.of(
       context,
-    ).repository.fetchLocations(parentId: null, type: LocationType.country);
+    ).repository.fetchAgentLocationHierarchy();
+    final List<Map<String, dynamic>> countries = locations
+        .where(
+          (Map<String, dynamic> item) =>
+              item["location_type"] == LocationType.country.storageValue,
+        )
+        .toList(growable: false);
     final String? nextCountryId = countries.length == 1
-        ? countries.first["id"] as String
+        ? countries.first["id"] as String?
         : null;
+    final Map<String, List<Map<String, dynamic>>> childrenCache =
+        <String, List<Map<String, dynamic>>>{};
+    for (final Map<String, dynamic> item in locations) {
+      final String? parentId = item["parent_id"] as String?;
+      final String? locationType = item["location_type"] as String?;
+      if (parentId == null || locationType == null) {
+        continue;
+      }
+      final String cacheKey = "$parentId::$locationType";
+      final List<Map<String, dynamic>> bucket = childrenCache.putIfAbsent(
+        cacheKey,
+        () => <Map<String, dynamic>>[],
+      );
+      bucket.add(Map<String, dynamic>.from(item));
+    }
     if (!mounted) {
       return;
     }
-    if (nextCountryId != null) {
-      await _loadNextLevel(type: LocationType.region, parentId: nextCountryId);
-    }
+    setState(() {
+      _locationChildrenCache = childrenCache;
+      _regions = nextCountryId == null
+          ? <Map<String, dynamic>>[]
+          : _childrenOf(parentId: nextCountryId, type: LocationType.region);
+      _districts = <Map<String, dynamic>>[];
+      _wards = <Map<String, dynamic>>[];
+      _areas = <Map<String, dynamic>>[];
+      _streets = <Map<String, dynamic>>[];
+      _regionId = null;
+      _districtId = null;
+      _wardId = null;
+      _areaId = null;
+      _streetId = null;
+    });
   }
 
   Future<void> _loadCategories() async {
@@ -251,16 +296,27 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
     }
   }
 
-  Future<void> _loadNextLevel({
+  String get _selectedCategorySlug =>
+      _selectedCategory?["slug"] as String? ?? "";
+
+  int get _maxImagesAllowed => _selectedCategorySlug == "apartment" ? 15 : 8;
+
+  List<Map<String, dynamic>> _childrenOf({
+    required String parentId,
     required LocationType type,
-    required String? parentId,
-  }) async {
-    final List<Map<String, dynamic>> items = await AppScope.of(
-      context,
-    ).repository.fetchLocations(parentId: parentId, type: type);
-    if (!mounted) {
-      return;
-    }
+  }) {
+    final List<Map<String, dynamic>> children =
+        _locationChildrenCache["$parentId::${type.storageValue}"] ??
+        <Map<String, dynamic>>[];
+    return children
+        .map((Map<String, dynamic> item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+  }
+
+  void _loadNextLevel({required LocationType type, required String? parentId}) {
+    final List<Map<String, dynamic>> items = parentId == null
+        ? <Map<String, dynamic>>[]
+        : _childrenOf(parentId: parentId, type: type);
     setState(() {
       switch (type) {
         case LocationType.region:
@@ -274,6 +330,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
           _wardId = null;
           _areaId = null;
           _streetId = null;
+          _manualAreaController.clear();
           break;
         case LocationType.district:
           _districts = items;
@@ -284,6 +341,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
           _wardId = null;
           _areaId = null;
           _streetId = null;
+          _manualAreaController.clear();
           break;
         case LocationType.ward:
           _wards = items;
@@ -292,12 +350,14 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
           _streets = <Map<String, dynamic>>[];
           _areaId = null;
           _streetId = null;
+          _manualAreaController.clear();
           break;
         case LocationType.area:
           _areas = items;
           _areaId = null;
           _streets = <Map<String, dynamic>>[];
           _streetId = null;
+          _manualAreaController.clear();
           break;
         case LocationType.street:
           _streets = items;
@@ -314,7 +374,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
     if (picked.isEmpty) {
       return;
     }
-    final int remaining = 8 - _images.length;
+    final int remaining = _maxImagesAllowed - _images.length;
     setState(() {
       _images = <XFile>[..._images, ...picked.take(remaining)];
       if (_coverImageIndex >= _images.length) {
@@ -326,6 +386,16 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
   Future<void> _pickVideo() async {
     final XFile? picked = await _picker.pickVideo(source: ImageSource.gallery);
     if (picked != null) {
+      final int size = await picked.length();
+      if (size > _listingVideoMaxBytes) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Video must be 30 MB or smaller.")),
+        );
+        return;
+      }
       setState(() => _video = picked);
     }
   }
@@ -372,10 +442,144 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
     return null;
   }
 
+  Widget _menuText(String value) {
+    return Text(value, maxLines: 1, overflow: TextOverflow.ellipsis);
+  }
+
+  bool _matchesSearch(String label, String query) {
+    final String normalizedQuery = query.trim().toLowerCase();
+    if (normalizedQuery.isEmpty) {
+      return true;
+    }
+    return label.toLowerCase().contains(normalizedQuery);
+  }
+
+  Future<String?> _pickLocation({
+    required String title,
+    required List<Map<String, dynamic>> items,
+    String? selectedId,
+    String? emptyValue,
+    String? emptyLabel,
+  }) async {
+    final TextEditingController searchController = TextEditingController();
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setSheetState) {
+            final String query = searchController.text;
+            final List<Map<String, dynamic>> filteredItems = items
+                .where((Map<String, dynamic> item) {
+                  final String label = item["name"] as String? ?? "";
+                  return _matchesSearch(label, query);
+                })
+                .toList(growable: false);
+            return FractionallySizedBox(
+              heightFactor: 0.92,
+              child: Column(
+                children: <Widget>[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                    child: TextField(
+                      controller: searchController,
+                      onChanged: (_) => setSheetState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: "Search",
+                        prefixIcon: Icon(Icons.search_rounded),
+                      ),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child:
+                        filteredItems.isEmpty &&
+                            (emptyValue == null || emptyLabel == null)
+                        ? const Center(
+                            child: Text("No matching locations found."),
+                          )
+                        : ListView(
+                            children: <Widget>[
+                              if (emptyValue != null && emptyLabel != null)
+                                ListTile(
+                                  title: Text(emptyLabel),
+                                  trailing: selectedId == emptyValue
+                                      ? const Icon(Icons.check_rounded)
+                                      : null,
+                                  onTap: () =>
+                                      Navigator.of(context).pop(emptyValue),
+                                ),
+                              ...filteredItems.map((Map<String, dynamic> item) {
+                                final String value =
+                                    item["id"] as String? ?? "";
+                                final String label =
+                                    item["name"] as String? ?? "-";
+                                return ListTile(
+                                  title: _menuText(label),
+                                  trailing: selectedId == value
+                                      ? const Icon(Icons.check_rounded)
+                                      : null,
+                                  onTap: () => Navigator.of(context).pop(value),
+                                );
+                              }),
+                            ],
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    ).whenComplete(searchController.dispose);
+  }
+
+  Widget _selectionField({
+    required String label,
+    required String valueText,
+    required bool enabled,
+    required Future<void> Function() onTap,
+  }) {
+    return InkWell(
+      onTap: enabled ? () => unawaited(onTap()) : null,
+      borderRadius: BorderRadius.circular(16),
+      child: InputDecorator(
+        decoration: InputDecoration(labelText: label, enabled: enabled),
+        child: Row(
+          children: <Widget>[
+            Expanded(child: _menuText(valueText)),
+            const SizedBox(width: 12),
+            const Icon(Icons.keyboard_arrow_down_rounded),
+          ],
+        ),
+      ),
+    );
+  }
+
   String _computedPublicLocationLabel() {
     final String? regionName = _labelFor(_regions, _regionId);
     final String? wardName = _labelFor(_wards, _wardId);
-    final String? areaName = _labelFor(_areas, _areaId);
+    final String? areaName = _manualAreaController.text.trim().isNotEmpty
+        ? _manualAreaController.text.trim()
+        : _labelFor(_areas, _areaId);
     final String? districtName = _labelFor(_districts, _districtId);
     final String? safeLocalName = areaName ?? wardName ?? districtName;
     if (safeLocalName == null && regionName == null) {
@@ -387,6 +591,19 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
     ].whereType<String>().where((String value) => value.isNotEmpty).join(", ");
   }
 
+  void _handleManualAreaChanged() {
+    if (_manualAreaController.text.trim().isEmpty) {
+      return;
+    }
+    if (_areaId != null || _streetId != null || _streets.isNotEmpty) {
+      setState(() {
+        _areaId = null;
+        _streetId = null;
+        _streets = <Map<String, dynamic>>[];
+      });
+    }
+  }
+
   void _resetListingForm() {
     _titleController.clear();
     _descriptionController.clear();
@@ -396,6 +613,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
     _exactAddressController.clear();
     _latitudeController.clear();
     _longitudeController.clear();
+    _manualAreaController.clear();
     _ownerNameController.clear();
     _ownerPhoneController.clear();
     _ownerNotesController.clear();
@@ -414,7 +632,6 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
     _video = null;
     _coverImageIndex = 0;
     _applyCategorySchema(_selectedCategory);
-    unawaited(_loadCountries());
   }
 
   Future<void> _submit() async {
@@ -431,20 +648,25 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
       );
       return;
     }
-    if (_regionId == null ||
-        _districtId == null ||
-        _wardId == null ||
-        _areaId == null) {
+    if (_regionId == null || _districtId == null || _wardId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Region, district, ward, na area ni lazima."),
-        ),
+        const SnackBar(content: Text("Region, district, na ward ni lazima.")),
       );
       return;
     }
     if (_images.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Pakia angalau picha moja.")),
+      );
+      return;
+    }
+    if (_images.length > _maxImagesAllowed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Category hii inaruhusu picha hadi $_maxImagesAllowed tu.",
+          ),
+        ),
       );
       return;
     }
@@ -472,8 +694,18 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
         label: "Preparing listing upload...",
       );
     });
+    final repository = AppScope.of(context).repository;
     try {
-      await AppScope.of(context).repository.submitDynamicListing(
+      final String? resolvedAreaId =
+          (_areaId != null && _areaId!.isNotEmpty) ||
+              _manualAreaController.text.trim().isNotEmpty
+          ? await repository.resolveWardAreaLocation(
+              selectedAreaId: _areaId,
+              wardId: _wardId,
+              manualAreaName: _manualAreaController.text.trim(),
+            )
+          : null;
+      await repository.submitDynamicListing(
         categoryId: _selectedCategory!["id"] as String,
         existingOwnerId: _creatingOwner ? null : _selectedOwnerId,
         ownerName: _ownerNameController.text.trim(),
@@ -489,7 +721,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
         regionId: _regionId!,
         districtId: _districtId!,
         wardId: _wardId,
-        areaId: _areaId,
+        areaId: resolvedAreaId,
         streetId: _streetId,
         exactAddress: _exactAddressController.text.trim(),
         latitude: _latitudeController.text.trim(),
@@ -610,6 +842,8 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
             child: Column(
               children: <Widget>[
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  menuMaxHeight: _menuMaxHeight,
                   initialValue: _selectedCategory?["id"] as String?,
                   decoration: const InputDecoration(
                     labelText: "Assigned category",
@@ -618,7 +852,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                       .map(
                         (Map<String, dynamic> item) => DropdownMenuItem<String>(
                           value: item["id"] as String,
-                          child: Text(item["name"] as String? ?? "-"),
+                          child: _menuText(item["name"] as String? ?? "-"),
                         ),
                       )
                       .toList(),
@@ -668,6 +902,8 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                           ),
                           const SizedBox(height: 12),
                           DropdownButtonFormField<PricePeriod>(
+                            isExpanded: true,
+                            menuMaxHeight: _menuMaxHeight,
                             initialValue: _pricePeriod,
                             decoration: const InputDecoration(
                               labelText: "Price period *",
@@ -710,6 +946,8 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: DropdownButtonFormField<PricePeriod>(
+                            isExpanded: true,
+                            menuMaxHeight: _menuMaxHeight,
                             initialValue: _pricePeriod,
                             decoration: const InputDecoration(
                               labelText: "Price period *",
@@ -744,6 +982,8 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  menuMaxHeight: _menuMaxHeight,
                   initialValue: _availabilityStatus,
                   decoration: const InputDecoration(labelText: "Availability"),
                   items: const <DropdownMenuItem<String>>[
@@ -794,6 +1034,8 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                   ),
                 if (!_creatingOwner && _owners.isNotEmpty)
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    menuMaxHeight: _menuMaxHeight,
                     initialValue: _selectedOwnerId,
                     decoration: const InputDecoration(
                       labelText: "Select owner",
@@ -803,7 +1045,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                           (Map<String, dynamic> owner) =>
                               DropdownMenuItem<String>(
                                 value: owner["id"] as String,
-                                child: Text(
+                                child: _menuText(
                                   owner["full_name"] as String? ?? "-",
                                 ),
                               ),
@@ -842,102 +1084,135 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
           ManagePanel(
             title: "Marketplace location",
             subtitle:
-                "Follow the official location chain. Region, district, ward, and area are required before a listing can go live.",
+                "Follow the official location chain. Region, district, and ward are required. Area is optional, and a new area can be saved for future use when needed.",
             child: Column(
               children: <Widget>[
-                DropdownButtonFormField<String>(
-                  initialValue: _regionId,
-                  decoration: const InputDecoration(labelText: "Region *"),
-                  items: _regions
-                      .map(
-                        (Map<String, dynamic> item) => DropdownMenuItem<String>(
-                          value: item["id"] as String,
-                          child: Text(item["name"] as String? ?? "-"),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (String? value) async {
+                _selectionField(
+                  label: "Region *",
+                  valueText: _labelFor(_regions, _regionId) ?? "Choose region",
+                  enabled: _regions.isNotEmpty,
+                  onTap: () async {
+                    final String? value = await _pickLocation(
+                      title: "Choose region",
+                      items: _regions,
+                      selectedId: _regionId,
+                    );
+                    if (!mounted || value == null) {
+                      return;
+                    }
                     setState(() => _regionId = value);
-                    await _loadNextLevel(
+                    _loadNextLevel(
                       type: LocationType.district,
                       parentId: value,
                     );
                   },
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _districtId,
-                  decoration: const InputDecoration(labelText: "District *"),
-                  items: _districts
-                      .map(
-                        (Map<String, dynamic> item) => DropdownMenuItem<String>(
-                          value: item["id"] as String,
-                          child: Text(item["name"] as String? ?? "-"),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (String? value) async {
+                _selectionField(
+                  label: "District *",
+                  valueText:
+                      _labelFor(_districts, _districtId) ?? "Choose district",
+                  enabled: _districts.isNotEmpty,
+                  onTap: () async {
+                    final String? value = await _pickLocation(
+                      title: "Choose district",
+                      items: _districts,
+                      selectedId: _districtId,
+                    );
+                    if (!mounted || value == null) {
+                      return;
+                    }
                     setState(() => _districtId = value);
-                    await _loadNextLevel(
-                      type: LocationType.ward,
-                      parentId: value,
-                    );
+                    _loadNextLevel(type: LocationType.ward, parentId: value);
                   },
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _wardId,
-                  decoration: const InputDecoration(labelText: "Ward *"),
-                  items: _wards
-                      .map(
-                        (Map<String, dynamic> item) => DropdownMenuItem<String>(
-                          value: item["id"] as String,
-                          child: Text(item["name"] as String? ?? "-"),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (String? value) async {
+                _selectionField(
+                  label: "Ward *",
+                  valueText: _labelFor(_wards, _wardId) ?? "Choose ward",
+                  enabled: _wards.isNotEmpty,
+                  onTap: () async {
+                    final String? value = await _pickLocation(
+                      title: "Choose ward",
+                      items: _wards,
+                      selectedId: _wardId,
+                    );
+                    if (!mounted || value == null) {
+                      return;
+                    }
                     setState(() => _wardId = value);
-                    await _loadNextLevel(
-                      type: LocationType.area,
-                      parentId: value,
-                    );
+                    _loadNextLevel(type: LocationType.area, parentId: value);
                   },
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _areaId,
-                  decoration: const InputDecoration(labelText: "Area *"),
-                  items: _areas
-                      .map(
-                        (Map<String, dynamic> item) => DropdownMenuItem<String>(
-                          value: item["id"] as String,
-                          child: Text(item["name"] as String? ?? "-"),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (String? value) async {
-                    setState(() => _areaId = value);
-                    await _loadNextLevel(
+                _selectionField(
+                  label: "Saved area",
+                  valueText: _areaId == null
+                      ? "Leave blank or choose a saved area"
+                      : (_labelFor(_areas, _areaId) ?? "Saved area selected"),
+                  enabled: _wardId != null,
+                  onTap: () async {
+                    final String? value = await _pickLocation(
+                      title: "Choose saved area",
+                      items: _areas,
+                      selectedId: _areaId ?? "",
+                      emptyValue: "",
+                      emptyLabel: "Leave area blank or type a new one",
+                    );
+                    if (!mounted || value == null) {
+                      return;
+                    }
+                    setState(() {
+                      _areaId = value.isEmpty ? null : value;
+                      _streetId = null;
+                      if (_areaId != null) {
+                        _manualAreaController.clear();
+                      }
+                    });
+                    _loadNextLevel(
                       type: LocationType.street,
-                      parentId: value,
+                      parentId: _areaId,
                     );
                   },
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _streetId,
-                  decoration: const InputDecoration(labelText: "Street"),
-                  items: _streets
-                      .map(
-                        (Map<String, dynamic> item) => DropdownMenuItem<String>(
-                          value: item["id"] as String,
-                          child: Text(item["name"] as String? ?? "-"),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (String? value) {
-                    setState(() => _streetId = value);
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    "Saved areas in this ward: ${_areas.length}/100",
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _manualAreaController,
+                  enabled: _wardId != null && _areas.length < 100,
+                  decoration: InputDecoration(
+                    labelText: "New area name (optional)",
+                    helperText: _wardId == null
+                        ? "Choose region, district, and ward first."
+                        : _areas.length < 100
+                        ? "If the area is missing, type it here and it will be saved for future use."
+                        : "This ward already has 100 saved areas, so use the saved list only.",
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _selectionField(
+                  label: "Street",
+                  valueText: _labelFor(_streets, _streetId) ?? "Choose street",
+                  enabled: _streets.isNotEmpty,
+                  onTap: () async {
+                    final String? value = await _pickLocation(
+                      title: "Choose street",
+                      items: _streets,
+                      selectedId: _streetId ?? "",
+                      emptyValue: "",
+                      emptyLabel: "No street",
+                    );
+                    if (!mounted || value == null) {
+                      return;
+                    }
+                    setState(() => _streetId = value.isEmpty ? null : value);
                   },
                 ),
                 const SizedBox(height: 12),
@@ -991,8 +1266,9 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
           const SizedBox(height: 16),
           ManagePanel(
             title: "Media upload",
-            subtitle:
-                "Add up to 8 images and one video. Tap an image row to choose the cover asset.",
+            subtitle: _selectedCategorySlug == "apartment"
+                ? "Apartment listings support up to 15 images and one video up to 30 MB. Tap an image row to choose the cover asset."
+                : "Add up to 8 images and one video up to 30 MB. Tap an image row to choose the cover asset.",
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -1001,9 +1277,13 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                   runSpacing: 12,
                   children: <Widget>[
                     OutlinedButton.icon(
-                      onPressed: _images.length >= 8 ? null : _pickImages,
+                      onPressed: _images.length >= _maxImagesAllowed
+                          ? null
+                          : _pickImages,
                       icon: const Icon(Icons.photo_library_outlined),
-                      label: Text("Pick images (${_images.length}/8)"),
+                      label: Text(
+                        "Pick images (${_images.length}/$_maxImagesAllowed)",
+                      ),
                     ),
                     OutlinedButton.icon(
                       onPressed: _video != null ? null : _pickVideo,
@@ -1114,13 +1394,15 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: DropdownButtonFormField<String>(
+            isExpanded: true,
+            menuMaxHeight: _menuMaxHeight,
             initialValue: _attributeSelections[key],
             decoration: InputDecoration(labelText: inputLabel),
             items: options
                 .map(
                   (dynamic option) => DropdownMenuItem<String>(
                     value: option.toString(),
-                    child: Text(option.toString()),
+                    child: _menuText(option.toString()),
                   ),
                 )
                 .toList(),

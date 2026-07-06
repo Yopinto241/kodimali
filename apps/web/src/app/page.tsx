@@ -17,7 +17,7 @@ import {
   fetchPublicHomeFeed,
 } from "@/lib/supabase-public";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 120;
 
 export default async function Home({
   searchParams,
@@ -39,7 +39,7 @@ export default async function Home({
   const [categories, feed, regions, promotions] = await Promise.all([
     fetchCategories(),
     fetchPublicHomeFeed({
-      limit: 20,
+      limit: 12,
       regionId,
       districtId,
       wardId,
@@ -208,6 +208,7 @@ export default async function Home({
         "Karibu na wewe",
         feed.slice(0, 6).map((item: { category_slug: string }) => item.category_slug),
       )}
+      {section("Apartment stays", ["apartment"])}
       {section("Nyumba za kupangisha", ["house"])}
       {section("Magari na pikipiki", ["car", "motorcycle"])}
       {section("Ofisi na kumbi", ["office", "meeting-hall", "ceremony-hall"])}
@@ -217,7 +218,7 @@ export default async function Home({
           .map((category: { slug: string }) => category.slug)
           .filter(
             (slug: string) =>
-              !["house", "car", "motorcycle", "office", "meeting-hall", "ceremony-hall"].includes(
+              !["apartment", "house", "car", "motorcycle", "office", "meeting-hall", "ceremony-hall"].includes(
                 slug,
               ),
           ),

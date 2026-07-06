@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/utils/user_facing_error.dart';
@@ -15,8 +17,20 @@ class AgentVerificationTab extends StatefulWidget {
 }
 
 class _AgentVerificationTabState extends State<AgentVerificationTab> {
-  late Future<List<Map<String, dynamic>>> _future;
+  static const int _pageSize = 24;
+  static const double _menuMaxHeight = 360;
+
   bool _initialized = false;
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
+  List<Map<String, dynamic>> _agents = <Map<String, dynamic>>[];
+  int _totalCount = 0;
+  bool _loading = false;
+  bool _loadingMore = false;
+  String? _loadError;
+  String _searchText = "";
+  String? _accountStatusFilter;
+  String? _verificationStatusFilter;
 
   @override
   void didChangeDependencies() {
@@ -25,18 +39,142 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
       return;
     }
     _initialized = true;
-    _future = _load();
-  }
-
-  Future<List<Map<String, dynamic>>> _load() {
-    return AppScope.of(context).repository.fetchPendingAgents();
+    unawaited(_loadAgents(reset: true));
   }
 
   Future<void> _refresh() async {
+    await _loadAgents(reset: true);
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAgents({required bool reset}) async {
+    if (_loading || _loadingMore) {
+      return;
+    }
+    final bool append = !reset && _agents.isNotEmpty;
     setState(() {
-      _future = _load();
+      if (append) {
+        _loadingMore = true;
+      } else {
+        _loading = true;
+        _loadError = null;
+      }
     });
-    await _future;
+    try {
+      final Map<String, dynamic> payload = await AppScope.of(context).repository
+          .fetchAdminAgents(
+            searchText: _searchText,
+            accountStatus: _accountStatusFilter,
+            verificationStatus: _verificationStatusFilter,
+            limit: _pageSize,
+            offset: append ? _agents.length : 0,
+          );
+      if (!mounted) {
+        return;
+      }
+      final List<Map<String, dynamic>> items =
+          (payload["items"] as List<dynamic>? ?? <dynamic>[])
+              .cast<Map<String, dynamic>>();
+      setState(() {
+        if (append) {
+          _agents = <Map<String, dynamic>>[..._agents, ...items];
+        } else {
+          _agents = items;
+        }
+        _totalCount = (payload["total_count"] as num?)?.toInt() ?? items.length;
+        _loadError = null;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loadError = userFacingError(error);
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _loadingMore = false;
+        });
+      }
+    }
+  }
+
+  void _handleSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _searchText = value.trim());
+      unawaited(_loadAgents(reset: true));
+    });
+  }
+
+  Future<void> _setAccountStatusFilter(String? value) async {
+    setState(() => _accountStatusFilter = value);
+    await _loadAgents(reset: true);
+  }
+
+  Future<void> _setVerificationStatusFilter(String? value) async {
+    setState(() => _verificationStatusFilter = value);
+    await _loadAgents(reset: true);
+  }
+
+  Future<void> _clearFilters() async {
+    _searchDebounce?.cancel();
+    _searchController.clear();
+    setState(() {
+      _searchText = "";
+      _accountStatusFilter = null;
+      _verificationStatusFilter = null;
+    });
+    await _loadAgents(reset: true);
+  }
+
+  int _countAccountStatus(String value) {
+    return _agents
+        .where(
+          (Map<String, dynamic> agent) =>
+              (agent["account_status"] as String? ?? "") == value,
+        )
+        .length;
+  }
+
+  int _countVerificationStatus(String value) {
+    return _agents
+        .where(
+          (Map<String, dynamic> agent) =>
+              (agent["verification_status"] as String? ?? "") == value,
+        )
+        .length;
+  }
+
+  bool get _hasFiltersApplied =>
+      _searchText.isNotEmpty ||
+      _accountStatusFilter != null ||
+      _verificationStatusFilter != null;
+
+  bool get _hasMoreResults => _agents.length < _totalCount;
+
+  String _formatDate(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return "-";
+    }
+    final DateTime? parsed = DateTime.tryParse(value);
+    if (parsed == null) {
+      return value;
+    }
+    final String month = parsed.month.toString().padLeft(2, "0");
+    final String day = parsed.day.toString().padLeft(2, "0");
+    return "${parsed.year}-$month-$day";
   }
 
   List<Map<String, dynamic>> _agentCategories(Map<String, dynamic> agent) {
@@ -152,6 +290,8 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
                         DropdownButtonFormField<String>(
+                          isExpanded: true,
+                          menuMaxHeight: _menuMaxHeight,
                           initialValue: selectedProfileId,
                           decoration: const InputDecoration(
                             labelText: "Existing user",
@@ -226,6 +366,8 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                         ),
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
+                          isExpanded: true,
+                          menuMaxHeight: _menuMaxHeight,
                           initialValue: selectedPrimaryCategoryId,
                           decoration: const InputDecoration(
                             labelText: "Base category",
@@ -370,6 +512,8 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
     final TextEditingController phoneController = TextEditingController();
     final TextEditingController nidaController = TextEditingController();
     final TextEditingController passwordController = TextEditingController();
+    final TextEditingController confirmPasswordController =
+        TextEditingController();
     final TextEditingController businessNameController =
         TextEditingController();
     final TextEditingController businessDescriptionController =
@@ -549,6 +693,14 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                         ),
                         const SizedBox(height: 16),
                         TextField(
+                          controller: confirmPasswordController,
+                          obscureText: true,
+                          decoration: const InputDecoration(
+                            labelText: "Re-enter password",
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
                           controller: businessNameController,
                           decoration: const InputDecoration(
                             labelText: "Business name",
@@ -556,6 +708,8 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                         ),
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
+                          isExpanded: true,
+                          menuMaxHeight: _menuMaxHeight,
                           initialValue: selectedPrimaryCategoryId,
                           decoration: const InputDecoration(
                             labelText: "Base category",
@@ -601,6 +755,17 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                       onPressed: submitting
                           ? null
                           : () async {
+                              if (passwordController.text !=
+                                  confirmPasswordController.text) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      "Passwords do not match yet.",
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
                               if (fullNameController.text.trim().isEmpty ||
                                   !RegExp(r"^[a-z0-9_]{3,32}$").hasMatch(
                                     usernameController.text
@@ -680,6 +845,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
     phoneController.dispose();
     nidaController.dispose();
     passwordController.dispose();
+    confirmPasswordController.dispose();
     businessNameController.dispose();
     businessDescriptionController.dispose();
 
@@ -854,184 +1020,358 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _future,
-      builder: (BuildContext context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(
-            child: Text(userFacingError(snapshot.error ?? "Unknown error")),
-          );
-        }
-        final List<Map<String, dynamic>> agents =
-            snapshot.data ?? <Map<String, dynamic>>[];
-        if (agents.isEmpty) {
-          return ManagePageScrollView(
+    if (_loading && _agents.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_loadError != null && _agents.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const ManageHeroCard(
-                title: "Agent management",
-                subtitle:
-                    "Create agents, assign their categories, and activate them only after your offline checks are complete.",
-              ),
-              const SizedBox(height: 18),
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    const KodimaliEmptyState(
-                      title: "Hakuna agents",
-                      message:
-                          "Agent accounts zitaonekana hapa kwa activation, category assignment, au suspension.",
-                    ),
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                      onPressed: _openAddAgentDialog,
-                      icon: const Icon(Icons.person_add_alt_1_outlined),
-                      label: const Text("Add agent"),
-                    ),
-                  ],
-                ),
+              Text(_loadError!, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: () => unawaited(_loadAgents(reset: true)),
+                child: const Text("Retry"),
               ),
             ],
-          );
-        }
-        return ManagePageScrollView(
-          onRefresh: _refresh,
+          ),
+        ),
+      );
+    }
+
+    final List<Map<String, dynamic>> agents = _agents;
+    final int activeCount = _countAccountStatus("active");
+    final int pendingVerificationCount = _countVerificationStatus("pending");
+    final int suspendedCount = _countAccountStatus("suspended");
+
+    return ManagePageScrollView(
+      onRefresh: _refresh,
+      children: <Widget>[
+        ManageHeroCard(
+          title: "Agent management",
+          subtitle:
+              "Search agents quickly, review their account health, and keep verification separate from activation.",
+          bottom: ManageMetaWrap(
+            items: <String>[
+              "$_totalCount matching agent${_totalCount == 1 ? "" : "s"}",
+              "Showing ${agents.length} loaded result${agents.length == 1 ? "" : "s"}",
+              "Verification and activation stay separate",
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        ManageMetricGrid(
           children: <Widget>[
-            ManageHeroCard(
-              title: "Agent management",
-              subtitle:
-                  "Create agents, assign their base category, then activate them after offline checks.",
-              bottom: ManageMetaWrap(
-                items: <String>[
-                  "${agents.length} agent${agents.length == 1 ? "" : "s"}",
-                  "Verification and activation stay separate",
+            ManageMetricCard(
+              label: "Matching agents",
+              value: _totalCount.toString(),
+              icon: Icons.groups_rounded,
+            ),
+            ManageMetricCard(
+              label: "Active on screen",
+              value: activeCount.toString(),
+              icon: Icons.verified_user_outlined,
+            ),
+            ManageMetricCard(
+              label: "Pending badge",
+              value: pendingVerificationCount.toString(),
+              icon: Icons.pending_actions_outlined,
+            ),
+            ManageMetricCard(
+              label: "Suspended on screen",
+              value: suspendedCount.toString(),
+              icon: Icons.block_outlined,
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        ManagePanel(
+          title: "Search and filters",
+          subtitle:
+              "Search by public name, username, phone number, NIDA, business, email, or location.",
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              TextField(
+                controller: _searchController,
+                onChanged: (String value) {
+                  setState(() {});
+                  _handleSearchChanged(value);
+                },
+                decoration: InputDecoration(
+                  labelText: "Search agents",
+                  hintText: "Name, username, phone, NIDA, business, location",
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: _searchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                          onPressed: _clearFilters,
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _FilterSection(
+                label: "Account status",
+                children: <Widget>[
+                  _FilterChip(
+                    label: "All",
+                    selected: _accountStatusFilter == null,
+                    onSelected: () => _setAccountStatusFilter(null),
+                  ),
+                  _FilterChip(
+                    label: "Active",
+                    selected: _accountStatusFilter == "active",
+                    onSelected: () => _setAccountStatusFilter("active"),
+                  ),
+                  _FilterChip(
+                    label: "Inactive",
+                    selected: _accountStatusFilter == "inactive",
+                    onSelected: () => _setAccountStatusFilter("inactive"),
+                  ),
+                  _FilterChip(
+                    label: "Suspended",
+                    selected: _accountStatusFilter == "suspended",
+                    onSelected: () => _setAccountStatusFilter("suspended"),
+                  ),
                 ],
               ),
-            ),
-            const SizedBox(height: 18),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: <Widget>[
-                FilledButton.icon(
-                  onPressed: _openAddAgentDialog,
-                  icon: const Icon(Icons.person_add_alt_1_outlined),
-                  label: const Text("Add agent"),
+              const SizedBox(height: 12),
+              _FilterSection(
+                label: "Badge status",
+                children: <Widget>[
+                  _FilterChip(
+                    label: "All",
+                    selected: _verificationStatusFilter == null,
+                    onSelected: () => _setVerificationStatusFilter(null),
+                  ),
+                  _FilterChip(
+                    label: "Approved",
+                    selected: _verificationStatusFilter == "approved",
+                    onSelected: () => _setVerificationStatusFilter("approved"),
+                  ),
+                  _FilterChip(
+                    label: "Pending",
+                    selected: _verificationStatusFilter == "pending",
+                    onSelected: () => _setVerificationStatusFilter("pending"),
+                  ),
+                  _FilterChip(
+                    label: "Rejected",
+                    selected: _verificationStatusFilter == "rejected",
+                    onSelected: () => _setVerificationStatusFilter("rejected"),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: <Widget>[
+                  FilledButton.icon(
+                    onPressed: _openAddAgentDialog,
+                    icon: const Icon(Icons.person_add_alt_1_outlined),
+                    label: const Text("Add agent"),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _openCreateAgentAccountDialog,
+                    icon: const Icon(Icons.manage_accounts_outlined),
+                    label: const Text("Create account"),
+                  ),
+                  if (_hasFiltersApplied)
+                    OutlinedButton.icon(
+                      onPressed: _clearFilters,
+                      icon: const Icon(Icons.filter_alt_off_outlined),
+                      label: const Text("Clear filters"),
+                    ),
+                ],
+              ),
+              if (_loadError != null) ...<Widget>[
+                const SizedBox(height: 12),
+                Text(
+                  _loadError!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
-                OutlinedButton.icon(
-                  onPressed: _openCreateAgentAccountDialog,
-                  icon: const Icon(Icons.mail_outline),
-                  label: const Text("Create account"),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (agents.isEmpty)
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                KodimaliEmptyState(
+                  title: _hasFiltersApplied
+                      ? "No matching agents"
+                      : "Hakuna agents",
+                  message: _hasFiltersApplied
+                      ? "Try a different name, username, phone number, or status filter."
+                      : "Agent accounts will appear here for activation, category assignment, and suspension.",
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            ...agents.map((Map<String, dynamic> agent) {
-              final Map<String, dynamic>? profile =
-                  agent["profiles"] as Map<String, dynamic>?;
-              final List<dynamic> documents =
-                  agent["agent_documents"] as List<dynamic>? ?? <dynamic>[];
-              final List<Map<String, dynamic>> assignedCategories =
-                  _agentCategories(agent);
-              final String accountStatus =
-                  agent["account_status"] as String? ?? "inactive";
-              final String verificationStatus =
-                  agent["verification_status"] as String? ?? "pending";
-              final bool verified = verificationStatus == "approved";
-              final String displayName =
-                  agent["display_name"] as String? ??
-                  profile?["full_name"] as String? ??
-                  "-";
-              final String phone =
-                  agent["phone_number"] as String? ??
-                  profile?["phone_number"] as String? ??
-                  "-";
-              final String location =
-                  agent["public_location_label"] as String? ?? "-";
-              final String username = profile?["username"] as String? ?? "-";
-              final String accountEmail =
-                  profile?["account_email"] as String? ?? "-";
-              final String emailStatus = _emailStatusLabel(profile);
-              final String preferredLanguage =
-                  profile?["preferred_language"] as String? ?? "sw";
-              final String nida = agent["nida_number"] as String? ?? "-";
-              final String? photoUrl = agent["profile_photo_url"] as String?;
-              final String businessName =
-                  agent["business_name"] as String? ?? "-";
-              final String businessDescription =
-                  agent["business_description"] as String? ?? "";
+          )
+        else
+          ...agents.map((Map<String, dynamic> agent) {
+            final Map<String, dynamic>? profile =
+                agent["profiles"] as Map<String, dynamic>?;
+            final List<dynamic> documents =
+                agent["agent_documents"] as List<dynamic>? ?? <dynamic>[];
+            final List<Map<String, dynamic>> assignedCategories =
+                _agentCategories(agent);
+            final String accountStatus =
+                agent["account_status"] as String? ?? "inactive";
+            final String verificationStatus =
+                agent["verification_status"] as String? ?? "pending";
+            final bool verified = verificationStatus == "approved";
+            final String displayName =
+                agent["display_name"] as String? ??
+                profile?["full_name"] as String? ??
+                "-";
+            final String phone =
+                agent["phone_number"] as String? ??
+                profile?["phone_number"] as String? ??
+                "-";
+            final String location =
+                agent["public_location_label"] as String? ?? "-";
+            final String username = profile?["username"] as String? ?? "-";
+            final String accountEmail =
+                profile?["account_email"] as String? ?? "-";
+            final String emailStatus = _emailStatusLabel(profile);
+            final String preferredLanguage =
+                profile?["preferred_language"] as String? ?? "sw";
+            final String nida = agent["nida_number"] as String? ?? "-";
+            final String? photoUrl = agent["profile_photo_url"] as String?;
+            final String businessName =
+                agent["business_name"] as String? ?? "-";
+            final String businessDescription =
+                agent["business_description"] as String? ?? "";
+            final String profileName = profile?["full_name"] as String? ?? "-";
+            final String createdAt = _formatDate(
+              agent["created_at"] as String?,
+            );
+            final String verifiedAt = _formatDate(
+              agent["verified_at"] as String?,
+            );
 
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: ManagePanel(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          _AgentCardAvatar(
-                            imageUrl: photoUrl,
-                            fallbackText: displayName,
-                            verified: verified,
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: ManagePanel(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        _AgentCardAvatar(
+                          imageUrl: photoUrl,
+                          fallbackText: displayName,
+                          verified: verified,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                displayName,
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                businessName,
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: <Widget>[
+                                  KodimaliStatusChip(
+                                    label: accountStatus,
+                                    highlight: accountStatus == "active",
+                                  ),
+                                  KodimaliStatusChip(
+                                    label: verificationStatus,
+                                    highlight: verificationStatus == "approved",
+                                  ),
+                                  if (verifiedAt != "-")
+                                    Chip(label: Text("Verified $verifiedAt")),
+                                ],
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Row(
-                                  children: <Widget>[
-                                    Expanded(
-                                      child: Text(
-                                        displayName,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.titleLarge,
-                                      ),
-                                    ),
-                                    if (verified)
-                                      const Padding(
-                                        padding: EdgeInsets.only(left: 6),
-                                        child: _VerifiedBadge(),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  businessName,
-                                  style: Theme.of(context).textTheme.bodyMedium,
-                                ),
-                              ],
-                            ),
-                          ),
-                          KodimaliStatusChip(
-                            label: accountStatus,
-                            highlight: accountStatus == "active",
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Text("Public name: $displayName"),
-                      Text("Business: $businessName"),
-                      Text("Login profile: ${profile?["full_name"] ?? "-"}"),
-                      Text("Username: $username"),
-                      Text("Account email: $accountEmail"),
-                      Text("Email status: $emailStatus"),
-                      Text("Phone: $phone"),
-                      Text("Preferred language: $preferredLanguage"),
-                      Text("Location: $location"),
-                      Text("NIDA: $nida"),
-                      Text("Verification: $verificationStatus"),
-                      if (businessDescription.trim().isNotEmpty) ...<Widget>[
-                        const SizedBox(height: 6),
-                        Text("Business details: $businessDescription"),
+                        ),
                       ],
-                      const SizedBox(height: 10),
-                      Wrap(
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 18,
+                      runSpacing: 10,
+                      children: <Widget>[
+                        _AgentInfoLine(
+                          icon: Icons.alternate_email_rounded,
+                          label: "Username",
+                          value: username,
+                        ),
+                        _AgentInfoLine(
+                          icon: Icons.phone_outlined,
+                          label: "Phone",
+                          value: phone,
+                        ),
+                        _AgentInfoLine(
+                          icon: Icons.email_outlined,
+                          label: "Account email",
+                          value: accountEmail,
+                        ),
+                        _AgentInfoLine(
+                          icon: Icons.mark_email_read_outlined,
+                          label: "Email status",
+                          value: emailStatus,
+                        ),
+                        _AgentInfoLine(
+                          icon: Icons.badge_outlined,
+                          label: "Login profile",
+                          value: profileName,
+                        ),
+                        _AgentInfoLine(
+                          icon: Icons.language_outlined,
+                          label: "Language",
+                          value: preferredLanguage,
+                        ),
+                        _AgentInfoLine(
+                          icon: Icons.place_outlined,
+                          label: "Location",
+                          value: location,
+                        ),
+                        _AgentInfoLine(
+                          icon: Icons.perm_identity_outlined,
+                          label: "NIDA",
+                          value: nida,
+                        ),
+                        _AgentInfoLine(
+                          icon: Icons.event_available_outlined,
+                          label: "Created",
+                          value: createdAt,
+                        ),
+                      ],
+                    ),
+                    if (businessDescription.trim().isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 12),
+                      _AgentDetailBlock(
+                        title: "Business details",
+                        child: Text(businessDescription),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    _AgentDetailBlock(
+                      title: "Assigned categories",
+                      child: Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         children: assignedCategories.isEmpty
@@ -1048,99 +1388,235 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                                 return Chip(label: Text(label));
                               }).toList(),
                       ),
-                      if (agent["deactivation_reason"] != null) ...<Widget>[
-                        const SizedBox(height: 10),
-                        Text("Reason: ${agent["deactivation_reason"]}"),
-                      ],
-                      const SizedBox(height: 10),
-                      Text("Documents: ${documents.length}"),
-                      ...documents.map(
-                        (dynamic doc) => Text(
-                          "${doc["document_type"]} | ${doc["storage_path"]}",
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: <Widget>[
-                          FilledButton(
-                            onPressed: accountStatus == "active"
-                                ? null
-                                : () => _setStatus(
-                                    agent["id"] as String,
-                                    "active",
+                    ),
+                    const SizedBox(height: 12),
+                    _AgentDetailBlock(
+                      title: "Documents",
+                      child: documents.isEmpty
+                          ? const Text("No documents uploaded yet.")
+                          : Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: documents.map((dynamic doc) {
+                                return Chip(
+                                  label: Text(
+                                    doc["document_type"] as String? ??
+                                        "Document",
                                   ),
-                            child: const Text("Activate"),
-                          ),
-                          OutlinedButton(
-                            onPressed: verified
-                                ? null
-                                : () => _setStatus(
-                                    agent["id"] as String,
-                                    accountStatus,
-                                    verificationStatus: "approved",
-                                    note: "Verified by admin",
-                                  ),
-                            child: const Text("Verify badge"),
-                          ),
-                          OutlinedButton(
-                            onPressed: verificationStatus == "pending"
-                                ? null
-                                : () => _setStatus(
-                                    agent["id"] as String,
-                                    accountStatus,
-                                    verificationStatus: "pending",
-                                    note: "Verification reset by admin",
-                                  ),
-                            child: const Text("Mark pending"),
-                          ),
-                          OutlinedButton(
-                            onPressed: () =>
-                                _openCategoryAssignmentDialog(agent),
-                            child: const Text("Categories"),
-                          ),
-                          OutlinedButton(
-                            onPressed: accountStatus == "inactive"
-                                ? null
-                                : () => _setStatus(
-                                    agent["id"] as String,
-                                    "inactive",
-                                    note: "Offline activation pending",
-                                  ),
-                            child: const Text("Deactivate"),
-                          ),
-                          OutlinedButton(
-                            onPressed: verificationStatus == "rejected"
-                                ? null
-                                : () => _setStatus(
-                                    agent["id"] as String,
-                                    accountStatus,
-                                    verificationStatus: "rejected",
-                                    note: "Verification rejected by admin",
-                                  ),
-                            child: const Text("Reject badge"),
-                          ),
-                          OutlinedButton(
-                            onPressed: accountStatus == "suspended"
-                                ? null
-                                : () => _setStatus(
-                                    agent["id"] as String,
-                                    "suspended",
-                                    note: "Suspended by admin",
-                                  ),
-                            child: const Text("Suspend"),
-                          ),
-                        ],
+                                );
+                              }).toList(),
+                            ),
+                    ),
+                    if (agent["deactivation_reason"] != null &&
+                        (agent["deactivation_reason"] as String)
+                            .trim()
+                            .isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 12),
+                      _AgentDetailBlock(
+                        title: "Status note",
+                        child: Text(agent["deactivation_reason"] as String),
                       ),
                     ],
-                  ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: <Widget>[
+                        FilledButton(
+                          onPressed: accountStatus == "active"
+                              ? null
+                              : () =>
+                                    _setStatus(agent["id"] as String, "active"),
+                          child: const Text("Activate"),
+                        ),
+                        OutlinedButton(
+                          onPressed: verified
+                              ? null
+                              : () => _setStatus(
+                                  agent["id"] as String,
+                                  accountStatus,
+                                  verificationStatus: "approved",
+                                  note: "Verified by admin",
+                                ),
+                          child: const Text("Verify badge"),
+                        ),
+                        OutlinedButton(
+                          onPressed: verificationStatus == "pending"
+                              ? null
+                              : () => _setStatus(
+                                  agent["id"] as String,
+                                  accountStatus,
+                                  verificationStatus: "pending",
+                                  note: "Verification reset by admin",
+                                ),
+                          child: const Text("Mark pending"),
+                        ),
+                        OutlinedButton(
+                          onPressed: () => _openCategoryAssignmentDialog(agent),
+                          child: const Text("Categories"),
+                        ),
+                        OutlinedButton(
+                          onPressed: accountStatus == "inactive"
+                              ? null
+                              : () => _setStatus(
+                                  agent["id"] as String,
+                                  "inactive",
+                                  note: "Offline activation pending",
+                                ),
+                          child: const Text("Deactivate"),
+                        ),
+                        OutlinedButton(
+                          onPressed: verificationStatus == "rejected"
+                              ? null
+                              : () => _setStatus(
+                                  agent["id"] as String,
+                                  accountStatus,
+                                  verificationStatus: "rejected",
+                                  note: "Verification rejected by admin",
+                                ),
+                          child: const Text("Reject badge"),
+                        ),
+                        OutlinedButton(
+                          onPressed: accountStatus == "suspended"
+                              ? null
+                              : () => _setStatus(
+                                  agent["id"] as String,
+                                  "suspended",
+                                  note: "Suspended by admin",
+                                ),
+                          child: const Text("Suspend"),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              );
-            }),
-          ],
-        );
-      },
+              ),
+            );
+          }),
+        if (_loadingMore) ...<Widget>[
+          const SizedBox(height: 12),
+          const Center(child: CircularProgressIndicator()),
+        ] else if (_hasMoreResults) ...<Widget>[
+          const SizedBox(height: 12),
+          Center(
+            child: OutlinedButton.icon(
+              onPressed: () => unawaited(_loadAgents(reset: false)),
+              icon: const Icon(Icons.expand_more_rounded),
+              label: const Text("Load more agents"),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _FilterSection extends StatelessWidget {
+  const _FilterSection({required this.label, required this.children});
+
+  final String label;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(label, style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: children),
+      ],
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onSelected(),
+    );
+  }
+}
+
+class _AgentInfoLine extends StatelessWidget {
+  const _AgentInfoLine({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 220, maxWidth: 320),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: theme.textTheme.bodyMedium,
+                children: <TextSpan>[
+                  TextSpan(
+                    text: "$label: ",
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  TextSpan(text: value),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AgentDetailBlock extends StatelessWidget {
+  const _AgentDetailBlock({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(title, style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          child,
+        ],
+      ),
     );
   }
 }
