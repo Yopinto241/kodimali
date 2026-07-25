@@ -120,6 +120,13 @@ export default async function ListingPage({
   }
 
   const attributes = (listing.listing_attributes ?? {}) as Record<string, unknown>;
+  const fieldSchema = Array.isArray(listing.asset_categories?.field_schema)
+    ? (listing.asset_categories.field_schema as Array<{
+        key?: string;
+        label?: string;
+        active?: boolean;
+      }>)
+    : [];
   const showFarmHighlights = listing.asset_categories?.slug === "farms";
   const showApartmentServices = listing.asset_categories?.slug === "apartment";
   const highlights = showFarmHighlights ? farmHighlights(attributes) : [];
@@ -131,9 +138,22 @@ export default async function ListingPage({
   }>).sort(
     (left, right) => (left.display_order ?? 0) - (right.display_order ?? 0),
   );
-  const attributeEntries = Object.entries(attributes).filter(
-    ([, value]) => value !== null && value !== undefined && String(value).trim() !== "",
-  );
+  const schemaByKey = new Map(fieldSchema.map((field) => [field.key, field]));
+  const attributeEntries = Object.entries(attributes)
+    .filter(([key, value]) => {
+      const field = schemaByKey.get(key);
+      return (
+        field?.active !== false &&
+        value !== null &&
+        value !== undefined &&
+        String(value).trim() !== ""
+      );
+    })
+    .map(([key, value]) => ({
+      key,
+      label: schemaByKey.get(key)?.label ?? formatAttributeLabel(key),
+      value,
+    }));
 
   return (
     <PageShell className="pb-20">
@@ -220,13 +240,13 @@ export default async function ListingPage({
             <div className="soft-panel mt-8 p-5">
               <p className="eyebrow">Additional details</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {attributeEntries.map(([key, value]) => (
+                {attributeEntries.map(({ key, label, value }) => (
                   <div
                     key={key}
                     className="rounded-[16px] border border-brand-border bg-card px-4 py-3 text-sm text-muted"
                   >
                     <span className="font-bold text-brand-ink">
-                      {formatAttributeLabel(key)}
+                      {label}
                     </span>
                     : {displayValue(value)}
                   </div>

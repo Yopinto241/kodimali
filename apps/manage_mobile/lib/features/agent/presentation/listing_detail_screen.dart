@@ -23,6 +23,12 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
   final TextEditingController _priceController = TextEditingController();
   final TextEditingController _depositController = TextEditingController();
   final TextEditingController _rulesController = TextEditingController();
+  final Map<String, TextEditingController> _attributeControllers =
+      <String, TextEditingController>{};
+  final Map<String, bool> _attributeBooleans = <String, bool>{};
+  final Map<String, String?> _attributeSelections = <String, String?>{};
+  final Map<String, dynamic> _retiredAttributes = <String, dynamic>{};
+  List<Map<String, dynamic>> _attributeSchema = <Map<String, dynamic>>[];
   String _availability = "available";
   String _pricePeriod = "day";
   String? _status;
@@ -46,6 +52,10 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     _priceController.dispose();
     _depositController.dispose();
     _rulesController.dispose();
+    for (final TextEditingController controller
+        in _attributeControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -63,7 +73,77 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     _availability = detail["availability_status"] as String? ?? "available";
     _pricePeriod = detail["price_period"] as String? ?? "day";
     _status = detail["status"] as String?;
+    _initializeAttributes(detail);
     return detail;
+  }
+
+  void _initializeAttributes(Map<String, dynamic> detail) {
+    for (final TextEditingController controller
+        in _attributeControllers.values) {
+      controller.dispose();
+    }
+    _attributeControllers.clear();
+    _attributeBooleans.clear();
+    _attributeSelections.clear();
+    _retiredAttributes.clear();
+    final Map<String, dynamic> category =
+        (detail['asset_categories'] as Map?)?.cast<String, dynamic>() ??
+        <String, dynamic>{};
+    final dynamic rawSchema = category['field_schema'];
+    _attributeSchema = rawSchema is List
+        ? rawSchema
+              .whereType<Map>()
+              .map((Map item) => item.cast<String, dynamic>())
+              .where(
+                (Map<String, dynamic> field) =>
+                    field['key']?.toString().trim().isNotEmpty == true &&
+                    field['active'] != false,
+              )
+              .toList()
+        : <Map<String, dynamic>>[];
+    final Map<String, dynamic> values =
+        (detail['listing_attributes'] as Map?)?.cast<String, dynamic>() ??
+        <String, dynamic>{};
+    final Set<String> activeKeys = _attributeSchema
+        .map((Map<String, dynamic> field) => field['key'].toString())
+        .toSet();
+    _retiredAttributes.addAll(
+      Map<String, dynamic>.fromEntries(
+        values.entries.where(
+          (MapEntry<String, dynamic> entry) => !activeKeys.contains(entry.key),
+        ),
+      ),
+    );
+    for (final Map<String, dynamic> field in _attributeSchema) {
+      final String key = field['key'].toString();
+      final String type = field['type']?.toString() ?? 'text';
+      if (type == 'boolean') {
+        _attributeBooleans[key] = values[key] == true;
+      } else if (type == 'select') {
+        _attributeSelections[key] = values[key]?.toString();
+      } else {
+        _attributeControllers[key] = TextEditingController(
+          text: values[key]?.toString() ?? '',
+        );
+      }
+    }
+  }
+
+  Map<String, dynamic> _listingAttributes() {
+    final Map<String, dynamic> result = Map<String, dynamic>.from(
+      _retiredAttributes,
+    );
+    for (final MapEntry<String, TextEditingController> entry
+        in _attributeControllers.entries) {
+      final String value = entry.value.text.trim();
+      if (value.isNotEmpty) result[entry.key] = num.tryParse(value) ?? value;
+    }
+    result.addAll(_attributeBooleans);
+    for (final MapEntry<String, String?> entry
+        in _attributeSelections.entries) {
+      if (entry.value?.isNotEmpty == true) result[entry.key] = entry.value;
+    }
+    return result;
   }
 
   Future<void> _refresh() async {
@@ -86,6 +166,7 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
       depositAmount: double.tryParse(_depositController.text.trim()) ?? 0,
       rules: _rulesController.text.trim(),
       availabilityStatus: _availability,
+      listingAttributes: _listingAttributes(),
     );
     if (!mounted) {
       return;
@@ -250,6 +331,17 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                       ),
                     ],
                   ),
+                ),
+                const SizedBox(height: 16),
+                ManagePanel(
+                  title: "Category listing fields",
+                  subtitle:
+                      "These fields are configured by the administrator for this listing category.",
+                  child: _attributeSchema.isEmpty
+                      ? const Text(
+                          "No extra fields configured for this category.",
+                        )
+                      : Column(children: _buildAttributeFields()),
                 ),
                 const SizedBox(height: 16),
                 ManagePanel(
@@ -434,5 +526,75 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
         },
       ),
     );
+  }
+
+  List<Widget> _buildAttributeFields() {
+    return _attributeSchema.map((Map<String, dynamic> field) {
+      final String key = field['key'].toString();
+      final String label = field['label']?.toString() ?? key;
+      final String type = field['type']?.toString() ?? 'text';
+      final bool required = field['required'] == true;
+      final String? helpText = field['help_text']?.toString().trim();
+      if (type == 'boolean') {
+        return CheckboxListTile(
+          value: _attributeBooleans[key] ?? false,
+          title: Text(label),
+          subtitle: helpText?.isNotEmpty == true ? Text(helpText!) : null,
+          contentPadding: EdgeInsets.zero,
+          onChanged: (bool? value) =>
+              setState(() => _attributeBooleans[key] = value ?? false),
+        );
+      }
+      if (type == 'select') {
+        final List<String> options =
+            (field['options'] as List<dynamic>? ?? <dynamic>[])
+                .map((dynamic value) => value.toString())
+                .toList();
+        final String? current = _attributeSelections[key];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: DropdownButtonFormField<String>(
+            initialValue: options.contains(current) ? current : null,
+            decoration: InputDecoration(
+              labelText: required ? '$label *' : label,
+              helperText: helpText,
+            ),
+            items: options
+                .map(
+                  (String option) => DropdownMenuItem<String>(
+                    value: option,
+                    child: Text(option),
+                  ),
+                )
+                .toList(),
+            validator: required
+                ? (String? value) =>
+                      value?.isNotEmpty == true ? null : '$label is required'
+                : null,
+            onChanged: (String? value) =>
+                setState(() => _attributeSelections[key] = value),
+          ),
+        );
+      }
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: TextFormField(
+          controller: _attributeControllers[key],
+          maxLines: type == 'textarea' ? 3 : 1,
+          keyboardType: type == 'number'
+              ? const TextInputType.numberWithOptions(decimal: true)
+              : TextInputType.text,
+          decoration: InputDecoration(
+            labelText: required ? '$label *' : label,
+            helperText: helpText,
+          ),
+          validator: required
+              ? (String? value) => value?.trim().isNotEmpty == true
+                    ? null
+                    : '$label is required'
+              : null,
+        ),
+      );
+    }).toList();
   }
 }

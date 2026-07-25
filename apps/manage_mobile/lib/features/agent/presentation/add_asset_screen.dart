@@ -592,7 +592,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
         .map((Map item) => item.cast<String, dynamic>())
         .where((Map<String, dynamic> field) {
           final String key = field["key"]?.toString().trim() ?? "";
-          return key.isNotEmpty;
+          return key.isNotEmpty && field["active"] != false;
         })
         .toList();
   }
@@ -2102,6 +2102,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
           ? List<dynamic>.from(rawOptions)
           : <dynamic>[];
       final bool required = field["required"] == true;
+      final String? helpText = _nonEmptyId(field["help_text"]);
       final String inputLabel = required ? "$label *" : label;
 
       if (type == "boolean") {
@@ -2112,6 +2113,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
             _scheduleDraftSave();
           },
           title: Text(label),
+          subtitle: helpText == null ? null : Text(helpText),
           contentPadding: EdgeInsets.zero,
         );
       }
@@ -2123,7 +2125,10 @@ class _AddAssetScreenState extends State<AddAssetScreen>
             isExpanded: true,
             menuMaxHeight: _menuMaxHeight,
             initialValue: _attributeSelections[key],
-            decoration: InputDecoration(labelText: inputLabel),
+            decoration: InputDecoration(
+              labelText: inputLabel,
+              helperText: helpText,
+            ),
             items: options
                 .map(
                   (dynamic option) => DropdownMenuItem<String>(
@@ -2153,7 +2158,10 @@ class _AddAssetScreenState extends State<AddAssetScreen>
           keyboardType: type == "number"
               ? const TextInputType.numberWithOptions(decimal: true)
               : TextInputType.text,
-          decoration: InputDecoration(labelText: inputLabel),
+          decoration: InputDecoration(
+            labelText: inputLabel,
+            helperText: helpText,
+          ),
           validator: required
               ? (String? value) => value == null || value.trim().isEmpty
                     ? "$label is required"

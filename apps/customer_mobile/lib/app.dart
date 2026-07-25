@@ -5888,6 +5888,12 @@ List<_ListingAttributeItem> _buildListingAttributeItems({
 
   for (final Map<String, dynamic> field in fieldSchema) {
     final String key = field["key"] as String? ?? "";
+    if (field["active"] == false) {
+      if (key.isNotEmpty) {
+        consumedKeys.add(key);
+      }
+      continue;
+    }
     if (key.isEmpty || !attributes.containsKey(key)) {
       continue;
     }

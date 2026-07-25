@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -1069,7 +1068,7 @@ class ManageRepository {
     required int displayOrder,
     required bool isActive,
     required int homeFeedWeight,
-    required String fieldSchemaJson,
+    required List<Map<String, dynamic>> fieldSchema,
   }) async {
     final JsonMap payload = <String, dynamic>{
       "name": name,
@@ -1079,7 +1078,7 @@ class ManageRepository {
       "display_order": displayOrder,
       "is_active": isActive,
       "home_feed_weight": homeFeedWeight,
-      "field_schema": jsonDecode(fieldSchemaJson),
+      "field_schema": fieldSchema,
     };
     if (categoryId == null) {
       await _client.from("asset_categories").insert(payload);
@@ -1169,6 +1168,7 @@ class ManageRepository {
     required double depositAmount,
     required String rules,
     required String availabilityStatus,
+    required JsonMap listingAttributes,
   }) async {
     final String normalizedListingId = _requiredInputId(
       listingId,
@@ -1193,6 +1193,7 @@ class ManageRepository {
       "deposit_required_amount": depositAmount,
       "listing_rules": rules,
       "availability_status": availabilityStatus,
+      "listing_attributes": listingAttributes,
     };
     await _client
         .from("listings")
