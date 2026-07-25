@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_models/shared_models.dart';
 
+import '../../../core/media/listing_video_compressor.dart';
+import '../../../core/utils/user_facing_error.dart';
 import '../../../core/widgets/app_scope.dart';
 import '../../../core/widgets/kodimali_empty_state.dart';
 import '../../../core/widgets/manage_ui.dart';
@@ -21,6 +23,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
   static const int _promotionMediaMaxBytes = 30 * 1024 * 1024;
   static const double _menuMaxHeight = 360;
   final ImagePicker _picker = ImagePicker();
+  final ListingVideoCompressor _videoCompressor = ListingVideoCompressor();
   late Future<List<Map<String, dynamic>>> _future;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _titleController = TextEditingController();
@@ -36,9 +39,15 @@ class _PromotionsTabState extends State<PromotionsTab> {
   String _placement = "global";
   String _visibilityScope = "all";
   String? _editingPromotionId;
+  int _formRevision = 0;
   PlatformFile? _mediaFile;
   bool _initialized = false;
+  bool _saving = false;
+  bool _compressingVideo = false;
+  double _videoCompressionProgress = 0;
+  final Set<String> _deletingPromotionIds = <String>{};
   bool _loadingLocations = false;
+  Future<void>? _locationBootstrap;
   String? _locationError;
   String? _countryId;
   Map<String, List<Map<String, dynamic>>> _locationChildrenCache =
@@ -60,11 +69,13 @@ class _PromotionsTabState extends State<PromotionsTab> {
     }
     _initialized = true;
     _future = _load();
-    unawaited(_bootstrapLocations());
+    _locationBootstrap = _bootstrapLocations();
+    unawaited(_locationBootstrap);
   }
 
   @override
   void dispose() {
+    unawaited(_disposeVideoCompressor());
     _titleController.dispose();
     _descriptionController.dispose();
     _ctaController.dispose();
@@ -73,6 +84,11 @@ class _PromotionsTabState extends State<PromotionsTab> {
     _endAtController.dispose();
     _displayOrderController.dispose();
     super.dispose();
+  }
+
+  Future<void> _disposeVideoCompressor() async {
+    await _videoCompressor.cancel();
+    await _videoCompressor.clearCache();
   }
 
   Future<List<Map<String, dynamic>>> _load() {
@@ -87,6 +103,11 @@ class _PromotionsTabState extends State<PromotionsTab> {
   }
 
   void _loadIntoForm(Map<String, dynamic> promotion) {
+    final String? savedRegionId = promotion["target_region_id"] as String?;
+    final String? savedDistrictId = promotion["target_district_id"] as String?;
+    final String? savedWardId = promotion["target_ward_id"] as String?;
+    final String? savedAreaId = promotion["target_area_id"] as String?;
+    final int revision = ++_formRevision;
     setState(() {
       _editingPromotionId = promotion["id"] as String?;
       _titleController.text = promotion["title"] as String? ?? "";
@@ -101,22 +122,28 @@ class _PromotionsTabState extends State<PromotionsTab> {
       _visibilityScope = promotion["visibility_scope"] as String? ?? "all";
       _isActive = promotion["is_active"] as bool? ?? true;
       _mediaFile = null;
-      _targetRegionId = promotion["target_region_id"] as String?;
-      _targetDistrictId = promotion["target_district_id"] as String?;
-      _targetWardId = promotion["target_ward_id"] as String?;
-      _targetAreaId = promotion["target_area_id"] as String?;
+      _targetRegionId = null;
+      _targetDistrictId = null;
+      _targetWardId = null;
+      _targetAreaId = null;
+      _districts = <Map<String, dynamic>>[];
+      _wards = <Map<String, dynamic>>[];
+      _areas = <Map<String, dynamic>>[];
     });
     unawaited(
       _restoreTargetLocationSelection(
-        regionId: _targetRegionId,
-        districtId: _targetDistrictId,
-        wardId: _targetWardId,
-        areaId: _targetAreaId,
+        regionId: savedRegionId,
+        districtId: savedDistrictId,
+        wardId: savedWardId,
+        areaId: savedAreaId,
+        formRevision: revision,
       ),
     );
   }
 
   void _resetForm() {
+    _formRevision += 1;
+    unawaited(_videoCompressor.clearCache());
     setState(() {
       _editingPromotionId = null;
       _titleController.clear();
@@ -155,10 +182,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
                 item["location_type"] == LocationType.country.storageValue,
           )
           .toList(growable: false);
-      if (countries.isEmpty) {
-        throw StateError("No active country is available for promotions.");
-      }
-      final String? countryId = countries.first["id"] as String?;
+      final String? countryId = countries.isEmpty
+          ? null
+          : countries.first["id"] as String?;
       final Map<String, List<Map<String, dynamic>>> childrenCache =
           <String, List<Map<String, dynamic>>>{};
       for (final Map<String, dynamic> item in locations) {
@@ -174,11 +200,6 @@ class _PromotionsTabState extends State<PromotionsTab> {
         );
         bucket.add(Map<String, dynamic>.from(item));
       }
-      _countryId = countryId;
-      _regions = countryId == null
-          ? <Map<String, dynamic>>[]
-          : _childrenOf(parentId: countryId, type: LocationType.region);
-      _locationChildrenCache = childrenCache;
       if (!mounted) {
         return;
       }
@@ -189,6 +210,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
             ? <Map<String, dynamic>>[]
             : _childrenOf(parentId: countryId, type: LocationType.region);
         _loadingLocations = false;
+        _locationError = countries.isEmpty
+            ? "Location targeting is unavailable, but you can still publish to all locations."
+            : null;
       });
     } catch (error) {
       if (!mounted) {
@@ -196,7 +220,11 @@ class _PromotionsTabState extends State<PromotionsTab> {
       }
       setState(() {
         _loadingLocations = false;
-        _locationError = error.toString();
+        _locationError = userFacingError(
+          error,
+          fallback:
+              "Location targeting could not load, but all-locations promotions remain available.",
+        );
       });
     }
   }
@@ -276,22 +304,42 @@ class _PromotionsTabState extends State<PromotionsTab> {
     required String? districtId,
     required String? wardId,
     required String? areaId,
+    required int formRevision,
   }) async {
-    if (_countryId == null && !_loadingLocations) {
-      await _bootstrapLocations();
+    if (_locationBootstrap != null) {
+      await _locationBootstrap;
+    } else if (_countryId == null && !_loadingLocations) {
+      _locationBootstrap = _bootstrapLocations();
+      await _locationBootstrap;
     }
-    if (!mounted) {
+    if (!mounted || formRevision != _formRevision) {
       return;
     }
+    final String? restoredRegionId =
+        _regions.any((Map<String, dynamic> item) => item["id"] == regionId)
+        ? regionId
+        : null;
     setState(() {
-      _targetRegionId = regionId;
+      _targetRegionId = restoredRegionId;
       _targetDistrictId = null;
       _targetWardId = null;
       _targetAreaId = null;
+      if (regionId != null && restoredRegionId == null) {
+        _locationError =
+            "This promotion targeted a location that is no longer active. Choose a new target or use all locations before saving.";
+      } else if (_regions.isNotEmpty) {
+        _locationError = null;
+      }
     });
-    await _loadDistricts(regionId, selectedId: districtId);
-    await _loadWards(districtId, selectedId: wardId);
-    await _loadAreas(wardId, selectedId: areaId);
+    await _loadDistricts(restoredRegionId, selectedId: districtId);
+    if (!mounted || formRevision != _formRevision) {
+      return;
+    }
+    await _loadWards(_targetDistrictId, selectedId: wardId);
+    if (!mounted || formRevision != _formRevision) {
+      return;
+    }
+    await _loadAreas(_targetWardId, selectedId: areaId);
   }
 
   Widget _menuText(String value) {
@@ -312,70 +360,164 @@ class _PromotionsTabState extends State<PromotionsTab> {
         return name;
       }
     }
-    return "No target";
+    return "All locations";
   }
 
   Future<void> _pickMedia() async {
-    final FilePickerResult? result = await FilePicker.platform.pickFiles(
-      withData: true,
-      type: FileType.custom,
-      allowedExtensions: <String>[
-        "png",
-        "jpg",
-        "jpeg",
-        "webp",
-        "gif",
-        "heic",
-        "heif",
-        "mp4",
-        "mov",
-        "m4v",
-        "webm",
-        "avi",
-        "mkv",
-      ],
-    );
-    if (result == null || result.files.isEmpty) {
-      return;
-    }
-    final PlatformFile file = result.files.single;
-    if (file.size > _promotionMediaMaxBytes) {
+    try {
+      final FilePickerResult? result = await FilePicker.platform.pickFiles(
+        withData: true,
+        type: FileType.custom,
+        allowedExtensions: <String>[
+          "png",
+          "jpg",
+          "jpeg",
+          "webp",
+          "gif",
+          "heic",
+          "heif",
+          "mp4",
+          "mov",
+          "m4v",
+          "webm",
+          "avi",
+          "mkv",
+        ],
+      );
+      if (result == null || result.files.isEmpty) {
+        return;
+      }
+      final PlatformFile file = result.files.single;
+      if (file.size > _promotionMediaMaxBytes) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Promotion media must be 30 MB or smaller."),
+          ),
+        );
+        return;
+      }
+      if (file.bytes == null || file.bytes!.isEmpty) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "The selected file could not be read. Choose it again, or use Image/Video from gallery.",
+            ),
+          ),
+        );
+        return;
+      }
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Promotion media must be 30 MB or smaller."),
-        ),
-      );
-      return;
+      setState(() => _mediaFile = file);
+    } catch (error) {
+      _showMediaError(error);
     }
-    setState(() => _mediaFile = file);
   }
 
   Future<void> _pickImageFromGallery() async {
-    final XFile? file = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 88,
-    );
-    if (file == null) {
-      return;
-    }
-    final PlatformFile? platformFile = await _platformFileFromXFile(file);
-    if (platformFile != null) {
-      setState(() => _mediaFile = platformFile);
+    try {
+      final XFile? file = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 88,
+      );
+      if (file == null) {
+        return;
+      }
+      final PlatformFile? platformFile = await _platformFileFromXFile(file);
+      if (platformFile != null && mounted) {
+        setState(() => _mediaFile = platformFile);
+      }
+    } catch (error) {
+      _showMediaError(error);
     }
   }
 
   Future<void> _pickVideoFromGallery() async {
-    final XFile? file = await _picker.pickVideo(source: ImageSource.gallery);
-    if (file == null) {
+    if (_compressingVideo) {
       return;
     }
-    final PlatformFile? platformFile = await _platformFileFromXFile(file);
-    if (platformFile != null) {
-      setState(() => _mediaFile = platformFile);
+    try {
+      final XFile? file = await _picker.pickVideo(source: ImageSource.gallery);
+      if (file == null) {
+        return;
+      }
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _compressingVideo = true;
+        _videoCompressionProgress = 0;
+      });
+      final ListingVideoCompressionResult result = await _videoCompressor
+          .compress(
+            file,
+            onProgress: (double progress) {
+              if (mounted) {
+                setState(() => _videoCompressionProgress = progress);
+              }
+            },
+          );
+      final PlatformFile? platformFile = await _platformFileFromXFile(
+        result.video,
+      );
+      if (platformFile != null && mounted) {
+        setState(() => _mediaFile = platformFile);
+        final double originalMb = result.originalBytes / (1024 * 1024);
+        final double compressedMb = result.compressedBytes / (1024 * 1024);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Video prepared: ${originalMb.toStringAsFixed(1)} MB to ${compressedMb.toStringAsFixed(1)} MB.",
+            ),
+          ),
+        );
+      }
+    } on ListingVideoCompressionCancelled {
+      // The explicit cancel button already communicates the action.
+    } catch (error) {
+      _showMediaError(error);
+    } finally {
+      await _videoCompressor.clearCache();
+      if (mounted) {
+        setState(() {
+          _compressingVideo = false;
+          _videoCompressionProgress = 0;
+        });
+      }
     }
+  }
+
+  Future<void> _cancelVideoCompression() async {
+    await _videoCompressor.cancel();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Video compression cancelled.")),
+      );
+    }
+  }
+
+  void _showMediaError(Object error) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          userFacingError(
+            error,
+            fallback:
+                "Promotion media could not be opened. Check media permission and choose the file again.",
+          ),
+        ),
+      ),
+    );
   }
 
   Future<PlatformFile?> _platformFileFromXFile(XFile file) async {
@@ -400,49 +542,171 @@ class _PromotionsTabState extends State<PromotionsTab> {
   }
 
   Future<void> _save() async {
+    if (_saving) {
+      return;
+    }
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    if (_targetRegionId == null || _targetRegionId!.isEmpty) {
+    final DateTime? startAt = _parseOptionalDate(
+      _startAtController.text,
+      "start date",
+    );
+    final DateTime? endAt = _parseOptionalDate(
+      _endAtController.text,
+      "end date",
+    );
+    if ((_startAtController.text.trim().isNotEmpty && startAt == null) ||
+        (_endAtController.text.trim().isNotEmpty && endAt == null)) {
+      return;
+    }
+    if (startAt != null && endAt != null && !endAt.isAfter(startAt)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Choose at least a region for this promotion."),
+          content: Text("Promotion end date must be after its start date."),
         ),
       );
       return;
     }
-    await AppScope.of(context).repository.savePromotion(
-      promotionId: _editingPromotionId,
-      title: _titleController.text.trim(),
-      description: _descriptionController.text.trim(),
-      ctaLabel: _ctaController.text.trim().isEmpty
-          ? null
-          : _ctaController.text.trim(),
-      targetUrl: _urlController.text.trim().isEmpty
-          ? null
-          : _urlController.text.trim(),
-      placement: _placement,
-      visibilityScope: _visibilityScope,
-      displayOrder: int.tryParse(_displayOrderController.text.trim()) ?? 0,
-      isActive: _isActive,
-      startAtIso: _startAtController.text.trim(),
-      endAtIso: _endAtController.text.trim(),
-      targetRegionId: _targetRegionId!,
-      targetDistrictId: _targetDistrictId,
-      targetWardId: _targetWardId,
-      targetAreaId: _targetAreaId,
-      mediaFile: _mediaFile,
-    );
-    _resetForm();
-    await _refresh();
+
+    final bool creating = _editingPromotionId == null;
+    setState(() => _saving = true);
+    try {
+      await AppScope.of(context).repository.savePromotion(
+        promotionId: _editingPromotionId,
+        title: _titleController.text.trim(),
+        description: _descriptionController.text.trim(),
+        ctaLabel: _ctaController.text.trim().isEmpty
+            ? null
+            : _ctaController.text.trim(),
+        targetUrl: _urlController.text.trim().isEmpty
+            ? null
+            : _urlController.text.trim(),
+        placement: _placement,
+        visibilityScope: _visibilityScope,
+        displayOrder: int.parse(_displayOrderController.text.trim()),
+        isActive: _isActive,
+        startAtIso: startAt?.toIso8601String(),
+        endAtIso: endAt?.toIso8601String(),
+        targetRegionId: _targetRegionId,
+        targetDistrictId: _targetDistrictId,
+        targetWardId: _targetWardId,
+        targetAreaId: _targetAreaId,
+        mediaFile: _mediaFile,
+      );
+      if (!mounted) {
+        return;
+      }
+      _resetForm();
+      await _refresh();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              creating
+                  ? "Promotion created successfully."
+                  : "Promotion updated successfully.",
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              userFacingError(
+                error,
+                fallback: "Promotion could not be saved. Please try again.",
+              ),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
   }
 
   Future<void> _deletePromotion(String promotionId) async {
-    await AppScope.of(context).repository.deletePromotion(promotionId);
-    if (_editingPromotionId == promotionId) {
-      _resetForm();
+    if (_deletingPromotionIds.contains(promotionId)) {
+      return;
     }
-    await _refresh();
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: const Text("Delete promotion?"),
+        content: const Text(
+          "This removes the promotion from every customer, agent, admin, and website placement.",
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text("Cancel"),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    setState(() => _deletingPromotionIds.add(promotionId));
+    try {
+      await AppScope.of(context).repository.deletePromotion(promotionId);
+      if (!mounted) {
+        return;
+      }
+      if (_editingPromotionId == promotionId) {
+        _resetForm();
+      }
+      await _refresh();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Promotion deleted.")));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              userFacingError(
+                error,
+                fallback: "Promotion could not be deleted. Please try again.",
+              ),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _deletingPromotionIds.remove(promotionId));
+      }
+    }
+  }
+
+  DateTime? _parseOptionalDate(String value, String label) {
+    final String normalized = value.trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    final DateTime? parsed = DateTime.tryParse(normalized);
+    if (parsed == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Enter a valid promotion $label, for example 2026-07-20T10:00:00+03:00.",
+          ),
+        ),
+      );
+    }
+    return parsed;
   }
 
   String _placementDescription(String placement) {
@@ -491,6 +755,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
+                key: ValueKey<String>("placement-$_placement"),
                 isExpanded: true,
                 menuMaxHeight: _menuMaxHeight,
                 initialValue: _placement,
@@ -533,6 +798,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
+                key: ValueKey<String>("visibility-$_visibilityScope"),
                 isExpanded: true,
                 menuMaxHeight: _menuMaxHeight,
                 initialValue: _visibilityScope,
@@ -563,34 +829,48 @@ class _PromotionsTabState extends State<PromotionsTab> {
                   child: Text(_locationError!),
                 ),
               DropdownButtonFormField<String>(
+                key: ValueKey<String>("region-${_targetRegionId ?? "all"}"),
                 isExpanded: true,
                 menuMaxHeight: _menuMaxHeight,
-                initialValue: _targetRegionId,
-                decoration: const InputDecoration(labelText: "Region *"),
-                items: _regions
-                    .map(
-                      (Map<String, dynamic> item) => DropdownMenuItem<String>(
-                        value: item["id"] as String,
-                        child: _menuText(item["name"] as String? ?? "-"),
-                      ),
-                    )
-                    .toList(),
+                initialValue: _targetRegionId ?? "",
+                decoration: const InputDecoration(
+                  labelText: "Region",
+                  helperText: "Leave blank to publish to all locations.",
+                ),
+                items: <DropdownMenuItem<String>>[
+                  const DropdownMenuItem<String>(
+                    value: "",
+                    child: Text("All locations"),
+                  ),
+                  ..._regions.map(
+                    (Map<String, dynamic> item) => DropdownMenuItem<String>(
+                      value: item["id"] as String,
+                      child: _menuText(item["name"] as String? ?? "-"),
+                    ),
+                  ),
+                ],
                 onChanged: _loadingLocations
                     ? null
                     : (String? value) async {
+                        final String? nextRegionId =
+                            value == null || value.isEmpty ? null : value;
                         setState(() {
-                          _targetRegionId = value;
+                          _targetRegionId = nextRegionId;
                           _targetDistrictId = null;
                           _targetWardId = null;
                           _targetAreaId = null;
+                          _districts = <Map<String, dynamic>>[];
                           _wards = <Map<String, dynamic>>[];
                           _areas = <Map<String, dynamic>>[];
                         });
-                        await _loadDistricts(value);
+                        await _loadDistricts(nextRegionId);
                       },
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
+                key: ValueKey<String>(
+                  "district-${_targetRegionId ?? "all"}-${_targetDistrictId ?? "none"}",
+                ),
                 isExpanded: true,
                 menuMaxHeight: _menuMaxHeight,
                 initialValue: _targetDistrictId ?? "",
@@ -630,6 +910,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
+                key: ValueKey<String>(
+                  "ward-${_targetDistrictId ?? "none"}-${_targetWardId ?? "none"}",
+                ),
                 isExpanded: true,
                 menuMaxHeight: _menuMaxHeight,
                 initialValue: _targetWardId ?? "",
@@ -667,6 +950,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
+                key: ValueKey<String>(
+                  "area-${_targetWardId ?? "none"}-${_targetAreaId ?? "none"}",
+                ),
                 isExpanded: true,
                 menuMaxHeight: _menuMaxHeight,
                 initialValue: _targetAreaId ?? "",
@@ -711,12 +997,24 @@ class _PromotionsTabState extends State<PromotionsTab> {
                 decoration: const InputDecoration(
                   labelText: "Target URL or destination link",
                 ),
+                validator: (String? value) {
+                  final String target = value?.trim() ?? "";
+                  if (target.isEmpty) {
+                    return null;
+                  }
+                  final Uri? uri = Uri.tryParse(target);
+                  if (uri == null || !uri.hasScheme) {
+                    return "Use a complete link such as https://kodimali.co.tz";
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _startAtController,
                 decoration: const InputDecoration(
                   labelText: "Start at ISO (optional)",
+                  helperText: "Example: 2026-07-20T10:00:00+03:00",
                 ),
               ),
               const SizedBox(height: 12),
@@ -724,6 +1022,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
                 controller: _endAtController,
                 decoration: const InputDecoration(
                   labelText: "End at ISO (optional)",
+                  helperText: "Must be after the start time.",
                 ),
               ),
               const SizedBox(height: 12),
@@ -731,6 +1030,12 @@ class _PromotionsTabState extends State<PromotionsTab> {
                 controller: _displayOrderController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: "Display order"),
+                validator: (String? value) {
+                  if (int.tryParse(value?.trim() ?? "") == null) {
+                    return "Enter a whole number";
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 8),
               SwitchListTile(
@@ -752,36 +1057,73 @@ class _PromotionsTabState extends State<PromotionsTab> {
                 runSpacing: 8,
                 children: <Widget>[
                   OutlinedButton.icon(
-                    onPressed: _pickImageFromGallery,
+                    onPressed: _saving || _compressingVideo
+                        ? null
+                        : _pickImageFromGallery,
                     icon: const Icon(Icons.photo_library_outlined),
                     label: const Text("Image from gallery"),
                   ),
                   OutlinedButton.icon(
-                    onPressed: _pickVideoFromGallery,
+                    onPressed: _saving || _compressingVideo
+                        ? null
+                        : _pickVideoFromGallery,
                     icon: const Icon(Icons.video_library_outlined),
                     label: const Text("Video from gallery"),
                   ),
                   OutlinedButton.icon(
-                    onPressed: _pickMedia,
+                    onPressed: _saving || _compressingVideo ? null : _pickMedia,
                     icon: const Icon(Icons.folder_open_outlined),
                     label: const Text("Pick file"),
                   ),
                 ],
               ),
+              if (_compressingVideo) ...<Widget>[
+                const SizedBox(height: 12),
+                LinearProgressIndicator(value: _videoCompressionProgress),
+                const SizedBox(height: 8),
+                Row(
+                  children: <Widget>[
+                    const Expanded(
+                      child: Text(
+                        "Preparing an upload-safe MP4 below 29 MB...",
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _cancelVideoCompression,
+                      child: const Text("Cancel"),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 8),
               Text(
                 _mediaFile == null
-                    ? "No media selected yet. Allowed: JPG, PNG, WebP, GIF, HEIC, HEIF, MP4, MOV, M4V, WebM, AVI, MKV up to 30 MB."
+                    ? _editingPromotionId == null
+                          ? "No media selected yet. Media is optional. Allowed: JPG, PNG, WebP, GIF, HEIC, HEIF, MP4, MOV, M4V, WebM, AVI, MKV up to 30 MB."
+                          : "No replacement media selected. Existing promotion media will be kept."
                     : "Selected media: ${_mediaFile!.name}",
               ),
+              if (_mediaFile != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: _saving || _compressingVideo
+                        ? null
+                        : () => setState(() => _mediaFile = null),
+                    icon: const Icon(Icons.close_rounded),
+                    label: const Text("Clear selected media"),
+                  ),
+                ),
               const SizedBox(height: 16),
               Row(
                 children: <Widget>[
                   Expanded(
                     child: FilledButton(
-                      onPressed: _save,
+                      onPressed: _saving || _compressingVideo ? null : _save,
                       child: Text(
-                        _editingPromotionId == null
+                        _saving
+                            ? "Saving..."
+                            : _editingPromotionId == null
                             ? "Create promotion"
                             : "Save promotion",
                       ),
@@ -790,7 +1132,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
                   if (_editingPromotionId != null) ...<Widget>[
                     const SizedBox(width: 12),
                     TextButton(
-                      onPressed: _resetForm,
+                      onPressed: _saving || _compressingVideo
+                          ? null
+                          : _resetForm,
                       child: const Text("Clear form"),
                     ),
                   ],
@@ -822,6 +1166,8 @@ class _PromotionsTabState extends State<PromotionsTab> {
         final List<dynamic> media =
             promotion["platform_promotion_media"] as List<dynamic>? ??
             <dynamic>[];
+        final String promotionId = promotion["id"] as String;
+        final bool deleting = _deletingPromotionIds.contains(promotionId);
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(18),
@@ -837,9 +1183,10 @@ class _PromotionsTabState extends State<PromotionsTab> {
                       ),
                     ),
                     TextButton(
-                      onPressed: () =>
-                          _deletePromotion(promotion["id"] as String),
-                      child: const Text("Delete"),
+                      onPressed: deleting || _saving || _compressingVideo
+                          ? null
+                          : () => _deletePromotion(promotionId),
+                      child: Text(deleting ? "Deleting..." : "Delete"),
                     ),
                   ],
                 ),
@@ -874,7 +1221,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
                 ),
                 const SizedBox(height: 12),
                 FilledButton.tonal(
-                  onPressed: () => _loadIntoForm(promotion),
+                  onPressed: _saving || deleting || _compressingVideo
+                      ? null
+                      : () => _loadIntoForm(promotion),
                   child: const Text("Edit this promotion"),
                 ),
               ],
@@ -892,7 +1241,35 @@ class _PromotionsTabState extends State<PromotionsTab> {
       builder: (BuildContext context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
         final List<Map<String, dynamic>> promotions =
             snapshot.data ?? <Map<String, dynamic>>[];
+        final Widget promotionList;
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          promotionList = const Padding(
+            padding: EdgeInsets.symmetric(vertical: 28),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        } else if (snapshot.hasError) {
+          promotionList = ManagePanel(
+            title: "Promotions could not load",
+            subtitle: userFacingError(
+              snapshot.error!,
+              fallback:
+                  "The promotion list could not be loaded. Check the connection and try again.",
+            ),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonalIcon(
+                onPressed: _refresh,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text("Try again"),
+              ),
+            ),
+          );
+        } else {
+          promotionList = _buildPromotionList(promotions);
+        }
         return ManagePageScrollView(
+          onRefresh: _refresh,
           children: <Widget>[
             ManageHeroCard(
               title: "Promotions",
@@ -925,7 +1302,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
                                   "Open any item to edit the message or replace its media.",
                             ),
                             const SizedBox(height: 12),
-                            _buildPromotionList(promotions),
+                            promotionList,
                           ],
                         ),
                       ),
@@ -942,7 +1319,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
                           "Open any item to edit the message or replace its media.",
                     ),
                     const SizedBox(height: 12),
-                    _buildPromotionList(promotions),
+                    promotionList,
                   ],
                 );
               },

@@ -37,62 +37,70 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final List<ManageWorkspaceDestination> destinations =
+        <ManageWorkspaceDestination>[
+          ManageWorkspaceDestination(
+            label: "Dashboard",
+            icon: Icons.dashboard_outlined,
+            screen: AdminDashboardTab(
+              onOpenAgents: () => setState(() => _currentIndex = 1),
+              onOpenListings: () => setState(() => _currentIndex = 2),
+              onOpenRequests: () => setState(() => _currentIndex = 5),
+              onOpenReports: () => setState(() => _currentIndex = 6),
+              onOpenNotifications: () => setState(() => _currentIndex = 8),
+            ),
+          ),
+          const ManageWorkspaceDestination(
+            label: "Agents",
+            icon: Icons.verified_user_outlined,
+            screen: AgentVerificationTab(),
+          ),
+          const ManageWorkspaceDestination(
+            label: "Listings",
+            icon: Icons.rule_folder_outlined,
+            screen: ListingApprovalTab(),
+          ),
+          const ManageWorkspaceDestination(
+            label: "Categories",
+            icon: Icons.category_outlined,
+            screen: CategoriesTab(),
+          ),
+          const ManageWorkspaceDestination(
+            label: "Locations",
+            icon: Icons.place_outlined,
+            screen: LocationsTab(),
+          ),
+          const ManageWorkspaceDestination(
+            label: "Requests",
+            icon: Icons.calendar_month_outlined,
+            screen: AdminBookingsTab(),
+          ),
+          const ManageWorkspaceDestination(
+            label: "Reports",
+            icon: Icons.report_outlined,
+            screen: ReportsTab(),
+          ),
+          const ManageWorkspaceDestination(
+            label: "Promotions",
+            icon: Icons.campaign_outlined,
+            screen: PromotionsTab(),
+          ),
+          const ManageWorkspaceDestination(
+            label: "Notifications",
+            icon: Icons.notifications_outlined,
+            screen: NotificationsScreen(),
+          ),
+          const ManageWorkspaceDestination(
+            label: "Profile",
+            icon: Icons.person_outline,
+            screen: ProfileScreen(),
+          ),
+        ];
     return ManageWorkspaceScaffold(
       title: _titles[_currentIndex],
       currentIndex: _currentIndex,
       onSelect: (int index) => setState(() => _currentIndex = index),
-      destinations: const <ManageWorkspaceDestination>[
-        ManageWorkspaceDestination(
-          label: "Dashboard",
-          icon: Icons.dashboard_outlined,
-          screen: AdminDashboardTab(),
-        ),
-        ManageWorkspaceDestination(
-          label: "Agents",
-          icon: Icons.verified_user_outlined,
-          screen: AgentVerificationTab(),
-        ),
-        ManageWorkspaceDestination(
-          label: "Listings",
-          icon: Icons.rule_folder_outlined,
-          screen: ListingApprovalTab(),
-        ),
-        ManageWorkspaceDestination(
-          label: "Categories",
-          icon: Icons.category_outlined,
-          screen: CategoriesTab(),
-        ),
-        ManageWorkspaceDestination(
-          label: "Locations",
-          icon: Icons.place_outlined,
-          screen: LocationsTab(),
-        ),
-        ManageWorkspaceDestination(
-          label: "Requests",
-          icon: Icons.calendar_month_outlined,
-          screen: AdminBookingsTab(),
-        ),
-        ManageWorkspaceDestination(
-          label: "Reports",
-          icon: Icons.report_outlined,
-          screen: ReportsTab(),
-        ),
-        ManageWorkspaceDestination(
-          label: "Promotions",
-          icon: Icons.campaign_outlined,
-          screen: PromotionsTab(),
-        ),
-        ManageWorkspaceDestination(
-          label: "Notifications",
-          icon: Icons.notifications_outlined,
-          screen: NotificationsScreen(),
-        ),
-        ManageWorkspaceDestination(
-          label: "Profile",
-          icon: Icons.person_outline,
-          screen: ProfileScreen(),
-        ),
-      ],
+      destinations: destinations,
     );
   }
 }

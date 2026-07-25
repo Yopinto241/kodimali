@@ -24,7 +24,7 @@ const cacheTtl = {
   promotions: 5 * 60,
   homeFeed: 2 * 60,
   listings: 2 * 60,
-  listingDetail: 2 * 60,
+  listingDetail: 15,
 } as const;
 
 let storageClient:
@@ -121,6 +121,14 @@ function getStorageClient() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   return storageClient;
+}
+
+export async function checkPublicBackendHealth() {
+  const paymentRequired = await supabaseFetch(
+    "/rest/v1/rpc/contact_payments_enabled",
+    { method: "POST", body: "{}", cache: "no-store" },
+  );
+  return { supabase: "ok", contactPaymentsEnabled: paymentRequired !== false };
 }
 
 const createSignedListingMediaUrl = unstable_cache(

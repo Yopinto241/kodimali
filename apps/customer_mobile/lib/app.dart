@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:app_links/app_links.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -9,15 +10,19 @@ import 'package:flutter_design_system/flutter_design_system.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_constants/shared_constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
 import 'core/ads/admob_support.dart';
+import 'core/cache/customer_activity_store.dart';
 import 'core/cache/customer_snapshot_store.dart';
+import 'core/data/customer_account_repository.dart';
 import 'core/data/customer_public_repository.dart';
 import 'core/localization/customer_localization.dart';
 import 'core/media/customer_media_cache.dart';
+import 'features/account/customer_account_screens.dart';
 
 String _readableErrorMessage(
   Object error, {
@@ -69,6 +74,7 @@ class _CustomerAppState extends State<CustomerApp> {
   Future<void> _loadLanguage() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     await CustomerSnapshotStore.initialize(prefs);
+    await CustomerActivityStore.instance.initialize(prefs);
     setState(() {
       _languageCode = prefs.getString(_languagePrefKey) ?? "sw";
       _languageReady = true;
@@ -144,12 +150,21 @@ class _CustomerRootState extends State<CustomerRoot> {
   bool _loadingPrefs = true;
   double _helpBubbleX = 1;
   double _helpBubbleY = 1;
+  late final CustomerAccountRepository _accountRepository =
+      CustomerAccountRepository(Supabase.instance.client);
+  late final AppLinks _appLinks = AppLinks();
+  StreamSubscription<Uri>? _deepLinkSubscription;
+  String? _lastOpenedDeepLink;
+  DateTime? _lastOpenedDeepLinkAt;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(_lifecycleObserver);
     _loadPrefs();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_listenForDeepLinks());
+    });
   }
 
   late final _CustomerLifecycleObserver _lifecycleObserver =
@@ -158,7 +173,50 @@ class _CustomerRootState extends State<CustomerRoot> {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(_lifecycleObserver);
+    unawaited(_deepLinkSubscription?.cancel());
     super.dispose();
+  }
+
+  Future<void> _listenForDeepLinks() async {
+    try {
+      final Uri? initialLink = await _appLinks.getInitialLink();
+      if (initialLink != null) {
+        _handleDeepLink(initialLink);
+      }
+      _deepLinkSubscription = _appLinks.uriLinkStream.listen(_handleDeepLink);
+    } catch (_) {
+      // Public browsing remains fully usable if platform links are unavailable.
+    }
+  }
+
+  void _handleDeepLink(Uri uri) {
+    final DateTime now = DateTime.now();
+    if (!mounted ||
+        (_lastOpenedDeepLink == uri.toString() &&
+            _lastOpenedDeepLinkAt != null &&
+            now.difference(_lastOpenedDeepLinkAt!) <
+                const Duration(seconds: 2))) {
+      return;
+    }
+    String? listingId;
+    if (uri.scheme == 'kodimali' && uri.host == 'listing') {
+      listingId = uri.pathSegments.isEmpty ? null : uri.pathSegments.first;
+    } else {
+      final int listingSegment = uri.pathSegments.indexOf('listing');
+      if (listingSegment >= 0 && listingSegment + 1 < uri.pathSegments.length) {
+        listingId = uri.pathSegments[listingSegment + 1];
+      }
+    }
+    if (listingId == null || listingId.trim().isEmpty) {
+      return;
+    }
+    _lastOpenedDeepLink = uri.toString();
+    _lastOpenedDeepLinkAt = now;
+    _openListingDetails(
+      context,
+      repository: widget.repository,
+      listingId: listingId,
+    );
   }
 
   Future<void> _loadPrefs() async {
@@ -542,6 +600,16 @@ class _CustomerRootState extends State<CustomerRoot> {
         latitude: _latitude,
         longitude: _longitude,
       ),
+      CustomerAccountScreen(
+        key: const PageStorageKey<String>('customer_account'),
+        accountRepository: _accountRepository,
+        publicRepository: widget.repository,
+        onOpenListing: (String listingId) => _openListingDetails(
+          context,
+          repository: widget.repository,
+          listingId: listingId,
+        ),
+      ),
     ];
 
     return Scaffold(
@@ -652,6 +720,11 @@ class _CustomerRootState extends State<CustomerRoot> {
           NavigationDestination(
             icon: const Icon(Icons.search_outlined),
             label: context.tr("nav.search"),
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.person_outline_rounded),
+            selectedIcon: const Icon(Icons.person_rounded),
+            label: context.tr('nav.account'),
           ),
         ],
       ),
@@ -2461,6 +2534,28 @@ class PublicListingCard extends StatelessWidget {
   final Map<String, dynamic> listing;
   final CustomerPublicRepository repository;
 
+  Future<void> _toggleSaved(BuildContext context) async {
+    final String listingId = listing['listing_id']?.toString() ?? '';
+    if (listingId.isEmpty) {
+      return;
+    }
+    final bool saved = await CustomerActivityStore.instance.toggleSaved(
+      listing,
+    );
+    final CustomerAccountRepository account = CustomerAccountRepository(
+      Supabase.instance.client,
+    );
+    try {
+      if (saved) {
+        await account.saveListing(listingId);
+      } else {
+        await account.removeSavedListing(listingId);
+      }
+    } catch (_) {
+      // The local favourite stays responsive and sync can retry after sign-in.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final String? coverUrl = listing["cover_url"] as String?;
@@ -2603,6 +2698,39 @@ class PublicListingCard extends StatelessWidget {
                           ),
                         ),
                       ),
+                      Positioned(
+                        top: KodimaliSpacing.sm,
+                        right: KodimaliSpacing.sm,
+                        child: AnimatedBuilder(
+                          animation: CustomerActivityStore.instance,
+                          builder: (BuildContext context, _) {
+                            final String listingId =
+                                listing['listing_id']?.toString() ?? '';
+                            final bool saved = CustomerActivityStore.instance
+                                .isSaved(listingId);
+                            return Material(
+                              color: theme.colorScheme.surface.withValues(
+                                alpha: 0.94,
+                              ),
+                              shape: const CircleBorder(),
+                              child: IconButton(
+                                onPressed: () => _toggleSaved(context),
+                                tooltip: context.tr(
+                                  saved ? 'listing.unsave' : 'listing.save',
+                                ),
+                                icon: Icon(
+                                  saved
+                                      ? Icons.favorite_rounded
+                                      : Icons.favorite_border_rounded,
+                                  color: saved
+                                      ? theme.colorScheme.error
+                                      : theme.colorScheme.onSurface,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -2683,22 +2811,110 @@ class ListingDetailScreen extends StatefulWidget {
 }
 
 class _ListingDetailScreenState extends State<ListingDetailScreen> {
+  static const Duration _contactVisibilityRefreshInterval = Duration(
+    seconds: 5,
+  );
+
   Map<String, dynamic>? _listing;
   String? _errorMessage;
   bool _loading = true;
+  Timer? _contactVisibilityTimer;
+  bool _refreshing = false;
+  bool? _lastContactPaymentsEnabled;
 
   @override
   void initState() {
     super.initState();
     _listing = widget.repository.savedListingDetail(widget.listingId);
     _loading = _listing == null;
+    if (_listing case final Map<String, dynamic> listing) {
+      unawaited(_recordListingActivity(listing));
+    }
     unawaited(_refreshListing());
+    unawaited(_syncContactVisibility());
+    _contactVisibilityTimer = Timer.periodic(
+      _contactVisibilityRefreshInterval,
+      (_) => unawaited(_syncContactVisibility()),
+    );
   }
 
-  Future<void> _refreshListing() async {
+  @override
+  void dispose() {
+    _contactVisibilityTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _syncContactVisibility() async {
+    try {
+      final bool enabled = await widget.repository
+          .fetchContactPaymentsEnabled();
+      final bool? previous = _lastContactPaymentsEnabled;
+      _lastContactPaymentsEnabled = enabled;
+      if (previous != null && previous != enabled) {
+        await _refreshListing(showErrors: false);
+      }
+    } catch (_) {
+      // Keep the current safe server response and retry on the next interval.
+    }
+  }
+
+  Future<void> _recordListingActivity(Map<String, dynamic> listing) async {
+    await CustomerActivityStore.instance.recordRecent(listing);
+    try {
+      await CustomerAccountRepository(
+        Supabase.instance.client,
+      ).recordListingView(widget.listingId);
+    } catch (_) {
+      // Local recent history remains available if remote sync is offline.
+    }
+  }
+
+  Future<void> _toggleSaved() async {
+    final Map<String, dynamic>? listing = _listing;
+    if (listing == null) {
+      return;
+    }
+    final bool saved = await CustomerActivityStore.instance.toggleSaved(
+      listing,
+    );
+    final CustomerAccountRepository account = CustomerAccountRepository(
+      Supabase.instance.client,
+    );
+    try {
+      if (saved) {
+        await account.saveListing(widget.listingId);
+      } else {
+        await account.removeSavedListing(widget.listingId);
+      }
+    } catch (_) {
+      // The local action succeeds immediately and will be synced later.
+    }
+  }
+
+  Future<void> _shareListing() async {
+    final String title = _listing?['title']?.toString() ?? 'KODIMALI listing';
+    final String message = context.tr(
+      'listing.sharedText',
+      values: <String, String>{'title': title},
+    );
+    final RenderBox? box = context.findRenderObject() as RenderBox?;
+    await Share.share(
+      '$message\nhttps://kodimali.co.tz/listing/${widget.listingId}',
+      subject: title,
+      sharePositionOrigin: box == null
+          ? null
+          : box.localToGlobal(Offset.zero) & box.size,
+    );
+  }
+
+  Future<void> _refreshListing({bool showErrors = true}) async {
+    if (_refreshing) {
+      return;
+    }
+    _refreshing = true;
     try {
       final Map<String, dynamic> listing = await widget.repository
-          .fetchListingDetail(widget.listingId);
+          .fetchListingDetail(widget.listingId, forceRefresh: true);
       if (!mounted) {
         return;
       }
@@ -2707,14 +2923,17 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
         _errorMessage = null;
         _loading = false;
       });
+      unawaited(_recordListingActivity(listing));
     } catch (error) {
-      if (!mounted) {
+      if (!mounted || !showErrors) {
         return;
       }
       setState(() {
         _errorMessage = _readableErrorMessage(error);
         _loading = false;
       });
+    } finally {
+      _refreshing = false;
     }
   }
 
@@ -2724,7 +2943,31 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(context.tr("listing.details")),
-        actions: const <Widget>[_LanguageSwitcherButton()],
+        actions: <Widget>[
+          AnimatedBuilder(
+            animation: CustomerActivityStore.instance,
+            builder: (BuildContext context, _) {
+              final bool saved = CustomerActivityStore.instance.isSaved(
+                widget.listingId,
+              );
+              return IconButton(
+                onPressed: _listing == null ? null : _toggleSaved,
+                tooltip: context.tr(saved ? 'listing.unsave' : 'listing.save'),
+                icon: Icon(
+                  saved
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                ),
+              );
+            },
+          ),
+          IconButton(
+            onPressed: _listing == null ? null : _shareListing,
+            tooltip: context.tr('listing.share'),
+            icon: const Icon(Icons.share_outlined),
+          ),
+          const _LanguageSwitcherButton(),
+        ],
       ),
       body: _loading && listing == null
           ? const Center(child: CircularProgressIndicator())
@@ -3371,6 +3614,31 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
   bool get _isApartment => widget.categorySlug == "apartment";
 
   @override
+  void initState() {
+    super.initState();
+    unawaited(_prefillSignedInCustomer());
+  }
+
+  Future<void> _prefillSignedInCustomer() async {
+    final CustomerAccountRepository account = CustomerAccountRepository(
+      Supabase.instance.client,
+    );
+    if (!account.isSignedIn) {
+      return;
+    }
+    final Map<String, dynamic> profile = await account.fetchMyProfile();
+    if (!mounted) {
+      return;
+    }
+    _nameController.text = profile['full_name']?.toString() ?? '';
+    _emailController.text =
+        profile['account_email']?.toString() ??
+        account.currentUser?.email ??
+        '';
+    _phoneController.text = profile['phone_number']?.toString() ?? '';
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
@@ -3458,7 +3726,10 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
       }
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (_) => RequestSuccessScreen(reference: reference),
+          builder: (_) => RequestSuccessScreen(
+            reference: reference,
+            publicRepository: widget.repository,
+          ),
         ),
       );
     } catch (error) {
@@ -3734,9 +4005,14 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
 }
 
 class RequestSuccessScreen extends StatelessWidget {
-  const RequestSuccessScreen({super.key, required this.reference});
+  const RequestSuccessScreen({
+    super.key,
+    required this.reference,
+    required this.publicRepository,
+  });
 
   final String reference;
+  final CustomerPublicRepository publicRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -3795,6 +4071,33 @@ class RequestSuccessScreen extends StatelessWidget {
                           },
                     ),
                     const SizedBox(height: KodimaliSpacing.lg),
+                    if (Supabase.instance.client.auth.currentUser !=
+                        null) ...<Widget>[
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => CustomerRequestsScreen(
+                                accountRepository: CustomerAccountRepository(
+                                  Supabase.instance.client,
+                                ),
+                                onOpenListing: (String listingId) {
+                                  _openListingDetails(
+                                    context,
+                                    repository: publicRepository,
+                                    listingId: listingId,
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                          icon: const Icon(Icons.timeline_rounded),
+                          label: Text(context.tr('requests.track')),
+                        ),
+                      ),
+                      const SizedBox(height: KodimaliSpacing.sm),
+                    ],
                     FilledButton(
                       style: KodimaliButtonStyles.success(context),
                       onPressed: () => Navigator.of(
@@ -4950,6 +5253,21 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard> {
     _unlockedPhoneNumber =
         saved?["phone_number"] as String? ??
         (widget.agentSummary["phone_number"] as String?);
+    _statusMessage = saved?["message"] as String?;
+  }
+
+  @override
+  void didUpdateWidget(covariant _AgentSummaryCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final Map<String, dynamic>? saved = widget.repository.savedContactAccess(
+      widget.listingId,
+    );
+    final String? paidPhoneNumber = saved?["phone_number"] as String?;
+    final String? publicPhoneNumber =
+        widget.agentSummary["phone_number"] as String?;
+    _unlockedPhoneNumber = paidPhoneNumber?.trim().isNotEmpty == true
+        ? paidPhoneNumber
+        : publicPhoneNumber;
     _statusMessage = saved?["message"] as String?;
   }
 

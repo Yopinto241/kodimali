@@ -7,7 +7,8 @@ const primaryNavItems = [
   { href: "/", label: "Home" },
   { href: "/category/apartment", label: "Apartment" },
   { href: "/listings", label: "All listings" },
-  { href: "/account", label: "How it works" },
+  { href: "/account", label: "Customer account" },
+  { href: "/safety", label: "Safety" },
   { href: "/manage", label: "Manage" },
 ];
 

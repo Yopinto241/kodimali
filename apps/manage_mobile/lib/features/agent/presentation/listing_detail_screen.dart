@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/utils/date_formatters.dart';
+import '../../../core/validation/listing_content_validator.dart';
 import '../../../core/widgets/app_scope.dart';
 import '../../../core/widgets/kodimali_status_chip.dart';
 import '../../../core/widgets/manage_ui.dart';
@@ -49,13 +50,15 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
   }
 
   Future<Map<String, dynamic>> _load() async {
-    final Map<String, dynamic> detail =
-        await AppScope.of(context).repository.fetchListingDetail(widget.listingId);
+    final Map<String, dynamic> detail = await AppScope.of(
+      context,
+    ).repository.fetchListingDetail(widget.listingId);
     _titleController.text = detail["title"] as String? ?? "";
     _descriptionController.text = detail["description"] as String? ?? "";
     _publicLocationLabel = detail["public_location_label"] as String? ?? "";
     _priceController.text = (detail["price_amount"] ?? "").toString();
-    _depositController.text = (detail["deposit_required_amount"] ?? "").toString();
+    _depositController.text = (detail["deposit_required_amount"] ?? "")
+        .toString();
     _rulesController.text = detail["listing_rules"] as String? ?? "";
     _availability = detail["availability_status"] as String? ?? "available";
     _pricePeriod = detail["price_period"] as String? ?? "day";
@@ -87,9 +90,9 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Listing imehifadhiwa.")),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Listing imehifadhiwa.")));
     await _refresh();
   }
 
@@ -105,7 +108,9 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
   }
 
   Future<void> _removeFromMarketplace() async {
-    await AppScope.of(context).repository.removeListingFromMarketplace(widget.listingId);
+    await AppScope.of(
+      context,
+    ).repository.removeListingFromMarketplace(widget.listingId);
     if (!mounted) {
       return;
     }
@@ -120,9 +125,9 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Listing imerudi sokoni.")),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Listing imerudi sokoni.")));
     await _refresh();
   }
 
@@ -165,26 +170,28 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
       appBar: AppBar(title: const Text("Listing detail")),
       body: FutureBuilder<Map<String, dynamic>>(
         future: _future,
-        builder: (
-          BuildContext context,
-          AsyncSnapshot<Map<String, dynamic>> snapshot,
-        ) {
+        builder: (BuildContext context, AsyncSnapshot<Map<String, dynamic>> snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
             return Center(child: Text(snapshot.error.toString()));
           }
-          final Map<String, dynamic> detail = snapshot.data ?? <String, dynamic>{};
-          final int inquiryCount = (detail["inquiry_count"] as num?)?.toInt() ?? 0;
-          final List<dynamic> media = detail["media"] as List<dynamic>? ?? <dynamic>[];
+          final Map<String, dynamic> detail =
+              snapshot.data ?? <String, dynamic>{};
+          final int inquiryCount =
+              (detail["inquiry_count"] as num?)?.toInt() ?? 0;
+          final List<dynamic> media =
+              detail["media"] as List<dynamic>? ?? <dynamic>[];
 
           return Form(
             key: _formKey,
             child: ManagePageScrollView(
               children: <Widget>[
                 ManageHeroCard(
-                  title: _titleController.text.isEmpty ? "Listing detail" : _titleController.text,
+                  title: _titleController.text.isEmpty
+                      ? "Listing detail"
+                      : _titleController.text,
                   subtitle:
                       "Update the public summary, price, availability, and marketplace status from one place.",
                   trailing: Column(
@@ -201,7 +208,8 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                   bottom: ManageMetaWrap(
                     items: <String>[
                       "Inquiries: $inquiryCount",
-                      if ((detail["removed_reason"] as String?)?.isNotEmpty ?? false)
+                      if ((detail["removed_reason"] as String?)?.isNotEmpty ??
+                          false)
                         "Reason: ${detail["removed_reason"]}",
                       "Created ${DateFormatters.formatDateTime(detail["created_at"] as String?)}",
                     ],
@@ -217,19 +225,28 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                       TextFormField(
                         controller: _titleController,
                         decoration: const InputDecoration(labelText: "Title"),
-                        validator: (String? value) =>
-                            value == null || value.trim().isEmpty ? "Required" : null,
+                        validator: ListingContentValidator.titleError,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _descriptionController,
                         maxLines: 4,
-                        decoration: const InputDecoration(labelText: "Description"),
+                        decoration: const InputDecoration(
+                          labelText: "Description *",
+                          helperText: "At least 10 characters",
+                        ),
+                        validator: ListingContentValidator.descriptionError,
                       ),
                       const SizedBox(height: 12),
                       InputDecorator(
-                        decoration: const InputDecoration(labelText: "Public location label"),
-                        child: Text(_publicLocationLabel.isEmpty ? "-" : _publicLocationLabel),
+                        decoration: const InputDecoration(
+                          labelText: "Public location label",
+                        ),
+                        child: Text(
+                          _publicLocationLabel.isEmpty
+                              ? "-"
+                              : _publicLocationLabel,
+                        ),
                       ),
                     ],
                   ),
@@ -244,22 +261,38 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                       TextFormField(
                         controller: _priceController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: "Price amount"),
+                        decoration: const InputDecoration(
+                          labelText: "Price amount",
+                        ),
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         initialValue: _pricePeriod,
-                        decoration: const InputDecoration(labelText: "Price period"),
+                        decoration: const InputDecoration(
+                          labelText: "Price period",
+                        ),
                         items: const <DropdownMenuItem<String>>[
                           DropdownMenuItem(value: "hour", child: Text("Hour")),
                           DropdownMenuItem(value: "day", child: Text("Day")),
                           DropdownMenuItem(value: "week", child: Text("Week")),
-                          DropdownMenuItem(value: "month", child: Text("Month")),
+                          DropdownMenuItem(
+                            value: "month",
+                            child: Text("Month"),
+                          ),
                           DropdownMenuItem(value: "year", child: Text("Year")),
                           DropdownMenuItem(value: "trip", child: Text("Trip")),
-                          DropdownMenuItem(value: "event", child: Text("Event")),
-                          DropdownMenuItem(value: "piece", child: Text("Piece")),
-                          DropdownMenuItem(value: "custom", child: Text("Custom")),
+                          DropdownMenuItem(
+                            value: "event",
+                            child: Text("Event"),
+                          ),
+                          DropdownMenuItem(
+                            value: "piece",
+                            child: Text("Piece"),
+                          ),
+                          DropdownMenuItem(
+                            value: "custom",
+                            child: Text("Custom"),
+                          ),
                         ],
                         onChanged: (String? value) {
                           if (value != null) {
@@ -271,17 +304,33 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                       TextFormField(
                         controller: _depositController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: "Deposit amount"),
+                        decoration: const InputDecoration(
+                          labelText: "Deposit amount",
+                        ),
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         initialValue: _availability,
-                        decoration: const InputDecoration(labelText: "Availability"),
+                        decoration: const InputDecoration(
+                          labelText: "Availability",
+                        ),
                         items: const <DropdownMenuItem<String>>[
-                          DropdownMenuItem(value: "available", child: Text("Available")),
-                          DropdownMenuItem(value: "reserved", child: Text("Reserved")),
-                          DropdownMenuItem(value: "rented", child: Text("Rented")),
-                          DropdownMenuItem(value: "unavailable", child: Text("Unavailable")),
+                          DropdownMenuItem(
+                            value: "available",
+                            child: Text("Available"),
+                          ),
+                          DropdownMenuItem(
+                            value: "reserved",
+                            child: Text("Reserved"),
+                          ),
+                          DropdownMenuItem(
+                            value: "rented",
+                            child: Text("Rented"),
+                          ),
+                          DropdownMenuItem(
+                            value: "unavailable",
+                            child: Text("Unavailable"),
+                          ),
                         ],
                         onChanged: (String? value) {
                           if (value != null) {
@@ -319,7 +368,9 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                                       ? Icons.videocam_outlined
                                       : Icons.image_outlined,
                                 ),
-                                title: Text(item["storage_path"] as String? ?? "-"),
+                                title: Text(
+                                  item["storage_path"] as String? ?? "-",
+                                ),
                                 subtitle: Text(
                                   item["is_cover"] == true
                                       ? "Cover media"

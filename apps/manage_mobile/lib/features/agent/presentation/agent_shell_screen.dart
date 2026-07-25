@@ -29,42 +29,48 @@ class _AgentShellScreenState extends State<AgentShellScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final List<ManageWorkspaceDestination> destinations =
+        <ManageWorkspaceDestination>[
+          ManageWorkspaceDestination(
+            label: "Dashboard",
+            icon: Icons.dashboard_outlined,
+            screen: AgentDashboardTab(
+              onOpenRequests: () => setState(() => _currentIndex = 3),
+              onOpenListings: () => setState(() => _currentIndex = 1),
+              onOpenNotifications: () => setState(() => _currentIndex = 4),
+            ),
+          ),
+          const ManageWorkspaceDestination(
+            label: "My Listings",
+            icon: Icons.home_work_outlined,
+            screen: AgentListingsTab(),
+          ),
+          const ManageWorkspaceDestination(
+            label: "Add Asset",
+            icon: Icons.add_box_outlined,
+            screen: AddAssetScreen(),
+          ),
+          const ManageWorkspaceDestination(
+            label: "Requests",
+            icon: Icons.calendar_month_outlined,
+            screen: AgentBookingsTab(),
+          ),
+          const ManageWorkspaceDestination(
+            label: "Notifications",
+            icon: Icons.notifications_outlined,
+            screen: NotificationsScreen(),
+          ),
+          const ManageWorkspaceDestination(
+            label: "Profile",
+            icon: Icons.person_outline,
+            screen: ProfileScreen(),
+          ),
+        ];
     return ManageWorkspaceScaffold(
       title: _titles[_currentIndex],
       currentIndex: _currentIndex,
       onSelect: (int index) => setState(() => _currentIndex = index),
-      destinations: const <ManageWorkspaceDestination>[
-        ManageWorkspaceDestination(
-          label: "Dashboard",
-          icon: Icons.dashboard_outlined,
-          screen: AgentDashboardTab(),
-        ),
-        ManageWorkspaceDestination(
-          label: "My Listings",
-          icon: Icons.home_work_outlined,
-          screen: AgentListingsTab(),
-        ),
-        ManageWorkspaceDestination(
-          label: "Add Asset",
-          icon: Icons.add_box_outlined,
-          screen: AddAssetScreen(),
-        ),
-        ManageWorkspaceDestination(
-          label: "Requests",
-          icon: Icons.calendar_month_outlined,
-          screen: AgentBookingsTab(),
-        ),
-        ManageWorkspaceDestination(
-          label: "Notifications",
-          icon: Icons.notifications_outlined,
-          screen: NotificationsScreen(),
-        ),
-        ManageWorkspaceDestination(
-          label: "Profile",
-          icon: Icons.person_outline,
-          screen: ProfileScreen(),
-        ),
-      ],
+      destinations: destinations,
     );
   }
 }

@@ -48,10 +48,25 @@ Deno.serve(async (request) => {
     return json({ error: "Method not allowed" }, 405);
   }
 
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-  );
+  const authorization = request.headers.get("Authorization");
+  if (!authorization?.startsWith("Bearer ")) {
+    return json({ error: "Authentication is required" }, 401);
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const accessToken = authorization.slice("Bearer ".length).trim();
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  const userClient = createClient(supabaseUrl, serviceRoleKey, {
+    global: { headers: { Authorization: authorization } },
+  });
+
+  const {
+    data: { user },
+  } = await userClient.auth.getUser(accessToken);
+  if (!user) {
+    return json({ error: "Authentication is required" }, 401);
+  }
 
   const payload = await request.json();
   if (!hasOnlyAllowedKeys(payload)) {
@@ -196,39 +211,29 @@ Deno.serve(async (request) => {
     );
   }
 
-  const { data: booking, error: bookingError } = await supabase
-    .from("booking_requests")
-    .insert({
-      listing_id,
-      customer_id: null,
-      customer_name,
-      customer_phone_number: customer_phone_number || null,
-      customer_email: customer_email || null,
-      requested_start_at: requested_start_at || null,
-      requested_end_at: requested_end_at || null,
-      guest_count,
-      request_message: request_message || null,
-      requested_service_codes,
-      booking_status: "new",
-      agent_id: listing.agent_id,
-    })
-    .select("id, request_reference, booking_status, agent_id")
-    .single();
+  const { data: bookingRows, error: bookingError } = await userClient.rpc(
+    "create_authenticated_booking_request",
+    {
+      p_listing_id: listing_id,
+      p_customer_name: customer_name,
+      p_customer_phone_number: customer_phone_number || null,
+      p_customer_email: customer_email || null,
+      p_requested_start_at: requested_start_at || null,
+      p_requested_end_at: requested_end_at || null,
+      p_guest_count: guest_count,
+      p_request_message: request_message || null,
+      p_requested_service_codes: requested_service_codes,
+    },
+  );
+  const booking = Array.isArray(bookingRows) ? bookingRows[0] : null;
 
   if (bookingError || !booking) {
     return json({ error: bookingError?.message ?? "Could not create request" }, 500);
   }
 
-  await supabase.from("booking_status_history").insert({
-    booking_request_id: booking.id,
-    status: "new",
-    changed_by: null,
-    reason: "Public guest inquiry created",
-  });
-
   return json({
     success: true,
-    bookingId: booking.id,
+    bookingId: booking.booking_request_id,
     requestReference: booking.request_reference,
     status: booking.booking_status,
   });

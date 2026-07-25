@@ -6,8 +6,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_models/shared_models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../media/listing_media_validator.dart';
 import '../models/app_profile.dart';
 import '../models/upload_task.dart';
+import '../validation/listing_content_validator.dart';
 
 typedef JsonMap = Map<String, dynamic>;
 
@@ -17,7 +19,6 @@ class ManageRepository {
   final SupabaseClient _client;
   static const String _agentPhotoBucket = "agent-profile-photos";
   static const int _agentPhotoMaxBytes = 5 * 1024 * 1024;
-  static const int _listingVideoMaxBytes = 30 * 1024 * 1024;
   static const int _promotionMediaMaxBytes = 30 * 1024 * 1024;
   static const int _signedMediaUrlSeconds = 60;
   static const int _pagedQueryBatchSize = 1000;
@@ -51,14 +52,66 @@ class ManageRepository {
   Future<List<JsonMap>> _decodeListRows(Future<dynamic> response) async {
     final dynamic data = await response;
     if (data is List) {
-      return data
-          .map((dynamic row) => Map<String, dynamic>.from(row))
-          .toList(growable: false);
+      final List<JsonMap> rows = <JsonMap>[];
+      for (final dynamic row in data) {
+        if (row is! Map) {
+          continue;
+        }
+        try {
+          rows.add(Map<String, dynamic>.from(row));
+        } catch (_) {
+          // Ignore malformed rows instead of surfacing an opaque cast error.
+        }
+      }
+      return rows;
     }
     if (data is Map) {
-      return <JsonMap>[Map<String, dynamic>.from(data)];
+      try {
+        return <JsonMap>[Map<String, dynamic>.from(data)];
+      } catch (_) {
+        return <JsonMap>[];
+      }
     }
     return <JsonMap>[];
+  }
+
+  String? _nonEmptyString(dynamic value) {
+    if (value is! String) {
+      return null;
+    }
+    final String normalized = value.trim();
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  JsonMap _requiredResponseMap(dynamic value, String message) {
+    if (value is Map) {
+      try {
+        return Map<String, dynamic>.from(value);
+      } catch (_) {
+        // Fall through to the precise response-shape error below.
+      }
+    }
+    throw StateError(message);
+  }
+
+  String _requiredStringField(
+    Map<String, dynamic> row,
+    String key,
+    String message,
+  ) {
+    final String? value = _nonEmptyString(row[key]);
+    if (value == null) {
+      throw StateError(message);
+    }
+    return value;
+  }
+
+  String _requiredInputId(String? value, String message) {
+    final String? normalized = _nonEmptyString(value);
+    if (normalized == null) {
+      throw StateError(message);
+    }
+    return normalized;
   }
 
   Future<List<JsonMap>> _decodePagedRows(
@@ -417,6 +470,20 @@ class ManageRepository {
     final int totalInquiries = await _count(
       _client.from("booking_requests").select("id").eq("agent_id", agentId),
     );
+    final int scheduledViewings = await _count(
+      _client
+          .from("booking_requests")
+          .select("id")
+          .eq("agent_id", agentId)
+          .eq("booking_status", "viewing_scheduled"),
+    );
+    final int completedRequests = await _count(
+      _client
+          .from("booking_requests")
+          .select("id")
+          .eq("agent_id", agentId)
+          .eq("booking_status", "completed"),
+    );
     final int unreadNotifications = await _count(
       _client
           .from("notifications")
@@ -429,6 +496,8 @@ class ManageRepository {
       "inactiveListings": inactiveListings,
       "newRequests": newRequests,
       "totalInquiries": totalInquiries,
+      "scheduledViewings": scheduledViewings,
+      "completedRequests": completedRequests,
       "unreadNotifications": unreadNotifications,
     };
   }
@@ -443,6 +512,15 @@ class ManageRepository {
     final int totalInquiries = await _count(
       _client.from("booking_requests").select("id"),
     );
+    final int newRequests = await _count(
+      _client.from("booking_requests").select("id").eq("booking_status", "new"),
+    );
+    final int completedRequests = await _count(
+      _client
+          .from("booking_requests")
+          .select("id")
+          .eq("booking_status", "completed"),
+    );
     final int unreadNotifications = await _count(
       _client
           .from("notifications")
@@ -455,6 +533,8 @@ class ManageRepository {
       "liveListings": liveListings,
       "reports": 0,
       "totalInquiries": totalInquiries,
+      "newRequests": newRequests,
+      "completedRequests": completedRequests,
       "unreadNotifications": unreadNotifications,
     };
   }
@@ -463,7 +543,7 @@ class ManageRepository {
     try {
       final JsonMap? row = await _client
           .from("marketplace_settings")
-          .select("contact_payments_enabled, updated_at")
+          .select("contact_payments_enabled, updated_at, updated_by")
           .eq("id", true)
           .maybeSingle();
       return row ?? <String, dynamic>{"contact_payments_enabled": true};
@@ -535,11 +615,16 @@ class ManageRepository {
 
   Future<List<JsonMap>> fetchOwnersForCurrentAgent() async {
     final JsonMap agent = await _currentAgent();
+    final String agentId = _requiredStringField(
+      agent,
+      "id",
+      "Your agent account is missing its identifier. Sign in again.",
+    );
     return _decodeListRows(
       _client
           .from("owners")
           .select("id, full_name, phone_number, notes, location_id, created_at")
-          .eq("agent_id", agent["id"] as String)
+          .eq("agent_id", agentId)
           .order("created_at", ascending: false),
     );
   }
@@ -572,13 +657,19 @@ class ManageRepository {
       );
     }
 
+    final String agentId = _requiredStringField(
+      agent,
+      "id",
+      "Your agent account is missing its identifier. Sign in again.",
+    );
+
     final List<JsonMap> rows = await _decodeListRows(
       _client
           .from("agent_service_categories")
           .select(
             "category_id, is_primary, asset_categories!inner(id, name, slug, description, icon_key, display_order, is_active, home_feed_weight, field_schema)",
           )
-          .eq("agent_id", agent["id"] as String)
+          .eq("agent_id", agentId)
           .order("is_primary", ascending: false),
     );
 
@@ -700,78 +791,234 @@ class ManageRepository {
     required bool isActive,
     required String? startAtIso,
     required String? endAtIso,
-    required String targetRegionId,
+    required String? targetRegionId,
     required String? targetDistrictId,
     required String? targetWardId,
     required String? targetAreaId,
     PlatformFile? mediaFile,
   }) async {
     final User user = _requireUser();
+    final String normalizedTitle = title.trim();
+    if (normalizedTitle.isEmpty) {
+      throw StateError("Enter a promotion title.");
+    }
+    const Set<String> allowedPlacements = <String>{
+      "global",
+      "home_feed",
+      "category_page",
+      "listing_detail",
+      "manage_dashboard",
+      "website",
+    };
+    if (!allowedPlacements.contains(placement)) {
+      throw StateError("Choose a valid promotion placement.");
+    }
+    const Set<String> allowedVisibilityScopes = <String>{
+      "public",
+      "manage",
+      "admin",
+      "all",
+    };
+    if (!allowedVisibilityScopes.contains(visibilityScope)) {
+      throw StateError("Choose a valid promotion visibility scope.");
+    }
+
+    final DateTime? startAt = _parseOptionalPromotionDate(
+      startAtIso,
+      fieldLabel: "start date",
+    );
+    final DateTime? endAt = _parseOptionalPromotionDate(
+      endAtIso,
+      fieldLabel: "end date",
+    );
+    if (startAt != null && endAt != null && !endAt.isAfter(startAt)) {
+      throw StateError("Promotion end date must be after its start date.");
+    }
+
+    final String? normalizedRegionId = _nullableTrim(targetRegionId);
+    final String? normalizedDistrictId = _nullableTrim(targetDistrictId);
+    final String? normalizedWardId = _nullableTrim(targetWardId);
+    final String? normalizedAreaId = _nullableTrim(targetAreaId);
+    if (normalizedRegionId == null &&
+        (normalizedDistrictId != null ||
+            normalizedWardId != null ||
+            normalizedAreaId != null)) {
+      throw StateError("Choose a region before a more specific location.");
+    }
+    if (normalizedDistrictId == null &&
+        (normalizedWardId != null || normalizedAreaId != null)) {
+      throw StateError("Choose a district before a ward or area.");
+    }
+    if (normalizedWardId == null && normalizedAreaId != null) {
+      throw StateError("Choose a ward before an area.");
+    }
+
+    Uint8List? mediaBytes;
+    if (mediaFile != null) {
+      _validatePromotionMediaFile(mediaFile);
+      mediaBytes = mediaFile.bytes;
+      if (mediaBytes == null || mediaBytes.isEmpty) {
+        throw StateError(
+          "The selected promotion media could not be read. Choose it again from Gallery or Files.",
+        );
+      }
+      if (mediaBytes.length > _promotionMediaMaxBytes) {
+        throw StateError("Promotion media must be 30 MB or smaller.");
+      }
+    }
+
     final JsonMap payload = <String, dynamic>{
       "admin_id": user.id,
-      "title": title,
-      "description": description,
-      "cta_label": ctaLabel,
-      "target_url": targetUrl,
+      "title": normalizedTitle,
+      "description": _nullableTrim(description),
+      "cta_label": _nullableTrim(ctaLabel),
+      "target_url": _nullableTrim(targetUrl),
       "placement": placement,
       "visibility_scope": visibilityScope,
       "display_order": displayOrder,
       "is_active": isActive,
-      "start_at": startAtIso == null || startAtIso.isEmpty ? null : startAtIso,
-      "end_at": endAtIso == null || endAtIso.isEmpty ? null : endAtIso,
-      "target_region_id": targetRegionId,
-      "target_district_id": targetDistrictId,
-      "target_ward_id": targetWardId,
-      "target_area_id": targetAreaId,
+      "start_at": startAt?.toUtc().toIso8601String(),
+      "end_at": endAt?.toUtc().toIso8601String(),
+      "target_region_id": normalizedRegionId,
+      "target_district_id": normalizedDistrictId,
+      "target_ward_id": normalizedWardId,
+      "target_area_id": normalizedAreaId,
     };
 
-    final JsonMap promotion = promotionId == null
-        ? await _client
-              .from("platform_promotions")
-              .insert(payload)
-              .select("id")
-              .single()
-        : await _client
-              .from("platform_promotions")
-              .update(payload)
-              .eq("id", promotionId)
-              .select("id")
-              .single();
+    JsonMap? savedPromotion;
+    final bool creating = promotionId == null;
+    try {
+      savedPromotion = creating
+          ? await _client
+                .from("platform_promotions")
+                .insert(payload)
+                .select("id")
+                .single()
+          : await _client
+                .from("platform_promotions")
+                .update(payload)
+                .eq("id", promotionId)
+                .select("id")
+                .single();
 
-    if (mediaFile == null || mediaFile.bytes == null) {
-      return;
-    }
-
-    _validatePromotionMediaFile(mediaFile);
-
-    final String promotionKey = promotion["id"] as String;
-    final String fileName = _safeFileName(mediaFile.name);
-    final String path = "platform-promotions/$promotionKey/$fileName";
-    final String mediaType = _promotionMediaKind(mediaFile.name);
-    final String contentType = _promotionMediaContentType(mediaFile.name);
-
-    await _client.storage
-        .from("platform-promotions")
-        .uploadBinary(
-          path,
-          mediaFile.bytes!,
-          fileOptions: FileOptions(upsert: true, contentType: contentType),
+      if (mediaFile != null && mediaBytes != null) {
+        await _replacePromotionPrimaryMedia(
+          promotionId: savedPromotion["id"] as String,
+          mediaFile: mediaFile,
+          mediaBytes: mediaBytes,
         );
+      }
+    } catch (error) {
+      if (creating && savedPromotion?["id"] is String) {
+        try {
+          await _client
+              .from("platform_promotions")
+              .delete()
+              .eq("id", savedPromotion!["id"] as String);
+        } catch (_) {
+          // The original error is more useful. A later admin refresh exposes
+          // any row that could not be rolled back.
+        }
+      }
+      if (error is PostgrestException) {
+        throw StateError(_friendlyPromotionError(error));
+      }
+      if (error is StorageException) {
+        throw StateError(
+          "Promotion details could not be saved because the media upload failed. Check the connection and choose the file again.",
+        );
+      }
+      rethrow;
+    }
+  }
 
-    await _client
-        .from("platform_promotion_media")
-        .delete()
-        .eq("promotion_id", promotionKey)
-        .eq("is_primary", true);
-
-    await _client.from("platform_promotion_media").insert(<String, dynamic>{
-      "promotion_id": promotionKey,
-      "media_type": mediaType,
+  Future<void> _replacePromotionPrimaryMedia({
+    required String promotionId,
+    required PlatformFile mediaFile,
+    required Uint8List mediaBytes,
+  }) async {
+    final List<JsonMap> existingRows = await _decodeListRows(
+      _client
+          .from("platform_promotion_media")
+          .select("id, media_path, thumbnail_path")
+          .eq("promotion_id", promotionId)
+          .eq("is_primary", true),
+    );
+    final JsonMap? existing = existingRows.isEmpty ? null : existingRows.first;
+    final String fileName = _safeFileName(mediaFile.name);
+    final String path =
+        "platform-promotions/$promotionId/${DateTime.now().microsecondsSinceEpoch}-$fileName";
+    final JsonMap mediaPayload = <String, dynamic>{
+      "promotion_id": promotionId,
+      "media_type": _promotionMediaKind(mediaFile.name),
       "media_path": path,
       "thumbnail_path": null,
       "display_order": 0,
       "is_primary": true,
-    });
+    };
+
+    try {
+      await _client.storage
+          .from("platform-promotions")
+          .uploadBinary(
+            path,
+            mediaBytes,
+            fileOptions: FileOptions(
+              upsert: false,
+              contentType: _promotionMediaContentType(mediaFile.name),
+            ),
+          );
+    } catch (_) {
+      try {
+        await _client.storage.from("platform-promotions").remove(<String>[
+          path,
+        ]);
+      } catch (_) {
+        // Upload cleanup is best effort; the path is unique and is not linked
+        // to a visible promotion media row.
+      }
+      rethrow;
+    }
+
+    try {
+      if (existing?["id"] is String) {
+        await _client
+            .from("platform_promotion_media")
+            .update(mediaPayload)
+            .eq("id", existing!["id"] as String)
+            .select("id")
+            .single();
+      } else {
+        await _client
+            .from("platform_promotion_media")
+            .insert(mediaPayload)
+            .select("id")
+            .single();
+      }
+    } catch (_) {
+      try {
+        await _client.storage.from("platform-promotions").remove(<String>[
+          path,
+        ]);
+      } catch (_) {
+        // Keep the database error; an orphaned private object is safer than
+        // deleting the media record that is still serving the promotion.
+      }
+      rethrow;
+    }
+
+    final List<String> replacedPaths = <String?>[
+      existing?["media_path"] as String?,
+      existing?["thumbnail_path"] as String?,
+    ].whereType<String>().where((String item) => item != path).toSet().toList();
+    if (replacedPaths.isNotEmpty) {
+      try {
+        await _client.storage.from("platform-promotions").remove(replacedPaths);
+      } catch (_) {
+        // The new media is already attached. Old private objects can be
+        // cleaned separately without making the successful save look failed.
+      }
+    }
   }
 
   Future<void> deletePromotion(String promotionId) async {
@@ -792,10 +1039,25 @@ class ManageRepository {
         .where((String value) => value.isNotEmpty)
         .toSet()
         .toList();
-    if (paths.isNotEmpty) {
-      await _client.storage.from("platform-promotions").remove(paths);
+    final JsonMap? deleted = await _client
+        .from("platform_promotions")
+        .delete()
+        .eq("id", promotionId)
+        .select("id")
+        .maybeSingle();
+    if (deleted == null) {
+      throw StateError(
+        "Promotion was not found or your admin session cannot delete it.",
+      );
     }
-    await _client.from("platform_promotions").delete().eq("id", promotionId);
+    if (paths.isNotEmpty) {
+      try {
+        await _client.storage.from("platform-promotions").remove(paths);
+      } catch (_) {
+        // The database delete is authoritative. Do not tell the admin the
+        // promotion still exists only because private-object cleanup failed.
+      }
+    }
   }
 
   Future<void> saveCategory({
@@ -908,16 +1170,34 @@ class ManageRepository {
     required String rules,
     required String availabilityStatus,
   }) async {
+    final String normalizedListingId = _requiredInputId(
+      listingId,
+      'The listing identifier is missing. Refresh My Listings and retry.',
+    );
+    final String normalizedTitle = ListingContentValidator.requireValidTitle(
+      title,
+    );
+    final String normalizedDescription =
+        ListingContentValidator.requireValidDescription(description);
+    if (priceAmount < 0) {
+      throw StateError('Price cannot be negative.');
+    }
+    if (depositAmount < 0) {
+      throw StateError('Deposit cannot be negative.');
+    }
     final JsonMap updates = <String, dynamic>{
-      "title": title,
-      "description": description,
+      "title": normalizedTitle,
+      "description": normalizedDescription,
       "price_amount": priceAmount,
       "price_period": pricePeriod,
       "deposit_required_amount": depositAmount,
       "listing_rules": rules,
       "availability_status": availabilityStatus,
     };
-    await _client.from("listings").update(updates).eq("id", listingId);
+    await _client
+        .from("listings")
+        .update(updates)
+        .eq("id", normalizedListingId);
   }
 
   Future<void> updateListingStatus({
@@ -966,14 +1246,38 @@ class ManageRepository {
   }
 
   Future<void> deleteListing(String listingId) async {
+    final String normalizedListingId = _requiredInputId(
+      listingId,
+      "The listing identifier is missing.",
+    );
     final FunctionResponse response = await _client.functions.invoke(
       "delete-empty-listing",
-      body: <String, dynamic>{"listingId": listingId},
+      body: <String, dynamic>{"listingId": normalizedListingId},
     );
     if (response.status >= 400) {
+      final dynamic data = response.data;
       throw StateError(
-        (response.data as Map?)?["error"]?.toString() ?? "Delete failed",
+        data is Map
+            ? data["error"]?.toString() ?? "Delete failed."
+            : "Delete failed.",
       );
+    }
+    final JsonMap confirmation = _requiredResponseMap(
+      response.data,
+      "Supabase did not confirm that the incomplete listing was deleted.",
+    );
+    if (confirmation["success"] != true) {
+      throw StateError(
+        "Supabase did not confirm that the incomplete listing was deleted.",
+      );
+    }
+    final String confirmedId = _requiredInputId(
+      _nonEmptyString(confirmation["listingId"]) ??
+          _nonEmptyString(confirmation["listing_id"]),
+      "Supabase returned a delete confirmation without a listing identifier.",
+    );
+    if (confirmedId != normalizedListingId) {
+      throw StateError("Supabase confirmed deletion for a different listing.");
     }
   }
 
@@ -1023,14 +1327,66 @@ class ManageRepository {
     UploadTaskController? uploadController,
     UploadProgressCallback? onProgress,
   }) async {
+    final String normalizedTitle = ListingContentValidator.requireValidTitle(
+      title,
+    );
+    final String normalizedDescription =
+        ListingContentValidator.requireValidDescription(description);
+    await ListingMediaValidator.validateImages(images);
+    if (coverImageIndex < 0 || coverImageIndex >= images.length) {
+      throw StateError('Choose a valid cover image before publishing.');
+    }
+    if (video != null) {
+      await ListingMediaValidator.validateCompressedVideo(video);
+    }
+    final String normalizedCategoryId = _requiredInputId(
+      categoryId,
+      "The selected category is missing its identifier. Refresh the form and "
+      "choose the category again.",
+    );
+    _requiredInputId(regionId, "Choose a valid region before publishing.");
+    _requiredInputId(districtId, "Choose a valid district before publishing.");
+    final String normalizedWardId = _requiredInputId(
+      wardId,
+      "Choose a valid ward before publishing.",
+    );
+    final String? normalizedAreaId = _nonEmptyString(areaId);
+    final String? normalizedStreetId = _nonEmptyString(streetId);
+    final String? normalizedExistingOwnerId = _nonEmptyString(existingOwnerId);
+    if (existingOwnerId != null && normalizedExistingOwnerId == null) {
+      throw StateError(
+        "The selected owner is missing its identifier. Choose the owner again.",
+      );
+    }
+    _validatedPrivateCoordinates(latitude, longitude);
     final User user = _requireUser();
     final JsonMap agent = await _currentAgent();
-    final String finalLocationId = streetId ?? areaId ?? wardId ?? districtId;
+    final String agentId = _requiredStringField(
+      agent,
+      "id",
+      "Your agent account is missing its identifier. Sign in again.",
+    );
+    final String? agentStatus = _nonEmptyString(agent["account_status"]);
+    if (agentStatus == null) {
+      throw StateError(
+        "Your agent account status is unavailable. Refresh the app or "
+        "contact an administrator.",
+      );
+    }
+    if (agentStatus != "active") {
+      throw StateError(
+        "Your agent account must be active before you can publish a listing.",
+      );
+    }
+    final String finalLocationId =
+        normalizedStreetId ?? normalizedAreaId ?? normalizedWardId;
     final int totalMediaSteps = images.length + (video == null ? 0 : 1);
-    final int totalSteps = 3 + totalMediaSteps;
+    final int totalSteps = 4 + totalMediaSteps;
     String? listingId;
+    bool listingInsertAttempted = false;
     final List<String> uploadedPaths = <String>[];
     int completedSteps = 0;
+    String phase = 'saving owner details';
 
     void markStep(String label, {bool canCancel = true}) {
       onProgress?.call(
@@ -1046,10 +1402,11 @@ class ManageRepository {
     _throwIfCancelled(uploadController);
 
     try {
+      phase = 'saving owner details';
       final String ownerId =
-          existingOwnerId ??
+          normalizedExistingOwnerId ??
           await _createOwner(
-            agentId: agent["id"] as String,
+            agentId: agentId,
             fullName: ownerName,
             phoneNumber: ownerPhone,
             notes: ownerNotes,
@@ -1059,31 +1416,44 @@ class ManageRepository {
       markStep("Owner details saved.");
       _throwIfCancelled(uploadController);
 
-      final JsonMap listing = await _client
+      phase = 'creating the private listing record';
+      listingInsertAttempted = true;
+      final dynamic listingResponse = await _client
           .from("listings")
           .insert(<String, dynamic>{
-            "agent_id": agent["id"],
+            "agent_id": agentId,
             "owner_id": ownerId,
-            "category_id": categoryId,
+            "category_id": normalizedCategoryId,
             "listing_attributes": listingAttributes,
-            "title": title,
-            "description": description,
+            "title": normalizedTitle,
+            "description": normalizedDescription,
             "location_id": finalLocationId,
             "price_amount": priceAmount,
             "price_period": pricePeriod.storageValue,
             "deposit_required_amount": depositAmount,
             "listing_rules": rules,
             "availability_status": availabilityStatus,
-            "status": "active",
+            // Keep incomplete media private until every upload succeeds.
+            "status": "inactive",
           })
           .select("id")
           .single();
-
-      listingId = listing["id"] as String;
+      final JsonMap listing = _requiredResponseMap(
+        listingResponse,
+        "The listing was saved but Supabase did not return its details. "
+        "Refresh My Listings before retrying.",
+      );
+      listingId = _requiredStringField(
+        listing,
+        "id",
+        "The listing was saved without an identifier. Refresh My Listings "
+            "before retrying.",
+      );
       completedSteps += 1;
       markStep("Listing record created.");
       _throwIfCancelled(uploadController);
 
+      phase = 'saving the private location';
       await _savePrivateLocation(
         listingId: listingId,
         exactAddress: exactAddress,
@@ -1094,6 +1464,7 @@ class ManageRepository {
       markStep("Private location saved.");
       _throwIfCancelled(uploadController);
 
+      phase = 'uploading listing media';
       await _uploadListingMedia(
         userId: user.id,
         listingId: listingId,
@@ -1115,6 +1486,32 @@ class ManageRepository {
         },
         uploadedPaths: uploadedPaths,
       );
+      completedSteps += totalMediaSteps;
+      phase = 'activating the completed listing';
+      markStep('Activating completed listing...', canCancel: false);
+      final dynamic activationResponse = await _client
+          .from('listings')
+          .update(<String, dynamic>{'status': 'active'})
+          .eq('id', listingId)
+          .select('id')
+          .single();
+      final JsonMap activatedListing = _requiredResponseMap(
+        activationResponse,
+        "Supabase did not confirm that the completed listing became active.",
+      );
+      final String activatedListingId = _requiredStringField(
+        activatedListing,
+        "id",
+        "Supabase returned an activation response without a listing "
+            "identifier.",
+      );
+      if (activatedListingId != listingId) {
+        throw StateError(
+          "Supabase confirmed a different listing during activation. "
+          "Refresh My Listings before retrying.",
+        );
+      }
+      completedSteps += 1;
       onProgress?.call(
         const UploadProgressSnapshot(
           value: 1,
@@ -1122,16 +1519,42 @@ class ManageRepository {
           canCancel: false,
         ),
       );
-    } on UploadCancelledException {
-      if (uploadedPaths.isNotEmpty) {
-        await _client.storage.from("listing-media").remove(uploadedPaths);
+    } on UploadCancelledException catch (error, stackTrace) {
+      final bool fullyRemoved = await _rollbackFailedListingCreation(
+        listingId: listingId,
+        uploadedPaths: uploadedPaths,
+        listingInsertAttempted:
+            listingInsertAttempted && !_listingInsertDefinitelyRejected(error),
+      );
+      if (!fullyRemoved) {
+        Error.throwWithStackTrace(
+          StateError(
+            "Upload was cancelled, but automatic cleanup was incomplete. "
+            "Refresh My Listings; if an inactive draft remains, delete it "
+            "before retrying.",
+          ),
+          stackTrace,
+        );
       }
-      if (listingId != null) {
-        try {
-          await deleteListing(listingId);
-        } catch (_) {}
-      }
-      rethrow;
+      Error.throwWithStackTrace(error, stackTrace);
+    } catch (error, stackTrace) {
+      final bool fullyRemoved = await _rollbackFailedListingCreation(
+        listingId: listingId,
+        uploadedPaths: uploadedPaths,
+        listingInsertAttempted:
+            listingInsertAttempted && !_listingInsertDefinitelyRejected(error),
+      );
+      final String cleanupNote = fullyRemoved
+          ? ''
+          : ' Automatic cleanup was incomplete. Refresh My Listings before '
+                'retrying; if an inactive draft remains, delete it first.';
+      Error.throwWithStackTrace(
+        StateError(
+          'Could not finish $phase. ${_listingSubmissionError(error)}'
+          '$cleanupNote',
+        ),
+        stackTrace,
+      );
     }
   }
 
@@ -1163,83 +1586,228 @@ class ManageRepository {
     required XFile? video,
     required int coverImageIndex,
   }) async {
+    final String normalizedTitle = ListingContentValidator.requireValidTitle(
+      title,
+    );
+    final String normalizedDescription =
+        ListingContentValidator.requireValidDescription(description);
+    await ListingMediaValidator.validateImages(images);
+    if (coverImageIndex < 0 || coverImageIndex >= images.length) {
+      throw StateError("Choose a valid cover image before publishing.");
+    }
+    if (video != null) {
+      await ListingMediaValidator.validateCompressedVideo(video);
+    }
+    _validatedPrivateCoordinates(latitude, longitude);
+
     final User user = _requireUser();
     final JsonMap agent = await _currentAgent();
-    final String categoryId = await _categoryIdForLegacyCategory(category);
-    final String ownerId =
-        existingOwnerId ??
-        await _createOwner(
-          agentId: agent["id"] as String,
-          fullName: ownerName,
-          phoneNumber: ownerPhone,
-          notes: ownerNotes,
-          locationId:
-              streetId ??
-              areaId ??
-              wardId ??
-              districtId ??
-              regionId ??
-              countryId,
+    final String agentId = _requiredStringField(
+      agent,
+      "id",
+      "Your agent account is missing its identifier. Sign in again.",
+    );
+    final String? agentStatus = _nonEmptyString(agent["account_status"]);
+    if (agentStatus == null) {
+      throw StateError(
+        "Your agent account status is unavailable. Refresh the app or "
+        "contact an administrator.",
+      );
+    }
+    if (agentStatus != "active") {
+      throw StateError(
+        "Your agent account must be active before you can publish a listing.",
+      );
+    }
+    final String? normalizedExistingOwnerId = _nonEmptyString(existingOwnerId);
+    if (existingOwnerId != null && normalizedExistingOwnerId == null) {
+      throw StateError(
+        "The selected owner is missing its identifier. Choose the owner again.",
+      );
+    }
+    final String? finalLocationId =
+        _nonEmptyString(streetId) ??
+        _nonEmptyString(areaId) ??
+        _nonEmptyString(wardId) ??
+        _nonEmptyString(districtId) ??
+        _nonEmptyString(regionId) ??
+        _nonEmptyString(countryId);
+    if (finalLocationId == null) {
+      throw StateError("Choose a valid listing location before publishing.");
+    }
+    String? listingId;
+    bool listingInsertAttempted = false;
+    final List<String> uploadedPaths = <String>[];
+    String phase = "preparing the listing category";
+
+    try {
+      final String categoryId = await _categoryIdForLegacyCategory(category);
+      phase = "saving owner details";
+      final String ownerId =
+          normalizedExistingOwnerId ??
+          await _createOwner(
+            agentId: agentId,
+            fullName: ownerName,
+            phoneNumber: ownerPhone,
+            notes: ownerNotes,
+            locationId: finalLocationId,
+          );
+
+      phase = "creating the private listing record";
+      listingInsertAttempted = true;
+      final dynamic listingResponse = await _client
+          .from("listings")
+          .insert(<String, dynamic>{
+            "agent_id": agentId,
+            "owner_id": ownerId,
+            "category_id": categoryId,
+            "title": normalizedTitle,
+            "description": normalizedDescription,
+            "location_id": finalLocationId,
+            "public_location_label": publicLocationLabel,
+            "price_amount": priceAmount,
+            "price_period": pricePeriod.storageValue,
+            "deposit_required_amount": depositAmount,
+            "listing_rules": rules,
+            "availability_status": availabilityStatus,
+            "status": "inactive",
+          })
+          .select("id")
+          .single();
+      final JsonMap listing = _requiredResponseMap(
+        listingResponse,
+        "The listing was saved but Supabase did not return its details. "
+        "Refresh My Listings before retrying.",
+      );
+      listingId = _requiredStringField(
+        listing,
+        "id",
+        "The listing was saved without an identifier. Refresh My Listings "
+            "before retrying.",
+      );
+
+      phase = "saving category details";
+      await _saveCategoryDetails(
+        category: category,
+        listingId: listingId,
+        details: detailPayload,
+      );
+      phase = "saving the private location";
+      await _savePrivateLocation(
+        listingId: listingId,
+        exactAddress: exactAddress,
+        latitude: latitude,
+        longitude: longitude,
+      );
+      phase = "uploading listing media";
+      await _uploadListingMedia(
+        userId: user.id,
+        listingId: listingId,
+        images: images,
+        video: video,
+        coverImageIndex: coverImageIndex,
+        uploadedPaths: uploadedPaths,
+      );
+
+      phase = "activating the completed listing";
+      final dynamic activationResponse = await _client
+          .from("listings")
+          .update(<String, dynamic>{"status": "active"})
+          .eq("id", listingId)
+          .select("id")
+          .single();
+      final JsonMap activatedListing = _requiredResponseMap(
+        activationResponse,
+        "Supabase did not confirm that the completed listing became active.",
+      );
+      final String activatedListingId = _requiredStringField(
+        activatedListing,
+        "id",
+        "Supabase returned an activation response without a listing "
+            "identifier.",
+      );
+      if (activatedListingId != listingId) {
+        throw StateError(
+          "Supabase confirmed a different listing during activation. "
+          "Refresh My Listings before retrying.",
         );
-
-    final JsonMap listing = await _client
-        .from("listings")
-        .insert(<String, dynamic>{
-          "agent_id": agent["id"],
-          "owner_id": ownerId,
-          "category_id": categoryId,
-          "title": title,
-          "description": description,
-          "location_id":
-              streetId ??
-              areaId ??
-              wardId ??
-              districtId ??
-              regionId ??
-              countryId,
-          "public_location_label": publicLocationLabel,
-          "price_amount": priceAmount,
-          "price_period": pricePeriod.storageValue,
-          "deposit_required_amount": depositAmount,
-          "listing_rules": rules,
-          "availability_status": availabilityStatus,
-          "status": "inactive",
-        })
-        .select("id")
-        .single();
-
-    final String listingId = listing["id"] as String;
-    await _saveCategoryDetails(
-      category: category,
-      listingId: listingId,
-      details: detailPayload,
-    );
-    await _savePrivateLocation(
-      listingId: listingId,
-      exactAddress: exactAddress,
-      latitude: latitude,
-      longitude: longitude,
-    );
-
-    await _uploadListingMedia(
-      userId: user.id,
-      listingId: listingId,
-      images: images,
-      video: video,
-      coverImageIndex: coverImageIndex,
-    );
+      }
+    } catch (error, stackTrace) {
+      final bool fullyRemoved = await _rollbackFailedListingCreation(
+        listingId: listingId,
+        uploadedPaths: uploadedPaths,
+        listingInsertAttempted:
+            listingInsertAttempted && !_listingInsertDefinitelyRejected(error),
+      );
+      final String cleanupNote = fullyRemoved
+          ? ""
+          : " Automatic cleanup was incomplete. Refresh My Listings before "
+                "retrying; if an inactive draft remains, delete it first.";
+      Error.throwWithStackTrace(
+        StateError(
+          "Could not finish $phase. ${_listingSubmissionError(error)}"
+          "$cleanupNote",
+        ),
+        stackTrace,
+      );
+    }
   }
 
   Future<List<JsonMap>> fetchAgentBookings() async {
     final JsonMap agent = await _currentAgent();
-    return _fetchBookings(
+    final List<JsonMap> bookings = await _fetchBookings(
       queryBuilder: (dynamic query) =>
           query.eq("agent_id", agent["id"] as String),
     );
+    return bookings
+        .map(
+          (JsonMap booking) => <String, dynamic>{
+            ...booking,
+            "assigned_agent": <String, dynamic>{
+              "id": agent["id"],
+              "display_name":
+                  agent["display_name"] ?? agent["business_name"] ?? "You",
+              "business_name": agent["business_name"],
+              "phone_number": agent["phone_number"],
+            },
+          },
+        )
+        .toList(growable: false);
   }
 
   Future<List<JsonMap>> fetchAdminBookings() async {
-    return _fetchBookings(queryBuilder: (dynamic query) => query);
+    final List<JsonMap> bookings = await _fetchBookings(
+      queryBuilder: (dynamic query) => query,
+    );
+    final List<String> agentIds = bookings
+        .map((JsonMap booking) => booking["agent_id"] as String?)
+        .whereType<String>()
+        .toSet()
+        .toList(growable: false);
+    if (agentIds.isEmpty) {
+      return bookings;
+    }
+
+    final List<JsonMap> agents = await _decodeListRows(
+      _client
+          .from("agents")
+          .select(
+            "id, display_name, business_name, phone_number, contact_email, account_status, verification_status",
+          )
+          .inFilter("id", agentIds),
+    );
+    final Map<String, JsonMap> agentsById = <String, JsonMap>{
+      for (final JsonMap agent in agents)
+        if (agent["id"] is String) agent["id"] as String: agent,
+    };
+    return bookings
+        .map(
+          (JsonMap booking) => <String, dynamic>{
+            ...booking,
+            "assigned_agent": agentsById[booking["agent_id"]],
+          },
+        )
+        .toList(growable: false);
   }
 
   Future<void> updateBookingStatus({
@@ -1252,12 +1820,265 @@ class ManageRepository {
         .eq("id", bookingId);
   }
 
+  Future<JsonMap?> fetchBookingById(
+    String bookingId, {
+    required bool isAdmin,
+  }) async {
+    final List<JsonMap> bookings = await _fetchBookings(
+      queryBuilder: (dynamic query) => query.eq("id", bookingId),
+    );
+    if (bookings.isEmpty) {
+      return null;
+    }
+    final JsonMap booking = bookings.first;
+    JsonMap? assignedAgent;
+    if (isAdmin) {
+      final String? agentId = booking["agent_id"] as String?;
+      if (agentId != null) {
+        assignedAgent = await _client
+            .from("agents")
+            .select(
+              "id, display_name, business_name, phone_number, contact_email, account_status, verification_status",
+            )
+            .eq("id", agentId)
+            .maybeSingle();
+      }
+    } else {
+      assignedAgent = await _currentAgent();
+    }
+    return <String, dynamic>{...booking, "assigned_agent": assignedAgent};
+  }
+
+  Future<List<JsonMap>> fetchBookingStatusHistory(String bookingId) async {
+    return _decodeListRows(
+      _client
+          .from("booking_status_history")
+          .select("id, status, changed_by, reason, created_at")
+          .eq("booking_request_id", bookingId)
+          .order("created_at", ascending: false),
+    );
+  }
+
+  Future<JsonMap?> getOrCreateBookingConversation(String bookingId) async {
+    try {
+      final dynamic response = await _client.rpc(
+        "get_or_create_booking_conversation",
+        params: <String, dynamic>{"p_booking_request_id": bookingId},
+      );
+      if (response is List && response.isNotEmpty) {
+        return Map<String, dynamic>.from(response.first as Map);
+      }
+      if (response is Map) {
+        return Map<String, dynamic>.from(response);
+      }
+      return null;
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) {
+        return null;
+      }
+      rethrow;
+    }
+  }
+
+  Future<List<JsonMap>> fetchBookingMessages(String conversationId) async {
+    try {
+      return _decodeListRows(
+        _client
+            .from("booking_messages")
+            .select(
+              "id, conversation_id, sender_id, message_type, body, read_at, created_at, edited_at",
+            )
+            .eq("conversation_id", conversationId)
+            .order("created_at"),
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) {
+        return <JsonMap>[];
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> sendBookingMessage({
+    required String conversationId,
+    required String body,
+  }) async {
+    final String trimmedBody = body.trim();
+    if (trimmedBody.isEmpty) {
+      return;
+    }
+    try {
+      await _client.rpc(
+        "send_booking_message",
+        params: <String, dynamic>{
+          "p_conversation_id": conversationId,
+          "p_body": trimmedBody,
+        },
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) {
+        throw StateError(
+          "In-app chat is being activated on the server. Use Call or WhatsApp for this request for now.",
+        );
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> markBookingConversationRead(String conversationId) async {
+    try {
+      await _client.rpc(
+        "mark_conversation_read",
+        params: <String, dynamic>{"p_conversation_id": conversationId},
+      );
+    } on PostgrestException catch (error) {
+      if (!_isOptionalWorkflowCompatibilityError(error)) {
+        rethrow;
+      }
+    }
+  }
+
+  Future<List<JsonMap>> fetchViewingAppointments(String bookingId) async {
+    try {
+      return _decodeListRows(
+        _client
+            .from("viewing_appointments")
+            .select(
+              "id, booking_request_id, listing_id, customer_id, agent_id, proposed_by, scheduled_start_at, scheduled_end_at, status, location_note, response_note, created_at, updated_at",
+            )
+            .eq("booking_request_id", bookingId)
+            .order("created_at", ascending: false),
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) {
+        return <JsonMap>[];
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> proposeViewingAppointment({
+    required String bookingId,
+    required DateTime startAt,
+    required DateTime endAt,
+    String? locationNote,
+  }) async {
+    if (!endAt.isAfter(startAt)) {
+      throw StateError("The viewing end time must be after its start time.");
+    }
+    try {
+      await _client.rpc(
+        "propose_viewing_appointment",
+        params: <String, dynamic>{
+          "p_booking_request_id": bookingId,
+          "p_scheduled_start_at": startAt.toUtc().toIso8601String(),
+          "p_scheduled_end_at": endAt.toUtc().toIso8601String(),
+          "p_location_note": locationNote?.trim().isEmpty == true
+              ? null
+              : locationNote?.trim(),
+        },
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) {
+        throw StateError(
+          "Viewing appointments are being activated on the server. Contact the customer directly for now.",
+        );
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> respondToViewingAppointment({
+    required String appointmentId,
+    required String status,
+    DateTime? startAt,
+    DateTime? endAt,
+    String? responseNote,
+  }) async {
+    try {
+      await _client.rpc(
+        "respond_to_viewing_appointment",
+        params: <String, dynamic>{
+          "p_appointment_id": appointmentId,
+          "p_status": status,
+          "p_scheduled_start_at": startAt?.toUtc().toIso8601String(),
+          "p_scheduled_end_at": endAt?.toUtc().toIso8601String(),
+          "p_response_note": responseNote?.trim().isEmpty == true
+              ? null
+              : responseNote?.trim(),
+        },
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) {
+        throw StateError(
+          "Viewing responses are being activated on the server. Please refresh and try again shortly.",
+        );
+      }
+      rethrow;
+    }
+  }
+
+  Future<JsonMap?> fetchBookingReview(String bookingId) async {
+    try {
+      final JsonMap? review = await _client
+          .from("reviews")
+          .select(
+            "id, booking_request_id, rating, comment, is_verified, moderation_status, created_at",
+          )
+          .eq("booking_request_id", bookingId)
+          .maybeSingle();
+      return review;
+    } on PostgrestException catch (error) {
+      if (!_isOptionalWorkflowCompatibilityError(error)) {
+        rethrow;
+      }
+      try {
+        return await _client
+            .from("reviews")
+            .select("id, booking_request_id, rating, comment, created_at")
+            .eq("booking_request_id", bookingId)
+            .maybeSingle();
+      } on PostgrestException catch (fallbackError) {
+        if (_isOptionalWorkflowCompatibilityError(fallbackError)) {
+          return null;
+        }
+        rethrow;
+      }
+    }
+  }
+
+  Future<List<JsonMap>> fetchAdminPaymentOperations({
+    String? paymentStatus,
+    int limit = 30,
+    int offset = 0,
+  }) async {
+    try {
+      return _decodeListRows(
+        _client.rpc(
+          "get_admin_payment_operations",
+          params: <String, dynamic>{
+            "p_payment_status": paymentStatus,
+            "p_limit": limit,
+            "p_offset": offset,
+          },
+        ),
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) {
+        return <JsonMap>[];
+      }
+      rethrow;
+    }
+  }
+
   Future<List<JsonMap>> fetchNotifications() async {
     final User user = _requireUser();
     return _decodeListRows(
       _client
           .from("notifications")
-          .select("id, title, body, created_at, read_at, type, payload")
+          .select(
+            "id, booking_request_id, title, body, created_at, read_at, type, payload",
+          )
           .eq("user_id", user.id)
           .order("created_at", ascending: false),
     );
@@ -1689,25 +2510,36 @@ class ManageRepository {
     }
 
     try {
-      final List<dynamic> rows = await _client.rpc(
+      final dynamic response = await _client.rpc(
         "ensure_ward_area",
         params: <String, dynamic>{
           "p_ward_id": trimmedWardId,
           "p_area_name": trimmedAreaName,
         },
       );
+      if (response is! List) {
+        throw StateError(
+          "The location service returned an invalid response. Refresh the "
+          "form and try again.",
+        );
+      }
+      final List<dynamic> rows = response;
       if (rows.isEmpty) {
         throw StateError(
           "We could not save that area right now. Please try again.",
         );
       }
-      final JsonMap area = (rows.first as Map).cast<String, dynamic>();
-      final String? areaId = area["id"] as String?;
-      if (areaId == null || areaId.isEmpty) {
-        throw StateError(
-          "We could not save that area right now. Please try again.",
-        );
-      }
+      final JsonMap area = _requiredResponseMap(
+        rows.first,
+        "The location service returned incomplete area details. Refresh the "
+        "form and try again.",
+      );
+      final String areaId = _requiredStringField(
+        area,
+        "id",
+        "The saved area is missing its identifier. Refresh the form and try "
+            "again.",
+      );
       if (area["created_new"] == true) {
         _invalidateLocationCaches();
       }
@@ -2082,7 +2914,7 @@ class ManageRepository {
     final dynamic base = _client
         .from("booking_requests")
         .select(
-          "id, listing_id, request_reference, customer_name, customer_phone_number, customer_email, requested_start_at, requested_end_at, guest_count, request_message, requested_service_codes, booking_status, created_at, listings!inner(title, asset_categories(name, slug))",
+          "id, listing_id, customer_id, agent_id, request_reference, customer_name, customer_phone_number, customer_email, requested_start_at, requested_end_at, guest_count, request_message, requested_service_codes, booking_status, agent_response_due_at, first_agent_response_at, created_at, updated_at, listings!inner(title, asset_categories(name, slug))",
         );
     final dynamic filtered = queryBuilder(base);
     return _decodeListRows(filtered.order("created_at", ascending: false));
@@ -2136,8 +2968,17 @@ class ManageRepository {
   Future<JsonMap> _currentAgent() async {
     final JsonMap? agent = await _maybeCurrentAgent();
     if (agent == null) {
-      throw StateError("Agent account not found");
+      throw StateError(
+        "No agent account is linked to this sign-in. Complete agent "
+        "registration or contact an administrator.",
+      );
     }
+    _requiredStringField(
+      agent,
+      "id",
+      "Your agent account is missing its identifier. Sign out and sign in "
+          "again; if this continues, contact an administrator.",
+    );
     return agent;
   }
 
@@ -2145,12 +2986,28 @@ class ManageRepository {
     if (currentUser == null) {
       return null;
     }
-    final List<dynamic> rows = await _client.rpc("get_my_agent_status");
+    final dynamic response = await _client.rpc("get_my_agent_status");
+    if (response is! List) {
+      throw StateError(
+        "The agent account service returned an invalid response. Refresh "
+        "the app and try again.",
+      );
+    }
+    final List<dynamic> rows = response;
     if (rows.isEmpty) {
       return null;
     }
-    final JsonMap row = (rows.first as Map).cast<String, dynamic>();
-    return <String, dynamic>{...row, "id": row["id"] ?? row["agent_id"]};
+    final JsonMap row = _requiredResponseMap(
+      rows.first,
+      "The agent account service returned incomplete details. Refresh the "
+      "app and try again.",
+    );
+    final String agentId = _requiredInputId(
+      _nonEmptyString(row["id"]) ?? _nonEmptyString(row["agent_id"]),
+      "Your agent account is missing its identifier. Sign out and sign in "
+      "again; if this continues, contact an administrator.",
+    );
+    return <String, dynamic>{...row, "id": agentId};
   }
 
   Future<JsonMap?> _myAgentStatus() async {
@@ -2231,18 +3088,39 @@ class ManageRepository {
     required String notes,
     required String? locationId,
   }) async {
-    final JsonMap owner = await _client
+    final String normalizedAgentId = _requiredInputId(
+      agentId,
+      "Your agent account is missing its identifier. Sign in again.",
+    );
+    final String normalizedName = fullName.trim();
+    if (normalizedName.isEmpty) {
+      throw StateError("Enter the owner's full name.");
+    }
+    final String normalizedPhone = phoneNumber.trim();
+    if (normalizedPhone.isEmpty) {
+      throw StateError("Enter the owner's phone number.");
+    }
+    final dynamic ownerResponse = await _client
         .from("owners")
         .insert(<String, dynamic>{
-          "agent_id": agentId,
-          "full_name": fullName,
-          "phone_number": phoneNumber,
-          "notes": notes,
-          "location_id": locationId,
+          "agent_id": normalizedAgentId,
+          "full_name": normalizedName,
+          "phone_number": normalizedPhone,
+          "notes": notes.trim(),
+          "location_id": _nonEmptyString(locationId),
         })
         .select("id")
         .single();
-    return owner["id"] as String;
+    final JsonMap owner = _requiredResponseMap(
+      ownerResponse,
+      "The owner was saved but Supabase did not return the owner details.",
+    );
+    return _requiredStringField(
+      owner,
+      "id",
+      "The owner was saved without an identifier. Refresh the owner list "
+          "before retrying.",
+    );
   }
 
   Future<void> _saveCategoryDetails({
@@ -2278,23 +3156,76 @@ class ManageRepository {
     }
   }
 
+  ({double? latitude, double? longitude}) _validatedPrivateCoordinates(
+    String latitude,
+    String longitude,
+  ) {
+    final String normalizedLatitude = latitude.trim();
+    final String normalizedLongitude = longitude.trim();
+    final bool hasLatitude = normalizedLatitude.isNotEmpty;
+    final bool hasLongitude = normalizedLongitude.isNotEmpty;
+    if (hasLatitude != hasLongitude) {
+      throw StateError(
+        "Enter both latitude and longitude, or leave both coordinates blank.",
+      );
+    }
+    final double? lat = hasLatitude
+        ? double.tryParse(normalizedLatitude)
+        : null;
+    final double? lng = hasLongitude
+        ? double.tryParse(normalizedLongitude)
+        : null;
+    if (hasLatitude && (lat == null || lat < -90 || lat > 90)) {
+      throw StateError("Latitude must be a number from -90 to 90.");
+    }
+    if (hasLongitude && (lng == null || lng < -180 || lng > 180)) {
+      throw StateError("Longitude must be a number from -180 to 180.");
+    }
+    return (latitude: lat, longitude: lng);
+  }
+
   Future<void> _savePrivateLocation({
     required String listingId,
     required String exactAddress,
     required String latitude,
     required String longitude,
   }) async {
-    if (exactAddress.isEmpty && latitude.isEmpty && longitude.isEmpty) {
+    final String normalizedListingId = _requiredInputId(
+      listingId,
+      "The listing identifier is missing while saving its private location.",
+    );
+    final String normalizedAddress = exactAddress.trim();
+    final ({double? latitude, double? longitude}) coordinates =
+        _validatedPrivateCoordinates(latitude, longitude);
+    if (normalizedAddress.isEmpty &&
+        coordinates.latitude == null &&
+        coordinates.longitude == null) {
       return;
     }
-    final double? lat = double.tryParse(latitude);
-    final double? lng = double.tryParse(longitude);
-    await _client.from("listing_private_locations").upsert(<String, dynamic>{
-      "listing_id": listingId,
-      "exact_address": exactAddress.isEmpty ? null : exactAddress,
-      "map_pin_latitude": lat,
-      "map_pin_longitude": lng,
-    });
+    final dynamic locationResponse = await _client
+        .from("listing_private_locations")
+        .upsert(<String, dynamic>{
+          "listing_id": normalizedListingId,
+          "exact_address": normalizedAddress.isEmpty ? null : normalizedAddress,
+          "map_pin_latitude": coordinates.latitude,
+          "map_pin_longitude": coordinates.longitude,
+        })
+        .select("listing_id")
+        .single();
+    final JsonMap savedLocation = _requiredResponseMap(
+      locationResponse,
+      "Supabase did not confirm the listing's private location.",
+    );
+    final String savedListingId = _requiredStringField(
+      savedLocation,
+      "listing_id",
+      "Supabase returned a private location without its listing identifier.",
+    );
+    if (savedListingId != normalizedListingId) {
+      throw StateError(
+        "Supabase confirmed a private location for a different listing.",
+      );
+    }
   }
 
   Future<JsonMap?> _fetchPrivateLocation(String listingId) async {
@@ -2324,7 +3255,124 @@ class ManageRepository {
     if (row == null) {
       throw StateError("Asset category '$slug' was not found.");
     }
-    return row["id"] as String;
+    return _requiredStringField(
+      row,
+      "id",
+      "Asset category '$slug' is missing its identifier. Ask an "
+          "administrator to repair the category.",
+    );
+  }
+
+  Future<bool> _rollbackFailedListingCreation({
+    required String? listingId,
+    required List<String> uploadedPaths,
+    required bool listingInsertAttempted,
+  }) async {
+    bool mediaRemoved = true;
+    final List<String> uniquePaths = uploadedPaths.toSet().toList();
+    if (uniquePaths.isNotEmpty) {
+      try {
+        await _client.storage.from("listing-media").remove(uniquePaths);
+      } catch (_) {
+        mediaRemoved = false;
+      }
+    }
+
+    if (listingId == null) {
+      return mediaRemoved && !listingInsertAttempted;
+    }
+
+    try {
+      await deleteListing(listingId);
+      return mediaRemoved;
+    } catch (_) {
+      try {
+        final JsonMap? remaining = await _client
+            .from("listings")
+            .select("id")
+            .eq("id", listingId)
+            .maybeSingle();
+        if (remaining == null) {
+          return mediaRemoved;
+        }
+      } catch (_) {
+        // Continue with the safest fallback: keep any partial record private.
+      }
+
+      try {
+        await _client
+            .from("listings")
+            .update(<String, dynamic>{"status": "inactive"})
+            .eq("id", listingId)
+            .select("id")
+            .single();
+      } catch (_) {
+        // The caller reports cleanup as incomplete. Do not mask the original
+        // create/upload failure with a second database error.
+      }
+      return false;
+    }
+  }
+
+  String _listingSubmissionError(Object error) {
+    String message;
+    if (error is PostgrestException) {
+      message = error.message;
+    } else if (error is StorageException) {
+      message = error.message;
+    } else if (error is AuthException) {
+      message = error.message;
+    } else {
+      message = error.toString();
+    }
+
+    message = message
+        .replaceAll("Bad state: ", "")
+        .replaceAll("Exception: ", "")
+        .trim();
+    final String lower = message.toLowerCase();
+    if (lower.contains('listings_description_check')) {
+      return 'Description must have at least '
+          '${ListingContentValidator.minimumDescriptionCharacters} characters.';
+    }
+    if (lower.contains('listings_title_check')) {
+      return 'Title must contain between '
+          '${ListingContentValidator.minimumTitleCharacters} and '
+          '${ListingContentValidator.maximumTitleCharacters} characters.';
+    }
+    if (lower.contains("failed host lookup") ||
+        lower.contains("socketexception") ||
+        lower.contains("connection reset") ||
+        lower.contains("network is unreachable") ||
+        lower.contains("clientexception")) {
+      return "Check your internet connection and try again.";
+    }
+    if (lower.contains("jwt") ||
+        lower.contains("unauthorized") ||
+        lower.contains("not authenticated")) {
+      return "Your session may have expired. Sign in again and retry.";
+    }
+    if (lower.contains("payload too large") ||
+        lower.contains("maximum allowed size") ||
+        lower.contains("exceeded the maximum")) {
+      return "A selected file exceeded the 30 MB server limit. Choose the "
+          "file again and retry.";
+    }
+    if (lower.contains("row-level security") ||
+        lower.contains("permission denied")) {
+      return "Your account is not allowed to complete this listing action. "
+          "Refresh your session or contact an administrator.";
+    }
+    if (message.isEmpty) {
+      return "Check the connection and try again.";
+    }
+    return message.endsWith(".") ? message : "$message.";
+  }
+
+  bool _listingInsertDefinitelyRejected(Object error) {
+    // A check-constraint response means PostgreSQL rejected the INSERT and no
+    // listing row exists. Do not report cleanup as uncertain in this case.
+    return error is PostgrestException && error.code == '23514';
   }
 
   Future<void> _uploadListingMedia({
@@ -2337,7 +3385,16 @@ class ManageRepository {
     UploadProgressCallback? onProgress,
     List<String>? uploadedPaths,
   }) async {
+    await ListingMediaValidator.validateImages(images);
+    if (coverImageIndex < 0 || coverImageIndex >= images.length) {
+      throw StateError("Choose a valid cover image before publishing.");
+    }
+    if (video != null) {
+      await ListingMediaValidator.validateCompressedVideo(video);
+    }
+
     final int totalItems = images.length + (video == null ? 0 : 1);
+    final int uploadNonce = DateTime.now().microsecondsSinceEpoch;
     int completedItems = 0;
 
     void reportItem(String label) {
@@ -2352,99 +3409,105 @@ class ManageRepository {
     for (int index = 0; index < images.length; index += 1) {
       _throwIfCancelled(uploadController);
       final XFile image = images[index];
-      _validateListingImageFile(image);
-      final String extension = _fileExtension(image.name).toLowerCase();
-      final String fileName = _safeFileName(image.name);
-      final String path = "$userId/$listingId/$fileName";
-      reportItem("Uploading image ${index + 1} of $totalItems...");
-      await _client.storage
-          .from("listing-media")
-          .uploadBinary(
-            path,
-            await image.readAsBytes(),
-            fileOptions: FileOptions(
-              upsert: true,
-              contentType: _contentTypeForImageExtension(extension),
-            ),
-            retryController: uploadController?.retryController,
-          );
+      final String extension = ListingMediaValidator.extensionOf(image.name);
+      final String path =
+          "$userId/$listingId/image-$uploadNonce-${index + 1}.$extension";
+      reportItem("Uploading image ${index + 1} of ${images.length}...");
+      try {
+        await _client.storage
+            .from("listing-media")
+            .uploadBinary(
+              path,
+              await image.readAsBytes(),
+              fileOptions: FileOptions(
+                upsert: false,
+                contentType: _contentTypeForImageExtension(extension),
+              ),
+              retryController: uploadController?.retryController,
+            );
+      } catch (error, stackTrace) {
+        if (uploadController?.isCancelled == true) {
+          throw const UploadCancelledException();
+        }
+        Error.throwWithStackTrace(
+          StateError(
+            "Image ${index + 1} could not be uploaded. "
+            "${_listingSubmissionError(error)}",
+          ),
+          stackTrace,
+        );
+      }
       uploadedPaths?.add(path);
       _throwIfCancelled(uploadController);
-      await _client.from("listing_media").insert(<String, dynamic>{
-        "listing_id": listingId,
-        "media_type": "image",
-        "storage_path": path,
-        "display_order": index,
-        "is_cover": index == coverImageIndex,
-      });
+      try {
+        await _client.from("listing_media").insert(<String, dynamic>{
+          "listing_id": listingId,
+          "media_type": "image",
+          "storage_path": path,
+          "display_order": index,
+          "is_cover": index == coverImageIndex,
+        });
+      } catch (error, stackTrace) {
+        Error.throwWithStackTrace(
+          StateError(
+            "Image ${index + 1} was uploaded but could not be attached to "
+            "the listing. ${_listingSubmissionError(error)}",
+          ),
+          stackTrace,
+        );
+      }
       completedItems += 1;
       reportItem("Image ${index + 1} uploaded.");
     }
     if (video != null) {
       _throwIfCancelled(uploadController);
-      final String extension = _fileExtension(video.name).toLowerCase();
-      await _validateListingVideoFile(video);
-      final String path = "$userId/$listingId/${_safeFileName(video.name)}";
+      final String path = "$userId/$listingId/video-$uploadNonce.mp4";
       reportItem("Uploading video...");
-      await _client.storage
-          .from("listing-media")
-          .uploadBinary(
-            path,
-            await video.readAsBytes(),
-            fileOptions: FileOptions(
-              upsert: true,
-              contentType: _contentTypeForVideoExtension(extension),
-            ),
-            retryController: uploadController?.retryController,
-          );
+      try {
+        await _client.storage
+            .from("listing-media")
+            .uploadBinary(
+              path,
+              await video.readAsBytes(),
+              fileOptions: const FileOptions(
+                upsert: false,
+                contentType: "video/mp4",
+              ),
+              retryController: uploadController?.retryController,
+            );
+      } catch (error, stackTrace) {
+        if (uploadController?.isCancelled == true) {
+          throw const UploadCancelledException();
+        }
+        Error.throwWithStackTrace(
+          StateError(
+            "The compressed video could not be uploaded. "
+            "${_listingSubmissionError(error)}",
+          ),
+          stackTrace,
+        );
+      }
       uploadedPaths?.add(path);
       _throwIfCancelled(uploadController);
-      await _client.from("listing_media").insert(<String, dynamic>{
-        "listing_id": listingId,
-        "media_type": "video",
-        "storage_path": path,
-        "display_order": images.length,
-        "is_cover": false,
-      });
+      try {
+        await _client.from("listing_media").insert(<String, dynamic>{
+          "listing_id": listingId,
+          "media_type": "video",
+          "storage_path": path,
+          "display_order": images.length,
+          "is_cover": false,
+        });
+      } catch (error, stackTrace) {
+        Error.throwWithStackTrace(
+          StateError(
+            "The video was uploaded but could not be attached to the listing. "
+            "${_listingSubmissionError(error)}",
+          ),
+          stackTrace,
+        );
+      }
       completedItems += 1;
       reportItem("Video uploaded.");
-    }
-  }
-
-  void _validateListingImageFile(XFile file) {
-    final String extension = _fileExtension(file.name).toLowerCase();
-    if (!<String>{
-      "jpg",
-      "jpeg",
-      "png",
-      "webp",
-      "gif",
-      "heic",
-      "heif",
-    }.contains(extension)) {
-      throw StateError(
-        "Listing images must be JPG, PNG, WebP, GIF, HEIC, or HEIF.",
-      );
-    }
-  }
-
-  Future<void> _validateListingVideoFile(XFile file) async {
-    final String extension = _fileExtension(file.name).toLowerCase();
-    if (!<String>{
-      "mp4",
-      "mov",
-      "m4v",
-      "webm",
-      "avi",
-      "mkv",
-    }.contains(extension)) {
-      throw StateError(
-        "Listing video must be MP4, MOV, M4V, WebM, AVI, or MKV.",
-      );
-    }
-    final int bytes = await file.length();
-    if (bytes > _listingVideoMaxBytes) {
-      throw StateError("Listing video must be 30 MB or smaller.");
     }
   }
 
@@ -2466,6 +3529,70 @@ class ManageRepository {
         error.message.contains("schema cache") ||
         error.message.contains("Could not find the function") ||
         error.message.contains("Could not choose the best candidate function");
+  }
+
+  String? _nullableTrim(String? value) {
+    final String normalized = value?.trim() ?? "";
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  DateTime? _parseOptionalPromotionDate(
+    String? value, {
+    required String fieldLabel,
+  }) {
+    final String? normalized = _nullableTrim(value);
+    if (normalized == null) {
+      return null;
+    }
+    final DateTime? parsed = DateTime.tryParse(normalized);
+    if (parsed == null) {
+      throw StateError(
+        "Enter a valid promotion $fieldLabel, for example 2026-07-20T10:00:00+03:00.",
+      );
+    }
+    return parsed;
+  }
+
+  String _friendlyPromotionError(PostgrestException error) {
+    final String message = error.message.trim();
+    final String lower = message.toLowerCase();
+    if (lower.contains("target district must belong") ||
+        lower.contains("target ward must belong") ||
+        lower.contains("target area must belong") ||
+        lower.contains("promotion target region") ||
+        lower.contains("promotion target district") ||
+        lower.contains("promotion target ward") ||
+        lower.contains("promotion target area")) {
+      return "The selected promotion locations no longer form a valid region, district, ward, and area chain. Choose the location again.";
+    }
+    if (lower.contains("invalid input syntax for type timestamp") ||
+        lower.contains("date/time field value out of range")) {
+      return "Promotion start or end time is invalid. Use a complete ISO date and time.";
+    }
+    if (error.code == "42501" ||
+        lower.contains("row-level security") ||
+        lower.contains("permission denied")) {
+      return "Your admin session cannot save promotions. Sign in again and confirm that this account still has the admin role.";
+    }
+    if (error.code == "PGRST116") {
+      return "The promotion no longer exists or could not be saved. Refresh the list and try again.";
+    }
+    return message.isEmpty
+        ? "Promotion could not be saved. Please try again."
+        : message;
+  }
+
+  bool _isOptionalWorkflowCompatibilityError(PostgrestException error) {
+    final String code = error.code ?? "";
+    final String message = error.message.toLowerCase();
+    return code == "PGRST202" ||
+        code == "PGRST204" ||
+        code == "42P01" ||
+        code == "42703" ||
+        code == "42883" ||
+        message.contains("schema cache") ||
+        message.contains("could not find the function") ||
+        message.contains("does not exist");
   }
 
   String _documentTypeFromName(String fileName) {
@@ -2501,11 +3628,14 @@ class ManageRepository {
     final bool allowedExtension = allowed.any(lower.endsWith);
     if (!allowedExtension) {
       throw StateError(
-        "Promotion media must be JPG, PNG, WebP, GIF, HEIC, HEIF, MP4, MOV, M4V, WebM, AVI, or MKV",
+        "Promotion media must be JPG, PNG, WebP, GIF, HEIC, HEIF, MP4, MOV, M4V, WebM, AVI, or MKV.",
       );
     }
+    if (file.size <= 0) {
+      throw StateError("Promotion media file is empty. Choose another file.");
+    }
     if (file.size > _promotionMediaMaxBytes) {
-      throw StateError("Promotion media must be 30 MB or smaller");
+      throw StateError("Promotion media must be 30 MB or smaller.");
     }
   }
 

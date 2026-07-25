@@ -174,6 +174,42 @@ begin
     raise exception 'get_public_listing_detail exposes private or disallowed fields';
   end if;
 
+  if not exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'public'
+      and table_name = 'marketplace_settings'
+  ) then
+    raise exception 'marketplace_settings table must exist for admin contact-payment toggle';
+  end if;
+
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'marketplace_settings'
+      and column_name = 'contact_payments_enabled'
+      and data_type = 'boolean'
+  ) then
+    raise exception 'marketplace_settings.contact_payments_enabled boolean is required';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_proc
+    where oid = 'public.contact_payments_enabled()'::regprocedure
+      and prosecdef = true
+  ) then
+    raise exception 'contact_payments_enabled() must exist as a SECURITY DEFINER helper';
+  end if;
+
+  if fn_def not ilike '%contact_payments_enabled()%'
+    or fn_def not ilike '%then null::text%'
+    or fn_def not ilike '%else nullif(btrim(a.phone_number), '''')%'
+  then
+    raise exception 'get_public_listing_detail must hide or reveal agent_phone_number from contact_payments_enabled()';
+  end if;
+
   select pg_get_functiondef('public.get_public_home_feed(integer, integer, uuid, uuid, double precision, double precision, text)'::regprocedure)
   into fn_def;
 

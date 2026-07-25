@@ -49,6 +49,40 @@ Deno.serve(async (request) => {
       return json({ received: true, ignored: true });
     }
 
+    const { data: payment } = await supabase
+      .from("listing_contact_payments")
+      .select("id")
+      .eq("order_reference", orderReference)
+      .maybeSingle();
+
+    const providerEventId = typeof record.eventId === "string"
+      ? record.eventId.trim()
+      : typeof record.id === "string"
+      ? record.id.trim()
+      : null;
+    const { data: eventRow, error: eventInsertError } = await supabase
+      .from("payment_provider_events")
+      .insert({
+        payment_id: payment?.id ?? null,
+        order_reference: orderReference,
+        provider_event_id: providerEventId || null,
+        event_type: eventName || "UNKNOWN",
+        provider_status: typeof data.status === "string" ? data.status : null,
+        payload,
+        processing_status: payment?.id ? "received" : "ignored",
+        processed_at: payment?.id ? null : new Date().toISOString(),
+      })
+      .select("id")
+      .maybeSingle();
+
+    if (eventInsertError && eventInsertError.code !== "23505") {
+      return json({ error: "Could not record webhook event" }, 500);
+    }
+
+    if (!payment?.id) {
+      return json({ received: true, ignored: true });
+    }
+
     let paymentStatus = mapClickPesaStatus(
       typeof data.status === "string" ? data.status : undefined,
     );
@@ -67,15 +101,39 @@ Deno.serve(async (request) => {
       provider_channel: typeof data.channel === "string" ? data.channel : null,
       status_message: typeof data.message === "string" ? data.message : null,
       webhook_payload: payload,
+      webhook_received_at: new Date().toISOString(),
+      reconciliation_status: paymentStatus === "paid"
+        ? "pending"
+        : paymentStatus === "failed"
+        ? "not_required"
+        : "pending",
+      next_reconcile_at: paymentStatus === "paid"
+        ? new Date().toISOString()
+        : null,
       paid_at: paymentStatus === "paid" ? new Date().toISOString() : null,
       failed_at: paymentStatus === "failed" ? new Date().toISOString() : null,
       updated_at: new Date().toISOString(),
     };
 
-    await supabase
+    const { error: paymentUpdateError } = await supabase
       .from("listing_contact_payments")
       .update(updatePayload)
-      .eq("order_reference", orderReference);
+      .eq("id", payment.id);
+
+    if (eventRow?.id) {
+      await supabase
+        .from("payment_provider_events")
+        .update({
+          processing_status: paymentUpdateError ? "failed" : "processed",
+          processing_error: paymentUpdateError?.message ?? null,
+          processed_at: new Date().toISOString(),
+        })
+        .eq("id", eventRow.id);
+    }
+
+    if (paymentUpdateError) {
+      return json({ error: "Could not apply webhook event" }, 500);
+    }
 
     return json({ received: true });
   } catch (error) {

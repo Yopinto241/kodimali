@@ -5,7 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_constants/shared_constants.dart';
 import 'package:shared_models/shared_models.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/media/listing_media_validator.dart';
+import '../../../core/media/listing_video_compressor.dart';
+import '../../../core/validation/listing_content_validator.dart';
 import '../../../core/models/upload_task.dart';
 import '../../../core/widgets/app_scope.dart';
 import '../../../core/widgets/manage_ui.dart';
@@ -17,11 +21,12 @@ class AddAssetScreen extends StatefulWidget {
   State<AddAssetScreen> createState() => _AddAssetScreenState();
 }
 
-class _AddAssetScreenState extends State<AddAssetScreen> {
+class _AddAssetScreenState extends State<AddAssetScreen>
+    with WidgetsBindingObserver {
   static const double _menuMaxHeight = 360;
-  static const int _listingVideoMaxBytes = 30 * 1024 * 1024;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final ImagePicker _picker = ImagePicker();
+  final ListingVideoCompressor _videoCompressor = ListingVideoCompressor();
 
   final TextEditingController _ownerNameController = TextEditingController();
   final TextEditingController _ownerPhoneController = TextEditingController();
@@ -50,6 +55,10 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
   String _availabilityStatus = "available";
   UploadTaskController? _uploadController;
   UploadProgressSnapshot? _uploadProgress;
+  Timer? _draftTimer;
+  bool _draftReady = false;
+  bool _draftRestored = false;
+  DateTime? _draftSavedAt;
 
   List<Map<String, dynamic>> _owners = <Map<String, dynamic>>[];
   String? _selectedOwnerId;
@@ -73,12 +82,287 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
 
   List<XFile> _images = <XFile>[];
   XFile? _video;
+  ListingVideoCompressionResult? _videoCompressionResult;
+  bool _compressingVideo = false;
+  double _videoCompressionProgress = 0;
   int _coverImageIndex = 0;
+
+  String? _stringValue(dynamic value) => value is String ? value : null;
+
+  String? _nonEmptyId(dynamic value) {
+    final String? text = _stringValue(value);
+    if (text == null) {
+      return null;
+    }
+    final String normalized = text.trim();
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  String _requiredRowId(Map<String, dynamic> row, String label) {
+    final String? id = _nonEmptyId(row["id"]);
+    if (id == null) {
+      throw StateError(
+        "$label data is missing its identifier. Refresh the app and try "
+        "again.",
+      );
+    }
+    return id;
+  }
+
+  List<Map<String, dynamic>> _rowsWithIdentifiers(
+    List<Map<String, dynamic>> rows,
+  ) {
+    return rows
+        .where((Map<String, dynamic> row) => _nonEmptyId(row["id"]) != null)
+        .map(
+          (Map<String, dynamic> row) => <String, dynamic>{
+            ...row,
+            "id": _nonEmptyId(row["id"]),
+          },
+        )
+        .toList(growable: false);
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _manualAreaController.addListener(_handleManualAreaChanged);
+    for (final TextEditingController controller in _draftTextControllers) {
+      controller.addListener(_scheduleDraftSave);
+    }
+  }
+
+  List<TextEditingController> get _draftTextControllers =>
+      <TextEditingController>[
+        _ownerNameController,
+        _ownerPhoneController,
+        _ownerNotesController,
+        _titleController,
+        _descriptionController,
+        _priceController,
+        _depositController,
+        _rulesController,
+        _exactAddressController,
+        _latitudeController,
+        _longitudeController,
+        _manualAreaController,
+      ];
+
+  String get _draftStorageKey {
+    final String userId =
+        AppScope.of(context).controller.currentUser?.id ?? "anonymous";
+    return "manage_listing_draft_v1_$userId";
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      unawaited(_saveDraft());
+    }
+  }
+
+  void _scheduleDraftSave() {
+    if (!_draftReady || _submitting) {
+      return;
+    }
+    _draftTimer?.cancel();
+    _draftTimer = Timer(const Duration(milliseconds: 700), () {
+      unawaited(_saveDraft());
+    });
+  }
+
+  Map<String, dynamic> _draftPayload() {
+    return <String, dynamic>{
+      "category_id": _selectedCategory?["id"],
+      "creating_owner": _creatingOwner,
+      "selected_owner_id": _selectedOwnerId,
+      "owner_name": _ownerNameController.text,
+      "owner_phone": _ownerPhoneController.text,
+      "owner_notes": _ownerNotesController.text,
+      "title": _titleController.text,
+      "description": _descriptionController.text,
+      "price": _priceController.text,
+      "deposit": _depositController.text,
+      "rules": _rulesController.text,
+      "price_period": _pricePeriod.storageValue,
+      "availability_status": _availabilityStatus,
+      "region_id": _regionId,
+      "district_id": _districtId,
+      "ward_id": _wardId,
+      "area_id": _areaId,
+      "street_id": _streetId,
+      "manual_area": _manualAreaController.text,
+      "exact_address": _exactAddressController.text,
+      "latitude": _latitudeController.text,
+      "longitude": _longitudeController.text,
+      "attributes": _buildAttributes(),
+      "saved_at": DateTime.now().toUtc().toIso8601String(),
+    };
+  }
+
+  Future<void> _saveDraft() async {
+    if (!_draftReady || _submitting || !mounted) {
+      return;
+    }
+    final String storageKey = _draftStorageKey;
+    final Map<String, dynamic> payload = _draftPayload();
+    final bool hasContent = <String>[
+      _titleController.text,
+      _descriptionController.text,
+      _priceController.text,
+      _ownerNameController.text,
+      _manualAreaController.text,
+    ].any((String value) => value.trim().isNotEmpty);
+    if (!hasContent) {
+      return;
+    }
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
+    await preferences.setString(storageKey, jsonEncode(payload));
+    if (mounted) {
+      setState(() => _draftSavedAt = DateTime.now());
+    }
+  }
+
+  Future<void> _restoreDraft() async {
+    final String storageKey = _draftStorageKey;
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
+    final String? encoded = preferences.getString(storageKey);
+    if (encoded == null || encoded.trim().isEmpty) {
+      _draftReady = true;
+      return;
+    }
+    try {
+      final Map<String, dynamic> draft = (jsonDecode(encoded) as Map)
+          .cast<String, dynamic>();
+      final String? categoryId = _nonEmptyId(draft["category_id"]);
+      final Map<String, dynamic>? category = _categories
+          .cast<Map<String, dynamic>?>()
+          .firstWhere(
+            (Map<String, dynamic>? item) => item?["id"] == categoryId,
+            orElse: () => null,
+          );
+      if (category != null) {
+        _selectedCategory = category;
+        _applyCategorySchema(category);
+      }
+      if (draft["creating_owner"] is bool) {
+        _creatingOwner = draft["creating_owner"] as bool;
+      }
+      final String? ownerId = _nonEmptyId(draft["selected_owner_id"]);
+      if (_owners.any((Map<String, dynamic> owner) => owner["id"] == ownerId)) {
+        _selectedOwnerId = ownerId;
+      }
+      _ownerNameController.text = _stringValue(draft["owner_name"]) ?? "";
+      _ownerPhoneController.text = _stringValue(draft["owner_phone"]) ?? "";
+      _ownerNotesController.text = _stringValue(draft["owner_notes"]) ?? "";
+      _titleController.text = _stringValue(draft["title"]) ?? "";
+      _descriptionController.text = _stringValue(draft["description"]) ?? "";
+      _priceController.text = _stringValue(draft["price"]) ?? "";
+      _depositController.text = _stringValue(draft["deposit"]) ?? "";
+      _rulesController.text = _stringValue(draft["rules"]) ?? "";
+      _exactAddressController.text = _stringValue(draft["exact_address"]) ?? "";
+      _latitudeController.text = _stringValue(draft["latitude"]) ?? "";
+      _longitudeController.text = _stringValue(draft["longitude"]) ?? "";
+      _manualAreaController.text = _stringValue(draft["manual_area"]) ?? "";
+      final String? pricePeriod = _stringValue(draft["price_period"]);
+      _pricePeriod = PricePeriod.values.firstWhere(
+        (PricePeriod item) => item.storageValue == pricePeriod,
+        orElse: () => PricePeriod.day,
+      );
+      _availabilityStatus =
+          _nonEmptyId(draft["availability_status"]) ?? "available";
+
+      final String? regionId = _nonEmptyId(draft["region_id"]);
+      if (regionId != null &&
+          _regions.any((Map<String, dynamic> item) => item["id"] == regionId)) {
+        _regionId = regionId;
+        _districts = _childrenOf(
+          parentId: regionId,
+          type: LocationType.district,
+        );
+      }
+      final String? districtId = _nonEmptyId(draft["district_id"]);
+      if (districtId != null &&
+          _districts.any(
+            (Map<String, dynamic> item) => item["id"] == districtId,
+          )) {
+        _districtId = districtId;
+        _wards = _childrenOf(parentId: districtId, type: LocationType.ward);
+      }
+      final String? wardId = _nonEmptyId(draft["ward_id"]);
+      if (wardId != null &&
+          _wards.any((Map<String, dynamic> item) => item["id"] == wardId)) {
+        _wardId = wardId;
+        _areas = _childrenOf(parentId: wardId, type: LocationType.area);
+      }
+      final String? areaId = _nonEmptyId(draft["area_id"]);
+      if (areaId != null &&
+          _areas.any((Map<String, dynamic> item) => item["id"] == areaId)) {
+        _areaId = areaId;
+        _streets = _childrenOf(parentId: areaId, type: LocationType.street);
+      }
+      final String? streetId = _nonEmptyId(draft["street_id"]);
+      if (streetId != null &&
+          _streets.any((Map<String, dynamic> item) => item["id"] == streetId)) {
+        _streetId = streetId;
+      }
+
+      final dynamic rawAttributes = draft["attributes"];
+      final Map<String, dynamic> attributes = rawAttributes is Map
+          ? Map<String, dynamic>.from(rawAttributes)
+          : <String, dynamic>{};
+      for (final MapEntry<String, TextEditingController> entry
+          in _attributeControllers.entries) {
+        final dynamic value = attributes[entry.key];
+        if (value != null) {
+          entry.value.text = value.toString();
+        }
+      }
+      for (final String key in _attributeBooleans.keys.toList()) {
+        _attributeBooleans[key] = attributes[key] == true;
+      }
+      for (final String key in _attributeSelections.keys.toList()) {
+        _attributeSelections[key] = attributes[key]?.toString();
+      }
+      _draftRestored = true;
+      _draftSavedAt = DateTime.tryParse(
+        draft["saved_at"]?.toString() ?? "",
+      )?.toLocal();
+    } catch (_) {
+      await preferences.remove(storageKey);
+    } finally {
+      _draftReady = true;
+    }
+  }
+
+  Future<void> _clearSavedDraft() async {
+    _draftTimer?.cancel();
+    final String storageKey = _draftStorageKey;
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
+    await preferences.remove(storageKey);
+    if (mounted) {
+      setState(() {
+        _draftRestored = false;
+        _draftSavedAt = null;
+      });
+    }
+  }
+
+  Future<void> _discardDraft() async {
+    _draftReady = false;
+    if (_compressingVideo) {
+      await _videoCompressor.cancel();
+    }
+    await _videoCompressor.clearCache();
+    if (!mounted) {
+      return;
+    }
+    setState(_resetListingForm);
+    await _clearSavedDraft();
+    _draftReady = true;
   }
 
   @override
@@ -102,6 +386,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
         _loadLocationHierarchy(),
         _loadCategories(),
       ]);
+      await _restoreDraft();
       if (!mounted) {
         return;
       }
@@ -119,6 +404,11 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _draftTimer?.cancel();
+    if (_compressingVideo) {
+      unawaited(_videoCompressor.cancel());
+    }
     for (final TextEditingController controller in <TextEditingController>[
       _ownerNameController,
       _ownerPhoneController,
@@ -140,25 +430,48 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
   }
 
   Future<void> _loadOwners() async {
-    final List<Map<String, dynamic>> owners = await AppScope.of(
+    final List<Map<String, dynamic>> loadedOwners = await AppScope.of(
       context,
     ).repository.fetchOwnersForCurrentAgent();
+    final List<Map<String, dynamic>> owners = _rowsWithIdentifiers(
+      loadedOwners,
+    );
     if (!mounted) {
       return;
     }
     setState(() {
       _owners = owners;
       if (_owners.isNotEmpty) {
-        _selectedOwnerId ??= _owners.first["id"] as String;
+        final bool selectionStillExists = _owners.any(
+          (Map<String, dynamic> owner) => owner["id"] == _selectedOwnerId,
+        );
+        _selectedOwnerId = selectionStillExists
+            ? _selectedOwnerId
+            : _nonEmptyId(_owners.first["id"]);
         _creatingOwner = false;
+      } else {
+        _selectedOwnerId = null;
+        _creatingOwner = true;
       }
     });
   }
 
   Future<void> _loadLocationHierarchy() async {
-    final List<Map<String, dynamic>> locations = await AppScope.of(
+    final List<Map<String, dynamic>> loadedLocations = await AppScope.of(
       context,
     ).repository.fetchAgentLocationHierarchy();
+    final List<Map<String, dynamic>> locations =
+        _rowsWithIdentifiers(loadedLocations)
+            .where((Map<String, dynamic> item) {
+              return _nonEmptyId(item["location_type"]) != null;
+            })
+            .toList(growable: false);
+    if (loadedLocations.isNotEmpty && locations.isEmpty) {
+      throw StateError(
+        "Location data is incomplete because its identifiers are missing. "
+        "Refresh the app or ask an administrator to repair locations.",
+      );
+    }
     final List<Map<String, dynamic>> countries = locations
         .where(
           (Map<String, dynamic> item) =>
@@ -166,13 +479,13 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
         )
         .toList(growable: false);
     final String? nextCountryId = countries.length == 1
-        ? countries.first["id"] as String?
+        ? _nonEmptyId(countries.first["id"])
         : null;
     final Map<String, List<Map<String, dynamic>>> childrenCache =
         <String, List<Map<String, dynamic>>>{};
     for (final Map<String, dynamic> item in locations) {
-      final String? parentId = item["parent_id"] as String?;
-      final String? locationType = item["location_type"] as String?;
+      final String? parentId = _nonEmptyId(item["parent_id"]);
+      final String? locationType = _nonEmptyId(item["location_type"]);
       if (parentId == null || locationType == null) {
         continue;
       }
@@ -204,16 +517,29 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
   }
 
   Future<void> _loadCategories() async {
-    final List<Map<String, dynamic>> categories = await AppScope.of(
+    final List<Map<String, dynamic>> loadedCategories = await AppScope.of(
       context,
     ).repository.fetchActiveCategories();
+    final List<Map<String, dynamic>> categories = _rowsWithIdentifiers(
+      loadedCategories,
+    );
+    if (loadedCategories.isNotEmpty && categories.isEmpty) {
+      throw StateError(
+        "Assigned category data is missing its identifiers. Refresh the app "
+        "or ask an administrator to repair the category assignment.",
+      );
+    }
     if (!mounted) {
       return;
     }
     setState(() {
       _categories = categories;
       if (_categories.isNotEmpty) {
-        _selectedCategory ??= _categories.first;
+        final String? selectedId = _nonEmptyId(_selectedCategory?["id"]);
+        _selectedCategory = _categories.firstWhere(
+          (Map<String, dynamic> category) => category["id"] == selectedId,
+          orElse: () => _categories.first,
+        );
         _applyCategorySchema(_selectedCategory);
       } else {
         _selectedCategory = null;
@@ -281,8 +607,8 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
     _attributeSelections.clear();
 
     for (final Map<String, dynamic> field in _schemaFieldsFor(category)) {
-      final String key = field["key"] as String? ?? "";
-      final String type = field["type"] as String? ?? "text";
+      final String key = field["key"]?.toString().trim() ?? "";
+      final String type = _nonEmptyId(field["type"])?.toLowerCase() ?? "text";
       if (key.isEmpty) {
         continue;
       }
@@ -291,13 +617,15 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
       } else if (type == "select") {
         _attributeSelections[key] = null;
       } else {
-        _attributeControllers[key] = TextEditingController();
+        final TextEditingController controller = TextEditingController();
+        controller.addListener(_scheduleDraftSave);
+        _attributeControllers[key] = controller;
       }
     }
   }
 
   String get _selectedCategorySlug =>
-      _selectedCategory?["slug"] as String? ?? "";
+      _nonEmptyId(_selectedCategory?["slug"]) ?? "";
 
   int get _maxImagesAllowed => _selectedCategorySlug == "apartment" ? 15 : 8;
 
@@ -367,37 +695,161 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
           break;
       }
     });
+    _scheduleDraftSave();
   }
 
   Future<void> _pickImages() async {
-    final List<XFile> picked = await _picker.pickMultiImage(imageQuality: 80);
-    if (picked.isEmpty) {
-      return;
-    }
-    final int remaining = _maxImagesAllowed - _images.length;
-    setState(() {
-      _images = <XFile>[..._images, ...picked.take(remaining)];
-      if (_coverImageIndex >= _images.length) {
-        _coverImageIndex = 0;
+    try {
+      final List<XFile> picked = await _picker.pickMultiImage(
+        imageQuality: 80,
+        maxWidth: 2000,
+        maxHeight: 2000,
+      );
+      if (picked.isEmpty || !mounted) {
+        return;
       }
-    });
-  }
-
-  Future<void> _pickVideo() async {
-    final XFile? picked = await _picker.pickVideo(source: ImageSource.gallery);
-    if (picked != null) {
-      final int size = await picked.length();
-      if (size > _listingVideoMaxBytes) {
-        if (!mounted) {
-          return;
-        }
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Video must be 30 MB or smaller.")),
+      final int remaining = _maxImagesAllowed - _images.length;
+      if (remaining <= 0) {
+        _showMediaError(
+          'This category allows up to $_maxImagesAllowed images.',
         );
         return;
       }
-      setState(() => _video = picked);
+      final List<XFile> accepted = picked.take(remaining).toList();
+      await ListingMediaValidator.validateImages(accepted);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _images = <XFile>[..._images, ...accepted];
+        if (_coverImageIndex >= _images.length) {
+          _coverImageIndex = 0;
+        }
+      });
+      if (picked.length > remaining) {
+        _showMediaError(
+          'Only $remaining more image${remaining == 1 ? '' : 's'} could be '
+          'added for this category.',
+        );
+      }
+      _scheduleDraftSave();
+    } catch (error) {
+      if (mounted) {
+        _showMediaError(_friendlyMediaError(error));
+      }
     }
+  }
+
+  Future<void> _pickVideo() async {
+    if (_compressingVideo || _submitting) {
+      return;
+    }
+    try {
+      final XFile? picked = await _picker.pickVideo(
+        source: ImageSource.gallery,
+      );
+      if (picked == null || !mounted) {
+        return;
+      }
+      setState(() {
+        _compressingVideo = true;
+        _videoCompressionProgress = 0;
+      });
+      final ListingVideoCompressionResult result = await _videoCompressor
+          .compress(
+            picked,
+            onProgress: (double progress) {
+              if (mounted) {
+                setState(() => _videoCompressionProgress = progress);
+              }
+            },
+          );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _video = result.video;
+        _videoCompressionResult = result;
+        _videoCompressionProgress = 1;
+      });
+      _scheduleDraftSave();
+    } on ListingVideoCompressionCancelled {
+      if (mounted) {
+        _showMediaError('Video compression cancelled.');
+      }
+    } catch (error) {
+      if (mounted) {
+        _showMediaError(_friendlyMediaError(error));
+      }
+      await _videoCompressor.clearCache();
+    } finally {
+      if (mounted) {
+        setState(() => _compressingVideo = false);
+      }
+    }
+  }
+
+  Future<void> _cancelVideoCompression() async {
+    await _videoCompressor.cancel();
+  }
+
+  Future<void> _removeVideo() async {
+    setState(() {
+      _video = null;
+      _videoCompressionResult = null;
+      _videoCompressionProgress = 0;
+    });
+    await _videoCompressor.clearCache();
+    _scheduleDraftSave();
+  }
+
+  void _showMediaError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  String _friendlyMediaError(Object error) => error
+      .toString()
+      .replaceAll('Bad state: ', '')
+      .replaceAll('Exception: ', '')
+      .trim();
+
+  void _removeImage(int index) {
+    if (index < 0 || index >= _images.length) {
+      return;
+    }
+    final XFile? cover = _images.isEmpty ? null : _images[_coverImageIndex];
+    setState(() {
+      _images = List<XFile>.from(_images)..removeAt(index);
+      if (_images.isEmpty) {
+        _coverImageIndex = 0;
+      } else if (cover != null && _images.contains(cover)) {
+        _coverImageIndex = _images.indexOf(cover);
+      } else {
+        _coverImageIndex = 0;
+      }
+    });
+    _scheduleDraftSave();
+  }
+
+  void _moveImage(int from, int to) {
+    if (from < 0 ||
+        from >= _images.length ||
+        to < 0 ||
+        to >= _images.length ||
+        from == to) {
+      return;
+    }
+    final XFile cover = _images[_coverImageIndex];
+    setState(() {
+      final List<XFile> reordered = List<XFile>.from(_images);
+      final XFile image = reordered.removeAt(from);
+      reordered.insert(to, image);
+      _images = reordered;
+      _coverImageIndex = _images.indexOf(cover);
+    });
+    _scheduleDraftSave();
   }
 
   Map<String, dynamic> _buildAttributes() {
@@ -436,7 +888,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
     }
     for (final Map<String, dynamic> item in items) {
       if (item["id"] == id) {
-        return item["name"] as String?;
+        return _stringValue(item["name"]);
       }
     }
     return null;
@@ -472,8 +924,9 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
             final String query = searchController.text;
             final List<Map<String, dynamic>> filteredItems = items
                 .where((Map<String, dynamic> item) {
-                  final String label = item["name"] as String? ?? "";
-                  return _matchesSearch(label, query);
+                  final String? id = _nonEmptyId(item["id"]);
+                  final String label = _stringValue(item["name"]) ?? "";
+                  return id != null && _matchesSearch(label, query);
                 })
                 .toList(growable: false);
             return FractionallySizedBox(
@@ -528,10 +981,12 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                                       Navigator.of(context).pop(emptyValue),
                                 ),
                               ...filteredItems.map((Map<String, dynamic> item) {
-                                final String value =
-                                    item["id"] as String? ?? "";
+                                final String value = _requiredRowId(
+                                  item,
+                                  "Location",
+                                );
                                 final String label =
-                                    item["name"] as String? ?? "-";
+                                    _stringValue(item["name"]) ?? "-";
                                 return ListTile(
                                   title: _menuText(label),
                                   trailing: selectedId == value
@@ -630,60 +1085,116 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
     _streets = <Map<String, dynamic>>[];
     _images = <XFile>[];
     _video = null;
+    _videoCompressionResult = null;
+    _videoCompressionProgress = 0;
     _coverImageIndex = 0;
     _applyCategorySchema(_selectedCategory);
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) {
+    if (_submitting || _compressingVideo) {
+      if (_compressingVideo) {
+        _showMediaError(
+          'Wait for video compression to finish before publishing.',
+        );
+      }
       return;
     }
-    if (_selectedCategory == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "No assigned category yet. Ask admin to assign one first.",
-          ),
-        ),
+    final FormState? formState = _formKey.currentState;
+    if (formState == null) {
+      _showMediaError(
+        "The listing form is not ready yet. Wait a moment and try again.",
       );
       return;
     }
-    if (_regionId == null || _districtId == null || _wardId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Region, district, na ward ni lazima.")),
+    if (!formState.validate()) {
+      return;
+    }
+    final Map<String, dynamic>? selectedCategory = _selectedCategory;
+    if (selectedCategory == null) {
+      _showMediaError(
+        "No assigned category yet. Ask admin to assign one first.",
       );
       return;
     }
-    if (_images.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Pakia angalau picha moja.")),
+    final String? categoryId = _nonEmptyId(selectedCategory["id"]);
+    if (categoryId == null) {
+      _showMediaError(
+        "The selected category is missing its identifier. Refresh the form "
+        "and choose the category again.",
       );
       return;
     }
-    if (_images.length > _maxImagesAllowed) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Category hii inaruhusu picha hadi $_maxImagesAllowed tu.",
-          ),
-        ),
+    final String? regionId = _nonEmptyId(_regionId);
+    final String? districtId = _nonEmptyId(_districtId);
+    final String? wardId = _nonEmptyId(_wardId);
+    if (regionId == null || districtId == null || wardId == null) {
+      _showMediaError(
+        "Choose a valid region, district, and ward before publishing.",
       );
       return;
     }
-    if (_creatingOwner &&
-        (_ownerNameController.text.trim().isEmpty ||
-            _ownerPhoneController.text.trim().isEmpty)) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Jaza taarifa za owner.")));
+    final String? selectedAreaId = _nonEmptyId(_areaId);
+    final String? selectedStreetId = _nonEmptyId(_streetId);
+    final List<XFile> images = List<XFile>.unmodifiable(_images);
+    if (images.isEmpty) {
+      _showMediaError("Add at least one listing image before publishing.");
       return;
     }
-    if (!_creatingOwner && _selectedOwnerId == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Chagua owner.")));
+    final int maximumImages =
+        _nonEmptyId(selectedCategory["slug"]) == "apartment" ? 15 : 8;
+    if (images.length > maximumImages) {
+      _showMediaError("This category allows up to $maximumImages images.");
       return;
     }
+    final bool creatingOwner = _creatingOwner;
+    final String ownerName = _ownerNameController.text.trim();
+    final String ownerPhone = _ownerPhoneController.text.trim();
+    final String ownerNotes = _ownerNotesController.text.trim();
+    final String? existingOwnerId = creatingOwner
+        ? null
+        : _nonEmptyId(_selectedOwnerId);
+    if (creatingOwner && (ownerName.isEmpty || ownerPhone.isEmpty)) {
+      _showMediaError("Enter the owner's name and phone number.");
+      return;
+    }
+    if (!creatingOwner && existingOwnerId == null) {
+      _showMediaError("Choose a valid owner before publishing.");
+      return;
+    }
+    final double? priceAmount = double.tryParse(_priceController.text.trim());
+    if (priceAmount == null || priceAmount <= 0) {
+      _showMediaError("Enter a valid price greater than zero.");
+      return;
+    }
+    final String depositText = _depositController.text.trim();
+    final double? parsedDeposit = depositText.isEmpty
+        ? 0
+        : double.tryParse(depositText);
+    if (parsedDeposit == null || parsedDeposit < 0) {
+      _showMediaError("Enter a valid deposit amount, or leave it blank.");
+      return;
+    }
+    final XFile? video = _video;
+    if (video != null && _videoCompressionResult == null) {
+      _showMediaError(
+        "Select the video again so KODIMALI can compress it before upload.",
+      );
+      return;
+    }
+    final int coverImageIndex = _coverImageIndex;
+    final String manualAreaName = _manualAreaController.text.trim();
+    final String title = _titleController.text.trim();
+    final String description = _descriptionController.text.trim();
+    final String rules = _rulesController.text.trim();
+    final String exactAddress = _exactAddressController.text.trim();
+    final String latitude = _latitudeController.text.trim();
+    final String longitude = _longitudeController.text.trim();
+    final PricePeriod pricePeriod = _pricePeriod;
+    final String availabilityStatus = _availabilityStatus;
+    final Map<String, dynamic> listingAttributes = Map<String, dynamic>.from(
+      _buildAttributes(),
+    );
 
     final UploadTaskController controller = UploadTaskController();
     setState(() {
@@ -696,40 +1207,43 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
     });
     final repository = AppScope.of(context).repository;
     try {
+      await ListingMediaValidator.validateImages(images);
+      if (video != null) {
+        await ListingMediaValidator.validateCompressedVideo(video);
+      }
       final String? resolvedAreaId =
-          (_areaId != null && _areaId!.isNotEmpty) ||
-              _manualAreaController.text.trim().isNotEmpty
+          selectedAreaId != null || manualAreaName.isNotEmpty
           ? await repository.resolveWardAreaLocation(
-              selectedAreaId: _areaId,
-              wardId: _wardId,
-              manualAreaName: _manualAreaController.text.trim(),
+              selectedAreaId: selectedAreaId,
+              wardId: wardId,
+              manualAreaName: manualAreaName,
             )
           : null;
       await repository.submitDynamicListing(
-        categoryId: _selectedCategory!["id"] as String,
-        existingOwnerId: _creatingOwner ? null : _selectedOwnerId,
-        ownerName: _ownerNameController.text.trim(),
-        ownerPhone: _ownerPhoneController.text.trim(),
-        ownerNotes: _ownerNotesController.text.trim(),
-        title: _titleController.text.trim(),
-        description: _descriptionController.text.trim(),
-        priceAmount: double.tryParse(_priceController.text.trim()) ?? 0,
-        pricePeriod: _pricePeriod,
-        depositAmount: double.tryParse(_depositController.text.trim()) ?? 0,
-        rules: _rulesController.text.trim(),
-        availabilityStatus: _availabilityStatus,
-        regionId: _regionId!,
-        districtId: _districtId!,
-        wardId: _wardId,
+        categoryId: categoryId,
+        existingOwnerId: existingOwnerId,
+        ownerName: ownerName,
+        ownerPhone: ownerPhone,
+        ownerNotes: ownerNotes,
+        title: title,
+        description: description,
+        priceAmount: priceAmount,
+        pricePeriod: pricePeriod,
+        depositAmount: parsedDeposit,
+        rules: rules,
+        availabilityStatus: availabilityStatus,
+        regionId: regionId,
+        districtId: districtId,
+        wardId: wardId,
         areaId: resolvedAreaId,
-        streetId: _streetId,
-        exactAddress: _exactAddressController.text.trim(),
-        latitude: _latitudeController.text.trim(),
-        longitude: _longitudeController.text.trim(),
-        listingAttributes: _buildAttributes(),
-        images: _images,
-        video: _video,
-        coverImageIndex: _coverImageIndex,
+        streetId: selectedStreetId,
+        exactAddress: exactAddress,
+        latitude: latitude,
+        longitude: longitude,
+        listingAttributes: listingAttributes,
+        images: images,
+        video: video,
+        coverImageIndex: coverImageIndex,
         uploadController: controller,
         onProgress: (UploadProgressSnapshot progress) {
           if (!mounted) {
@@ -746,9 +1260,19 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
           content: Text("Listing is now live on the marketplace."),
         ),
       );
+      await _videoCompressor.clearCache();
+      if (!mounted) {
+        return;
+      }
+      _draftReady = false;
       setState(() {
         _resetListingForm();
       });
+      await _clearSavedDraft();
+      if (!mounted) {
+        return;
+      }
+      _draftReady = true;
       await _loadOwners();
     } on UploadCancelledException {
       if (!mounted) {
@@ -763,7 +1287,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      ).showSnackBar(SnackBar(content: Text(_friendlyMediaError(error))));
     } finally {
       if (mounted) {
         setState(() {
@@ -773,6 +1297,28 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
         });
       }
     }
+  }
+
+  int get _completedListingSteps {
+    int count = 0;
+    if (_selectedCategory != null &&
+        _titleController.text.trim().isNotEmpty &&
+        _priceController.text.trim().isNotEmpty) {
+      count += 1;
+    }
+    if ((!_creatingOwner && _selectedOwnerId != null) ||
+        (_creatingOwner &&
+            _ownerNameController.text.trim().isNotEmpty &&
+            _ownerPhoneController.text.trim().isNotEmpty)) {
+      count += 1;
+    }
+    if (_regionId != null && _districtId != null && _wardId != null) {
+      count += 1;
+    }
+    if (_images.isNotEmpty) {
+      count += 1;
+    }
+    return count;
   }
 
   @override
@@ -810,15 +1356,89 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                 "Publish only inside the categories assigned to your agent account. This flow keeps owner, location, media, and category fields in one structured workspace.",
             bottom: ManageMetaWrap(
               items: <String>[
-                _selectedCategory?["name"] as String? ?? "No category assigned",
+                _stringValue(_selectedCategory?["name"]) ??
+                    "No category assigned",
                 _images.isEmpty
                     ? "No images yet"
                     : "${_images.length} images selected",
-                _video == null ? "No video selected" : "Video ready",
+                _compressingVideo
+                    ? "Compressing video ${(_videoCompressionProgress * 100).round()}%"
+                    : _video == null
+                    ? "No video selected"
+                    : "Compressed video ready",
+                "$_completedListingSteps/4 required steps ready",
+                _draftSavedAt == null
+                    ? "Draft autosave ready"
+                    : "Draft saved ${TimeOfDay.fromDateTime(_draftSavedAt!).format(context)}",
               ],
             ),
           ),
           const SizedBox(height: 18),
+          if (_draftRestored) ...<Widget>[
+            ManagePanel(
+              title: "Draft restored",
+              subtitle:
+                  "Your text, owner, category, price, and location were restored on this device. For privacy and reliability, select images and video again.",
+              action: TextButton.icon(
+                onPressed: _discardDraft,
+                icon: const Icon(Icons.delete_outline_rounded),
+                label: const Text("Discard"),
+              ),
+              child: const Text(
+                "Continue where you stopped; changes save automatically while you type.",
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          ManagePanel(
+            title: "Publishing checklist",
+            subtitle:
+                "The listing can publish after all four required sections are ready.",
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                Chip(
+                  avatar: Icon(
+                    _selectedCategory != null &&
+                            _titleController.text.trim().isNotEmpty &&
+                            _priceController.text.trim().isNotEmpty
+                        ? Icons.check_circle
+                        : Icons.circle_outlined,
+                  ),
+                  label: const Text("Basics"),
+                ),
+                Chip(
+                  avatar: Icon(
+                    (!_creatingOwner && _selectedOwnerId != null) ||
+                            (_creatingOwner &&
+                                _ownerNameController.text.trim().isNotEmpty &&
+                                _ownerPhoneController.text.trim().isNotEmpty)
+                        ? Icons.check_circle
+                        : Icons.circle_outlined,
+                  ),
+                  label: const Text("Owner"),
+                ),
+                Chip(
+                  avatar: Icon(
+                    _regionId != null && _districtId != null && _wardId != null
+                        ? Icons.check_circle
+                        : Icons.circle_outlined,
+                  ),
+                  label: const Text("Location"),
+                ),
+                Chip(
+                  avatar: Icon(
+                    _images.isNotEmpty
+                        ? Icons.check_circle
+                        : Icons.circle_outlined,
+                  ),
+                  label: const Text("Media"),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           if (_categories.isEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
@@ -844,15 +1464,15 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                 DropdownButtonFormField<String>(
                   isExpanded: true,
                   menuMaxHeight: _menuMaxHeight,
-                  initialValue: _selectedCategory?["id"] as String?,
+                  initialValue: _nonEmptyId(_selectedCategory?["id"]),
                   decoration: const InputDecoration(
                     labelText: "Assigned category",
                   ),
                   items: _categories
                       .map(
                         (Map<String, dynamic> item) => DropdownMenuItem<String>(
-                          value: item["id"] as String,
-                          child: _menuText(item["name"] as String? ?? "-"),
+                          value: _requiredRowId(item, "Category"),
+                          child: _menuText(_stringValue(item["name"]) ?? "-"),
                         ),
                       )
                       .toList(),
@@ -865,20 +1485,24 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                       _selectedCategory = next.isEmpty ? null : next;
                       _applyCategorySchema(_selectedCategory);
                     });
+                    _scheduleDraftSave();
                   },
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _titleController,
                   decoration: const InputDecoration(labelText: "Title"),
-                  validator: (String? value) =>
-                      value == null || value.trim().isEmpty ? "Required" : null,
+                  validator: ListingContentValidator.titleError,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _descriptionController,
                   maxLines: 4,
-                  decoration: const InputDecoration(labelText: "Description"),
+                  decoration: const InputDecoration(
+                    labelText: "Description *",
+                    helperText: "At least 10 characters",
+                  ),
+                  validator: ListingContentValidator.descriptionError,
                 ),
                 const SizedBox(height: 12),
                 LayoutBuilder(
@@ -920,6 +1544,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                             onChanged: (PricePeriod? value) {
                               if (value != null) {
                                 setState(() => _pricePeriod = value);
+                                _scheduleDraftSave();
                               }
                             },
                           ),
@@ -964,6 +1589,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                             onChanged: (PricePeriod? value) {
                               if (value != null) {
                                 setState(() => _pricePeriod = value);
+                                _scheduleDraftSave();
                               }
                             },
                           ),
@@ -1004,6 +1630,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                   onChanged: (String? value) {
                     if (value != null) {
                       setState(() => _availabilityStatus = value);
+                      _scheduleDraftSave();
                     }
                   },
                 ),
@@ -1030,6 +1657,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                     title: const Text("Create new owner"),
                     onChanged: (bool value) {
                       setState(() => _creatingOwner = value);
+                      _scheduleDraftSave();
                     },
                   ),
                 if (!_creatingOwner && _owners.isNotEmpty)
@@ -1044,15 +1672,16 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                         .map(
                           (Map<String, dynamic> owner) =>
                               DropdownMenuItem<String>(
-                                value: owner["id"] as String,
+                                value: _requiredRowId(owner, "Owner"),
                                 child: _menuText(
-                                  owner["full_name"] as String? ?? "-",
+                                  _stringValue(owner["full_name"]) ?? "-",
                                 ),
                               ),
                         )
                         .toList(),
                     onChanged: (String? value) {
                       setState(() => _selectedOwnerId = value);
+                      _scheduleDraftSave();
                     },
                   ),
                 if (_creatingOwner) ...<Widget>[
@@ -1213,6 +1842,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                       return;
                     }
                     setState(() => _streetId = value.isEmpty ? null : value);
+                    _scheduleDraftSave();
                   },
                 ),
                 const SizedBox(height: 12),
@@ -1253,22 +1883,23 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          if (_selectedCategory != null)
+          if (_selectedCategory
+              case final Map<String, dynamic> selectedCategory)
             ManagePanel(
               title: "Category fields",
               subtitle:
                   "These fields come directly from the selected category schema so new categories work without app rewrites.",
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[..._buildDynamicFields(_selectedCategory!)],
+                children: <Widget>[..._buildDynamicFields(selectedCategory)],
               ),
             ),
           const SizedBox(height: 16),
           ManagePanel(
             title: "Media upload",
             subtitle: _selectedCategorySlug == "apartment"
-                ? "Apartment listings support up to 15 images and one video up to 30 MB. Tap an image row to choose the cover asset."
-                : "Add up to 8 images and one video up to 30 MB. Tap an image row to choose the cover asset.",
+                ? "Apartment listings support up to 15 images. Selected video is compressed to MP4 below 29 MB before upload; the server maximum is 30 MB."
+                : "Add up to 8 images. Selected video is compressed to MP4 below 29 MB before upload; the server maximum is 30 MB.",
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -1277,7 +1908,10 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                   runSpacing: 12,
                   children: <Widget>[
                     OutlinedButton.icon(
-                      onPressed: _images.length >= _maxImagesAllowed
+                      onPressed:
+                          _images.length >= _maxImagesAllowed ||
+                              _submitting ||
+                              _compressingVideo
                           ? null
                           : _pickImages,
                       icon: const Icon(Icons.photo_library_outlined),
@@ -1286,12 +1920,39 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                       ),
                     ),
                     OutlinedButton.icon(
-                      onPressed: _video != null ? null : _pickVideo,
+                      onPressed:
+                          _video != null || _compressingVideo || _submitting
+                          ? null
+                          : _pickVideo,
                       icon: const Icon(Icons.video_library_outlined),
-                      label: Text(_video == null ? "Pick video" : _video!.name),
+                      label: Text(
+                        _compressingVideo
+                            ? "Compressing ${(_videoCompressionProgress * 100).round()}%"
+                            : _video == null
+                            ? "Pick and compress video"
+                            : "Compressed video ready",
+                      ),
                     ),
                   ],
                 ),
+                if (_compressingVideo) ...<Widget>[
+                  const SizedBox(height: 16),
+                  LinearProgressIndicator(value: _videoCompressionProgress),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: <Widget>[
+                      const Expanded(
+                        child: Text(
+                          "Preparing a smaller MP4 on this device. Keep the app open until this finishes.",
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _cancelVideoCompression,
+                        child: const Text("Cancel"),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 16),
                 if (_images.isEmpty)
                   const Text("No images selected yet.")
@@ -1315,11 +1976,67 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                               ? "Current cover image"
                               : "Tap to set as cover",
                         ),
-                        onTap: () =>
-                            setState(() => _coverImageIndex = item.key),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            IconButton(
+                              tooltip: "Move up",
+                              onPressed:
+                                  _submitting ||
+                                      _compressingVideo ||
+                                      item.key == 0
+                                  ? null
+                                  : () => _moveImage(item.key, item.key - 1),
+                              icon: const Icon(Icons.arrow_upward_rounded),
+                            ),
+                            IconButton(
+                              tooltip: "Move down",
+                              onPressed:
+                                  _submitting ||
+                                      _compressingVideo ||
+                                      item.key == _images.length - 1
+                                  ? null
+                                  : () => _moveImage(item.key, item.key + 1),
+                              icon: const Icon(Icons.arrow_downward_rounded),
+                            ),
+                            IconButton(
+                              tooltip: "Remove image",
+                              onPressed: _submitting || _compressingVideo
+                                  ? null
+                                  : () => _removeImage(item.key),
+                              icon: const Icon(Icons.delete_outline_rounded),
+                            ),
+                          ],
+                        ),
+                        onTap: _submitting || _compressingVideo
+                            ? null
+                            : () => setState(() => _coverImageIndex = item.key),
                       ),
                     ),
                   ),
+                if (_video != null) ...<Widget>[
+                  const SizedBox(height: 6),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.videocam_outlined),
+                      title: Text(
+                        _videoCompressionResult?.originalName ?? _video!.name,
+                      ),
+                      subtitle: Text(
+                        _videoCompressionResult == null
+                            ? "Video must be selected again before publishing."
+                            : "Compressed ${_videoCompressionResult!.reductionPercent.toStringAsFixed(0)}% to "
+                                  "${ListingMediaValidator.formatMiB(_videoCompressionResult!.compressedBytes)}. "
+                                  "MP4 is ready for upload.",
+                      ),
+                      trailing: IconButton(
+                        tooltip: "Remove video",
+                        onPressed: _submitting ? null : _removeVideo,
+                        icon: const Icon(Icons.delete_outline_rounded),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1349,9 +2066,15 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
             const SizedBox(height: 16),
           ],
           FilledButton.icon(
-            onPressed: _submitting ? null : _submit,
+            onPressed: _submitting || _compressingVideo ? null : _submit,
             icon: const Icon(Icons.publish_outlined),
-            label: Text(_submitting ? "Inatuma..." : "Publish listing"),
+            label: Text(
+              _submitting
+                  ? "Inatuma..."
+                  : _compressingVideo
+                  ? "Compressing video..."
+                  : "Publish listing",
+            ),
           ),
           const SizedBox(height: 10),
           ManageMetaWrap(
@@ -1371,11 +2094,13 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
     }
 
     return schema.map((Map<String, dynamic> field) {
-      final String key = field["key"] as String? ?? "";
-      final String label = field["label"] as String? ?? key;
-      final String type = field["type"] as String? ?? "text";
-      final List<dynamic> options =
-          field["options"] as List<dynamic>? ?? <dynamic>[];
+      final String key = field["key"]?.toString().trim() ?? "";
+      final String label = _nonEmptyId(field["label"]) ?? key;
+      final String type = _nonEmptyId(field["type"])?.toLowerCase() ?? "text";
+      final dynamic rawOptions = field["options"];
+      final List<dynamic> options = rawOptions is List
+          ? List<dynamic>.from(rawOptions)
+          : <dynamic>[];
       final bool required = field["required"] == true;
       final String inputLabel = required ? "$label *" : label;
 
@@ -1384,6 +2109,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
           value: _attributeBooleans[key] ?? false,
           onChanged: (bool? value) {
             setState(() => _attributeBooleans[key] = value ?? false);
+            _scheduleDraftSave();
           },
           title: Text(label),
           contentPadding: EdgeInsets.zero,
@@ -1408,6 +2134,7 @@ class _AddAssetScreenState extends State<AddAssetScreen> {
                 .toList(),
             onChanged: (String? value) {
               setState(() => _attributeSelections[key] = value);
+              _scheduleDraftSave();
             },
             validator: required
                 ? (String? value) => (value == null || value.trim().isEmpty)

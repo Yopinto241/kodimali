@@ -18,7 +18,7 @@ class CustomerPublicRepository {
   static const Duration _categoryCacheTtl = Duration(minutes: 30);
   static const Duration _promotionCacheTtl = Duration(minutes: 5);
   static const Duration _feedCacheTtl = Duration(minutes: 2);
-  static const Duration _listingDetailCacheTtl = Duration(minutes: 10);
+  static const Duration _listingDetailCacheTtl = Duration(seconds: 30);
   static final Map<String, _SignedUrlCacheEntry> _listingMediaUrlCache =
       <String, _SignedUrlCacheEntry>{};
   static final Map<String, _SignedUrlCacheEntry> _promotionMediaUrlCache =
@@ -57,6 +57,11 @@ class CustomerPublicRepository {
     } catch (_) {
       // Best-effort warmup only.
     }
+  }
+
+  Future<bool> fetchContactPaymentsEnabled() async {
+    final dynamic enabled = await _client.rpc("contact_payments_enabled");
+    return enabled != false;
   }
 
   Future<List<JsonMap>> fetchCategories() async {
@@ -504,9 +509,14 @@ class CustomerPublicRepository {
         error.message.contains("Could not choose the best candidate function");
   }
 
-  Future<JsonMap> fetchListingDetail(String listingId) async {
+  Future<JsonMap> fetchListingDetail(
+    String listingId, {
+    bool forceRefresh = false,
+  }) async {
     final _MapCacheEntry<JsonMap>? cached = _listingDetailCache[listingId];
-    if (cached != null && cached.expiresAt.isAfter(DateTime.now())) {
+    if (!forceRefresh &&
+        cached != null &&
+        cached.expiresAt.isAfter(DateTime.now())) {
       return cached.item;
     }
     final JsonMap? snapshot = CustomerSnapshotStore.listingDetailForId(
@@ -802,6 +812,38 @@ class CustomerPublicRepository {
       final String normalizedPhone = customerPhoneNumber?.trim() ?? "";
       final String normalizedEmail = customerEmail?.trim() ?? "";
       final String normalizedMessage = requestMessage?.trim() ?? "";
+      if (_client.auth.currentUser != null) {
+        final dynamic authenticatedResponse = await _client.rpc(
+          'create_authenticated_booking_request',
+          params: <String, dynamic>{
+            'p_listing_id': listingId,
+            'p_customer_name': customerName,
+            'p_customer_phone_number': normalizedPhone.isEmpty
+                ? null
+                : normalizedPhone,
+            'p_customer_email': normalizedEmail.isEmpty
+                ? null
+                : normalizedEmail,
+            'p_requested_start_at': requestedStartAt?.toUtc().toIso8601String(),
+            'p_requested_end_at': requestedEndAt?.toUtc().toIso8601String(),
+            'p_guest_count': guestCount,
+            'p_request_message': normalizedMessage.isEmpty
+                ? null
+                : normalizedMessage,
+            'p_requested_service_codes': requestedServiceCodes,
+          },
+        );
+        final JsonMap? authenticatedBooking = switch (authenticatedResponse) {
+          final Map<dynamic, dynamic> row => row.cast<String, dynamic>(),
+          final List<dynamic> rows when rows.isNotEmpty && rows.first is Map =>
+            (rows.first as Map).cast<String, dynamic>(),
+          _ => null,
+        };
+        if (authenticatedBooking == null) {
+          throw StateError('Request failed.');
+        }
+        return authenticatedBooking['request_reference']?.toString() ?? '-';
+      }
       final FunctionResponse response = await _client.functions.invoke(
         "create-guest-booking-request",
         body: <String, dynamic>{

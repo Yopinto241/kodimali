@@ -31,7 +31,7 @@ type RpcClient = {
   rpc: (
     fn: string,
     params?: Record<string, unknown>,
-  ) => Promise<{
+  ) => PromiseLike<{
     data: unknown;
     error: { code?: string; message: string } | null;
   }>;
@@ -124,6 +124,16 @@ Deno.serve(async (request) => {
   );
 
   try {
+    const authorization = request.headers.get("Authorization");
+    let customerId: string | null = null;
+    if (authorization?.startsWith("Bearer ")) {
+      const token = authorization.slice("Bearer ".length).trim();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser(token);
+      customerId = user?.id ?? null;
+    }
+
     const body = await request.json();
     const listingId = typeof body?.listing_id === "string"
       ? body.listing_id.trim()
@@ -245,6 +255,7 @@ Deno.serve(async (request) => {
       .insert({
         listing_id: listingId,
         agent_id: agent.id,
+        customer_id: customerId,
         order_reference: orderReference,
         access_token: accessToken,
         requested_amount: amount,

@@ -7,6 +7,10 @@ const quickLinks = [
   { href: "/category/house", label: "Houses" },
   { href: "/category/car", label: "Cars" },
   { href: "/manage", label: "Manage app" },
+  { href: "/safety", label: "Safety" },
+  { href: "/privacy", label: "Privacy" },
+  { href: "/terms", label: "Terms" },
+  { href: "/delete-account", label: "Delete account" },
 ];
 
 const supportLinks = [

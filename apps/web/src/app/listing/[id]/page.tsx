@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AgentContactCard } from "@/components/agent-contact-card";
@@ -5,12 +6,32 @@ import { BackNavButton } from "@/components/back-nav-button";
 import { GuestRequestForm } from "@/components/guest-request-form";
 import { GoogleAdSlot } from "@/components/google-ad-slot";
 import { ListingMediaGallery } from "@/components/listing-media-gallery";
+import { ListingShareButton } from "@/components/listing-share-button";
 import { PageShell } from "@/components/page-shell";
 import { PromotionStrip } from "@/components/promotion-strip";
 import { StatusPill } from "@/components/status-pill";
 import { fetchListingDetail, fetchPromotions } from "@/lib/supabase-public";
 
-export const revalidate = 120;
+export const revalidate = 15;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const listing = await fetchListingDetail(id);
+  if (!listing) {
+    return { title: "Listing unavailable" };
+  }
+  const description = `${listing.public_location_label ?? "Tanzania"} — TZS ${listing.price_amount ?? "-"} ${listing.price_period ?? ""}`;
+  return {
+    title: String(listing.title ?? "Rental listing"),
+    description,
+    alternates: { canonical: `/listing/${id}` },
+    openGraph: { title: String(listing.title ?? "Rental listing"), description },
+  };
+}
 
 function displayValue(value: unknown) {
   if (Array.isArray(value)) {
@@ -152,6 +173,7 @@ export default async function ListingPage({
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
+            <ListingShareButton title={String(listing.title)} />
             <Link href="/listings" className="btn btn-outline">
               Rudi kwenye listings
             </Link>
