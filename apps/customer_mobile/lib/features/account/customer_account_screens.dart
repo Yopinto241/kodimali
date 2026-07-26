@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_design_system/flutter_design_system.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -660,6 +661,7 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
         );
       }
       if (mounted) {
+        TextInput.finishAutofillContext(shouldSave: true);
         Navigator.of(context).pop();
       }
     } catch (error) {
@@ -744,117 +746,133 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
               ),
             ),
             const SizedBox(height: KodimaliSpacing.md),
-            Form(
-              key: _formKey,
-              child: Column(
-                children: <Widget>[
-                  if (_createAccount) ...<Widget>[
+            AutofillGroup(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  children: <Widget>[
+                    if (_createAccount) ...<Widget>[
+                      TextFormField(
+                        controller: _nameController,
+                        autofillHints: const <String>[AutofillHints.name],
+                        textCapitalization: TextCapitalization.words,
+                        decoration: InputDecoration(
+                          labelText: context.tr('request.fullName'),
+                          prefixIcon: const Icon(Icons.person_outline_rounded),
+                        ),
+                        validator: (String? value) =>
+                            (value?.trim().length ?? 0) < 2
+                            ? context.tr('request.nameError')
+                            : null,
+                      ),
+                      const SizedBox(height: KodimaliSpacing.md),
+                      TextFormField(
+                        controller: _phoneController,
+                        autofillHints: const <String>[
+                          AutofillHints.telephoneNumber,
+                        ],
+                        keyboardType: TextInputType.phone,
+                        decoration: InputDecoration(
+                          labelText: context.tr('request.phoneOptional'),
+                          prefixIcon: const Icon(Icons.phone_outlined),
+                        ),
+                        validator: (String? value) {
+                          final String phone = value?.trim() ?? '';
+                          return phone.isNotEmpty && phone.length < 8
+                              ? context.tr('request.phoneError')
+                              : null;
+                        },
+                      ),
+                      const SizedBox(height: KodimaliSpacing.md),
+                    ],
                     TextFormField(
-                      controller: _nameController,
-                      textCapitalization: TextCapitalization.words,
+                      controller: _emailController,
+                      autofillHints: const <String>[
+                        AutofillHints.username,
+                        AutofillHints.email,
+                      ],
+                      keyboardType: TextInputType.emailAddress,
+                      autocorrect: false,
                       decoration: InputDecoration(
-                        labelText: context.tr('request.fullName'),
-                        prefixIcon: const Icon(Icons.person_outline_rounded),
+                        labelText: context.tr('request.email'),
+                        prefixIcon: const Icon(Icons.email_outlined),
                       ),
                       validator: (String? value) =>
-                          (value?.trim().length ?? 0) < 2
-                          ? context.tr('request.nameError')
-                          : null,
+                          RegExp(
+                            r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
+                          ).hasMatch(value?.trim() ?? '')
+                          ? null
+                          : context.tr('request.emailError'),
                     ),
                     const SizedBox(height: KodimaliSpacing.md),
                     TextFormField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      decoration: InputDecoration(
-                        labelText: context.tr('request.phoneOptional'),
-                        prefixIcon: const Icon(Icons.phone_outlined),
-                      ),
-                      validator: (String? value) {
-                        final String phone = value?.trim() ?? '';
-                        return phone.isNotEmpty && phone.length < 8
-                            ? context.tr('request.phoneError')
-                            : null;
-                      },
-                    ),
-                    const SizedBox(height: KodimaliSpacing.md),
-                  ],
-                  TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    autocorrect: false,
-                    decoration: InputDecoration(
-                      labelText: context.tr('request.email'),
-                      prefixIcon: const Icon(Icons.email_outlined),
-                    ),
-                    validator: (String? value) =>
-                        RegExp(
-                          r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
-                        ).hasMatch(value?.trim() ?? '')
-                        ? null
-                        : context.tr('request.emailError'),
-                  ),
-                  const SizedBox(height: KodimaliSpacing.md),
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    decoration: InputDecoration(
-                      labelText: context.tr('account.password'),
-                      prefixIcon: const Icon(Icons.password_rounded),
-                      suffixIcon: IconButton(
-                        onPressed: () => setState(
-                          () => _obscurePassword = !_obscurePassword,
-                        ),
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                        ),
-                      ),
-                    ),
-                    validator: (String? value) => (value?.length ?? 0) < 8
-                        ? context.tr('account.passwordError')
-                        : null,
-                    onFieldSubmitted: (_) => _submitting ? null : _submit(),
-                  ),
-                  if (!_createAccount)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: _submitting ? null : _forgotPassword,
-                        child: Text(context.tr('password.forgot')),
-                      ),
-                    ),
-                  const SizedBox(height: KodimaliSpacing.lg),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: _submitting ? null : _submit,
-                      child: Text(
-                        _submitting
-                            ? context.tr('request.submitting')
-                            : context.tr(
-                                _createAccount
-                                    ? 'account.create'
-                                    : 'account.signIn',
-                              ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: KodimaliSpacing.sm),
-                  TextButton(
-                    onPressed: _submitting
-                        ? null
-                        : () =>
-                              setState(() => _createAccount = !_createAccount),
-                    child: Text(
-                      context.tr(
+                      controller: _passwordController,
+                      autofillHints: <String>[
                         _createAccount
-                            ? 'account.haveAccount'
-                            : 'account.needAccount',
+                            ? AutofillHints.newPassword
+                            : AutofillHints.password,
+                      ],
+                      obscureText: _obscurePassword,
+                      decoration: InputDecoration(
+                        labelText: context.tr('account.password'),
+                        prefixIcon: const Icon(Icons.password_rounded),
+                        suffixIcon: IconButton(
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                        ),
+                      ),
+                      validator: (String? value) => (value?.length ?? 0) < 8
+                          ? context.tr('account.passwordError')
+                          : null,
+                      onFieldSubmitted: (_) => _submitting ? null : _submit(),
+                    ),
+                    if (!_createAccount)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: _submitting ? null : _forgotPassword,
+                          child: Text(context.tr('password.forgot')),
+                        ),
+                      ),
+                    const SizedBox(height: KodimaliSpacing.lg),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _submitting ? null : _submit,
+                        child: Text(
+                          _submitting
+                              ? context.tr('request.submitting')
+                              : context.tr(
+                                  _createAccount
+                                      ? 'account.create'
+                                      : 'account.signIn',
+                                ),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: KodimaliSpacing.sm),
+                    TextButton(
+                      onPressed: _submitting
+                          ? null
+                          : () => setState(
+                              () => _createAccount = !_createAccount,
+                            ),
+                      child: Text(
+                        context.tr(
+                          _createAccount
+                              ? 'account.haveAccount'
+                              : 'account.needAccount',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

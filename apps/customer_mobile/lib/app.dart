@@ -6,6 +6,7 @@ import 'package:app_links/app_links.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_design_system/flutter_design_system.dart';
 import 'package:geolocator/geolocator.dart';
@@ -112,6 +113,7 @@ class _CustomerAppState extends State<CustomerApp> {
       );
     }
 
+    final ThemeData lightTheme = KodimaliTheme.light();
     return CustomerAppScope(
       languageCode: _languageCode,
       onLanguageChanged: _setLanguageCode,
@@ -120,7 +122,18 @@ class _CustomerAppState extends State<CustomerApp> {
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: appName,
-        theme: KodimaliTheme.light(),
+        theme: lightTheme.copyWith(
+          scaffoldBackgroundColor: const Color(0xFFF1F6FC),
+          cardTheme: lightTheme.cardTheme.copyWith(
+            color: const Color(0xFFEAF2FB),
+          ),
+          dialogTheme: lightTheme.dialogTheme.copyWith(
+            backgroundColor: const Color(0xFFF1F6FC),
+          ),
+          bottomSheetTheme: lightTheme.bottomSheetTheme.copyWith(
+            backgroundColor: const Color(0xFFF1F6FC),
+          ),
+        ),
         darkTheme: KodimaliTheme.dark(),
         themeMode: _themeMode,
         locale: Locale(_languageCode),
@@ -455,6 +468,73 @@ class _CustomerRootState extends State<CustomerRoot> {
     _prewarmTabData();
   }
 
+  Future<void> _openLocationChoices() async {
+    final String? choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                context.tr('location.chooseMethod'),
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.my_location_rounded),
+                title: Text(context.tr('hero.useLocation')),
+                subtitle: Text(context.tr('location.gpsHelp')),
+                onTap: () => Navigator.pop(sheetContext, 'gps'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.map_outlined),
+                title: Text(context.tr('hero.chooseArea')),
+                subtitle: Text(context.tr('location.manualHelp')),
+                onTap: () => Navigator.pop(sheetContext, 'manual'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == 'gps') await _useGps();
+    if (choice == 'manual') await _chooseLocation();
+  }
+
+  Future<void> _handleRootBack() async {
+    if (_index != 0) {
+      setState(() {
+        _index = 0;
+        _visitedIndexes.add(0);
+      });
+      return;
+    }
+    final bool exit =
+        await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(context.tr('exit.title')),
+            content: Text(context.tr('exit.body')),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(context.tr('exit.stay')),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text(context.tr('exit.confirm')),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (exit) await SystemNavigator.pop();
+  }
+
   Future<void> _openHelp() async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(builder: (_) => const _HelpSupportScreen()),
@@ -593,8 +673,8 @@ class _CustomerRootState extends State<CustomerRoot> {
         latitude: _latitude,
         longitude: _longitude,
         bannerHidden: _bannerHidden,
-        onUseGps: _useGps,
-        onChooseLocation: _chooseLocation,
+        onUseGps: _openLocationChoices,
+        onChooseLocation: _openLocationChoices,
         onSkipBanner: _skipBanner,
         categoryMenuItems: _categoryMenuItems,
         onOpenCategoriesOverview: _openCategoriesOverview,
@@ -665,135 +745,143 @@ class _CustomerRootState extends State<CustomerRoot> {
       ),
     ];
 
-    return Scaffold(
-      body: NotificationListener<ScrollNotification>(
-        onNotification: _handleScrollNotification,
-        child: LayoutBuilder(
-          builder: (BuildContext context, BoxConstraints constraints) {
-            final double maxLeft = math.max(
-              constraints.maxWidth - _helpBubbleWidth - 12,
-              12,
-            );
-            final double maxTop = math.max(
-              constraints.maxHeight - _helpBubbleHeight - 12,
-              12,
-            );
-            final double helpLeft = 12 + ((maxLeft - 12) * _helpBubbleX);
-            final double helpTop = 12 + ((maxTop - 12) * _helpBubbleY);
-            return Stack(
-              children: <Widget>[
-                SafeArea(
-                  child: IndexedStack(
-                    index: _index,
-                    children: List<Widget>.generate(pages.length, (
-                      int pageIndex,
-                    ) {
-                      if (_visitedIndexes.contains(pageIndex)) {
-                        return pages[pageIndex];
-                      }
-                      return const SizedBox.shrink();
-                    }),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (!didPop) unawaited(_handleRootBack());
+      },
+      child: Scaffold(
+        body: NotificationListener<ScrollNotification>(
+          onNotification: _handleScrollNotification,
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final double maxLeft = math.max(
+                constraints.maxWidth - _helpBubbleWidth - 12,
+                12,
+              );
+              final double maxTop = math.max(
+                constraints.maxHeight - _helpBubbleHeight - 12,
+                12,
+              );
+              final double helpLeft = 12 + ((maxLeft - 12) * _helpBubbleX);
+              final double helpTop = 12 + ((maxTop - 12) * _helpBubbleY);
+              return Stack(
+                children: <Widget>[
+                  SafeArea(
+                    child: IndexedStack(
+                      index: _index,
+                      children: List<Widget>.generate(pages.length, (
+                        int pageIndex,
+                      ) {
+                        if (_visitedIndexes.contains(pageIndex)) {
+                          return pages[pageIndex];
+                        }
+                        return const SizedBox.shrink();
+                      }),
+                    ),
                   ),
-                ),
-                Positioned(
-                  left: helpLeft.clamp(12, maxLeft),
-                  top: helpTop.clamp(12, maxTop),
-                  child: GestureDetector(
-                    onPanUpdate: (DragUpdateDetails details) {
-                      _updateHelpBubblePosition(details, constraints);
-                    },
-                    onPanEnd: (_) => unawaited(_saveHelpBubblePosition()),
-                    child: SizedBox(
-                      width: _helpBubbleWidth,
-                      height: _helpBubbleHeight,
-                      child: Material(
-                        color: Theme.of(context).colorScheme.primaryContainer,
-                        elevation: 6,
-                        borderRadius: BorderRadius.circular(20),
-                        child: InkWell(
+                  Positioned(
+                    left: helpLeft.clamp(12, maxLeft),
+                    top: helpTop.clamp(12, maxTop),
+                    child: GestureDetector(
+                      onPanUpdate: (DragUpdateDetails details) {
+                        _updateHelpBubblePosition(details, constraints);
+                      },
+                      onPanEnd: (_) => unawaited(_saveHelpBubblePosition()),
+                      child: SizedBox(
+                        width: _helpBubbleWidth,
+                        height: _helpBubbleHeight,
+                        child: Material(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          elevation: 6,
                           borderRadius: BorderRadius.circular(20),
-                          onTap: _openHelp,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                            child: Row(
-                              children: <Widget>[
-                                const Icon(Icons.help_rounded),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    context.tr("help.bubble"),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleSmall,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: _openHelp,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                              ),
+                              child: Row(
+                                children: <Widget>[
+                                  const Icon(Icons.help_rounded),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      context.tr("help.bubble"),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleSmall,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 6),
-                                Icon(
-                                  Icons.drag_indicator_rounded,
-                                  size: 18,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onPrimaryContainer,
-                                ),
-                              ],
+                                  const SizedBox(width: 6),
+                                  Icon(
+                                    Icons.drag_indicator_rounded,
+                                    size: 18,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onPrimaryContainer,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            );
-          },
+                ],
+              );
+            },
+          ),
         ),
-      ),
-      bottomNavigationBar: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOut,
-        height: _navigationVisible ? 80 : 0,
-        child: ClipRect(
-          child: OverflowBox(
-            alignment: Alignment.topCenter,
-            minHeight: 80,
-            maxHeight: 80,
-            child: NavigationBar(
-              selectedIndex: _index,
-              onDestinationSelected: (int next) {
-                setState(() {
-                  _index = next;
-                  _visitedIndexes.add(next);
-                });
-              },
-              destinations: <NavigationDestination>[
-                NavigationDestination(
-                  icon: const Icon(Icons.home_outlined),
-                  label: context.tr("nav.home"),
-                ),
-                NavigationDestination(
-                  icon: const Icon(Icons.apartment_outlined),
-                  label: context.tr("nav.apartments"),
-                ),
-                NavigationDestination(
-                  icon: const Icon(Icons.house_outlined),
-                  label: context.tr("nav.houses"),
-                ),
-                NavigationDestination(
-                  icon: const Icon(Icons.directions_car_outlined),
-                  label: context.tr("nav.cars"),
-                ),
-                NavigationDestination(
-                  icon: const Icon(Icons.search_outlined),
-                  label: context.tr("nav.search"),
-                ),
-                NavigationDestination(
-                  icon: const Icon(Icons.person_outline_rounded),
-                  selectedIcon: const Icon(Icons.person_rounded),
-                  label: context.tr('nav.account'),
-                ),
-              ],
+        bottomNavigationBar: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+          height: _navigationVisible ? 80 : 0,
+          child: ClipRect(
+            child: OverflowBox(
+              alignment: Alignment.topCenter,
+              minHeight: 80,
+              maxHeight: 80,
+              child: NavigationBar(
+                selectedIndex: _index,
+                onDestinationSelected: (int next) {
+                  setState(() {
+                    _index = next;
+                    _visitedIndexes.add(next);
+                  });
+                },
+                destinations: <NavigationDestination>[
+                  NavigationDestination(
+                    icon: const Icon(Icons.home_outlined),
+                    label: context.tr("nav.home"),
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.apartment_outlined),
+                    label: context.tr("nav.apartments"),
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.house_outlined),
+                    label: context.tr("nav.houses"),
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.directions_car_outlined),
+                    label: context.tr("nav.cars"),
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.search_outlined),
+                    label: context.tr("nav.search"),
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.person_outline_rounded),
+                    selectedIcon: const Icon(Icons.person_rounded),
+                    label: context.tr('nav.account'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1381,15 +1469,11 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
                             spacing: KodimaliSpacing.xs,
                             runSpacing: KodimaliSpacing.xs,
                             children: <Widget>[
-                              FilledButton(
-                                onPressed: widget.onUseGps,
-                                style: KodimaliButtonStyles.success(context),
-                                child: Text(context.tr("hero.useLocation")),
-                              ),
-                              OutlinedButton(
+                              FilledButton.icon(
                                 onPressed: widget.onChooseLocation,
-                                style: KodimaliButtonStyles.outline(context),
-                                child: Text(context.tr("hero.chooseArea")),
+                                style: KodimaliButtonStyles.success(context),
+                                icon: const Icon(Icons.location_on_outlined),
+                                label: Text(context.tr("location.choose")),
                               ),
                               TextButton(
                                 onPressed: widget.onSkipBanner,
@@ -2012,9 +2096,14 @@ class PopularCategoryFeedScreen extends StatefulWidget {
 }
 
 class _PopularCategoryFeedScreenState extends State<PopularCategoryFeedScreen> {
+  static const int _pageSize = 12;
+  final ScrollController _scrollController = ScrollController();
   List<Map<String, dynamic>> _listings = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _promotions = <Map<String, dynamic>>[];
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  int _page = 0;
   String? _errorMessage;
 
   @override
@@ -2022,7 +2111,23 @@ class _PopularCategoryFeedScreenState extends State<PopularCategoryFeedScreen> {
     super.initState();
     _listings = _initialListings();
     _loading = _listings.isEmpty;
+    _scrollController.addListener(_onScroll);
     unawaited(_refresh());
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.extentAfter < 500 &&
+        _hasMore &&
+        !_loadingMore &&
+        !_loading) {
+      unawaited(_loadMore());
+    }
   }
 
   @override
@@ -2059,10 +2164,11 @@ class _PopularCategoryFeedScreenState extends State<PopularCategoryFeedScreen> {
         <Map<String, dynamic>>[];
   }
 
-  Future<List<Map<String, dynamic>>> _load() {
+  Future<List<Map<String, dynamic>>> _load({int page = 0}) {
     return widget.repository.fetchPublicListings(
       categorySlug: widget.categorySlug,
-      limit: 30,
+      limit: _pageSize,
+      page: page,
       regionId: widget.regionId,
       districtId: widget.districtId,
       wardId: widget.wardId,
@@ -2097,6 +2203,8 @@ class _PopularCategoryFeedScreenState extends State<PopularCategoryFeedScreen> {
       }
       setState(() {
         _listings = listings;
+        _page = 0;
+        _hasMore = listings.length == _pageSize;
         _promotions = promotions;
         _errorMessage = null;
         _loading = false;
@@ -2109,6 +2217,28 @@ class _PopularCategoryFeedScreenState extends State<PopularCategoryFeedScreen> {
         _errorMessage = _readableErrorMessage(error);
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    setState(() => _loadingMore = true);
+    try {
+      final int nextPage = _page + 1;
+      final List<Map<String, dynamic>> rows = await _load(page: nextPage);
+      if (!mounted) return;
+      final Set<dynamic> ids = _listings
+          .map((item) => item['listing_id'] ?? item['id'])
+          .toSet();
+      setState(() {
+        _listings.addAll(
+          rows.where((item) => ids.add(item['listing_id'] ?? item['id'])),
+        );
+        _page = nextPage;
+        _hasMore = rows.length == _pageSize;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingMore = false);
     }
   }
 
@@ -2131,6 +2261,7 @@ class _PopularCategoryFeedScreenState extends State<PopularCategoryFeedScreen> {
         await _refresh();
       },
       child: ListView(
+        controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: KodimaliSpacing.screenPadding,
         children: <Widget>[
@@ -2183,6 +2314,11 @@ class _PopularCategoryFeedScreenState extends State<PopularCategoryFeedScreen> {
               promotions: _promotions,
               repository: widget.repository,
             ),
+            if (_loadingMore)
+              const Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(child: CircularProgressIndicator()),
+              ),
           ],
         ],
       ),
@@ -4869,37 +5005,47 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
 
   @override
   Widget build(BuildContext context) {
-    const Color heroBrownDark = Color(0xFF6B4328);
-    const Color heroBrownLight = Color(0xFF8A5A35);
+    const Color heroBlueDark = Color(0xFF0B1F3A);
+    const Color heroBlueLight = Color(0xFF1F5D8F);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: <Color>[heroBrownDark, heroBrownLight],
+          colors: <Color>[heroBlueDark, heroBlueLight],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: const BorderRadius.all(
           Radius.circular(KodimaliRadii.card),
         ),
-        boxShadow: KodimaliShadows.soft(heroBrownDark),
+        boxShadow: KodimaliShadows.soft(heroBlueDark),
       ),
       child: Column(
         children: <Widget>[
+          Row(
+            children: <Widget>[
+              Text(
+                "KODIMALI",
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.4,
+                ),
+              ),
+              const Spacer(),
+              const _ThemeModeButton(),
+              const SizedBox(width: 4),
+              const _LanguageSwitcherButton(compact: true),
+            ],
+          ),
+          const SizedBox(height: 5),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  Text(
-                    "KODIMALI",
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
                   SizedBox(
                     width: 36,
                     height: 36,
@@ -5002,8 +5148,6 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
                   ),
                 ),
               ),
-              const SizedBox(width: KodimaliSpacing.xs),
-              const _LanguageSwitcherButton(compact: true),
             ],
           ),
           const SizedBox(height: 2),
@@ -5020,14 +5164,8 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
                   runSpacing: KodimaliSpacing.xs,
                   children: <Widget>[
                     _HeaderActionIcon(
-                      icon: Icons.my_location_rounded,
-                      label: context.tr("hero.useLocation"),
-                      showLabel: showInlineLabels,
-                      onTap: widget.onUseGps,
-                    ),
-                    _HeaderActionIcon(
-                      icon: Icons.place_outlined,
-                      label: context.tr("hero.chooseArea"),
+                      icon: Icons.location_on_outlined,
+                      label: context.tr("location.choose"),
                       showLabel: showInlineLabels,
                       onTap: widget.onChooseLocation,
                     ),
@@ -5098,6 +5236,43 @@ class _HeaderActionIcon extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ThemeModeButton extends StatelessWidget {
+  const _ThemeModeButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeMode current = context.themeMode;
+    return PopupMenuButton<ThemeMode>(
+      tooltip: context.tr('settings.appearance'),
+      initialValue: current,
+      onSelected: context.setThemeMode,
+      icon: Icon(
+        current == ThemeMode.dark
+            ? Icons.dark_mode_rounded
+            : current == ThemeMode.light
+            ? Icons.light_mode_rounded
+            : Icons.brightness_auto_rounded,
+        color: Colors.white,
+        size: 20,
+      ),
+      itemBuilder: (_) => <PopupMenuEntry<ThemeMode>>[
+        PopupMenuItem(
+          value: ThemeMode.system,
+          child: Text(context.tr('theme.system')),
+        ),
+        PopupMenuItem(
+          value: ThemeMode.light,
+          child: Text(context.tr('theme.light')),
+        ),
+        PopupMenuItem(
+          value: ThemeMode.dark,
+          child: Text(context.tr('theme.dark')),
+        ),
+      ],
     );
   }
 }
