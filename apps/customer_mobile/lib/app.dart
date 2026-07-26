@@ -125,7 +125,11 @@ class _CustomerAppState extends State<CustomerApp> {
         theme: lightTheme.copyWith(
           scaffoldBackgroundColor: const Color(0xFFF1F6FC),
           cardTheme: lightTheme.cardTheme.copyWith(
-            color: const Color(0xFFEAF2FB),
+            color: const Color(0xFFFFF8E7),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(KodimaliRadii.card),
+              side: const BorderSide(color: Color(0xFFE7C978), width: 0.8),
+            ),
           ),
           dialogTheme: lightTheme.dialogTheme.copyWith(
             backgroundColor: const Color(0xFFF1F6FC),
@@ -2010,9 +2014,16 @@ class _SearchSuggestionsCard extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: theme.brightness == Brightness.light
+            ? const Color(0xFFFFF8E7)
+            : theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(KodimaliRadii.card),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
+        border: Border.all(
+          color: theme.brightness == Brightness.light
+              ? const Color(0xFFE7C978)
+              : theme.colorScheme.outlineVariant,
+          width: 0.8,
+        ),
         boxShadow: KodimaliShadows.soft(KodimaliColors.navy),
       ),
       child: Padding(
@@ -4942,23 +4953,15 @@ class _HomeHeroCard extends StatefulWidget {
 class _HomeHeroCardState extends State<_HomeHeroCard> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
-  Timer? _hintTimer;
   bool _searchExpanded = false;
-  bool _showActionHints = true;
 
   @override
   void initState() {
     super.initState();
-    _hintTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted) {
-        setState(() => _showActionHints = false);
-      }
-    });
   }
 
   @override
   void dispose() {
-    _hintTimer?.cancel();
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
@@ -5009,7 +5012,7 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
     const Color heroBlueLight = Color(0xFF1F5D8F);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: <Color>[heroBlueDark, heroBlueLight],
@@ -5034,12 +5037,26 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
                 ),
               ),
               const Spacer(),
+              IconButton(
+                constraints: const BoxConstraints.tightFor(
+                  width: 32,
+                  height: 32,
+                ),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                tooltip: context.tr('location.choose'),
+                onPressed: widget.onChooseLocation,
+                icon: const Icon(
+                  Icons.location_on_outlined,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ),
               const _ThemeModeButton(),
-              const SizedBox(width: 4),
               const _LanguageSwitcherButton(compact: true),
             ],
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 2),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
@@ -5047,8 +5064,8 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   SizedBox(
-                    width: 36,
-                    height: 36,
+                    width: 32,
+                    height: 32,
                     child: PopupMenuButton<String>(
                       tooltip: context.tr("nav.categories"),
                       onSelected: (String value) {
@@ -5070,7 +5087,7 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
                       icon: const Icon(
                         Icons.menu_rounded,
                         color: Colors.white,
-                        size: 20,
+                        size: 18,
                       ),
                     ),
                   ),
@@ -5078,163 +5095,83 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
               ),
               const SizedBox(width: 4),
               Expanded(
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(KodimaliRadii.input),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: Row(
-                    children: <Widget>[
-                      IconButton(
-                        onPressed: _searchExpanded
-                            ? _submitSearch
-                            : _toggleSearch,
-                        icon: const Icon(
-                          Icons.search_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                      ),
-                      if (_searchExpanded)
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            focusNode: _searchFocusNode,
-                            onSubmitted: (_) => _submitSearch(),
-                            style: const TextStyle(color: Colors.white),
-                            cursorColor: Colors.white,
-                            decoration: InputDecoration(
-                              isDense: true,
-                              border: InputBorder.none,
-                              hintText: context.tr("search.label"),
-                              hintStyle: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.7),
-                              ),
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          ),
-                        )
-                      else
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: _toggleSearch,
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                "Search",
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.78,
-                                      ),
-                                    ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      if (_searchExpanded)
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _searchExpanded ? null : _toggleSearch,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(KodimaliRadii.input),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: Row(
+                      children: <Widget>[
                         IconButton(
-                          onPressed: _toggleSearch,
+                          onPressed: _searchExpanded
+                              ? _submitSearch
+                              : _toggleSearch,
                           icon: const Icon(
-                            Icons.close_rounded,
-                            color: Colors.white70,
+                            Icons.search_rounded,
+                            color: Colors.white,
                             size: 18,
                           ),
                         ),
-                    ],
+                        if (_searchExpanded)
+                          Expanded(
+                            child: TextField(
+                              controller: _searchController,
+                              focusNode: _searchFocusNode,
+                              onSubmitted: (_) => _submitSearch(),
+                              style: const TextStyle(color: Colors.white),
+                              cursorColor: Colors.white,
+                              decoration: InputDecoration(
+                                isDense: true,
+                                border: InputBorder.none,
+                                hintText: context.tr("search.label"),
+                                hintStyle: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.7),
+                                ),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                          )
+                        else
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: _toggleSearch,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  "Search",
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.78,
+                                        ),
+                                      ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        if (_searchExpanded)
+                          IconButton(
+                            onPressed: _toggleSearch,
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: Colors.white70,
+                              size: 18,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 2),
-          LayoutBuilder(
-            builder: (BuildContext context, BoxConstraints constraints) {
-              final bool compactActions = constraints.maxWidth < 320;
-              final bool showInlineLabels = _showActionHints && !compactActions;
-              return Align(
-                alignment: Alignment.centerRight,
-                child: Wrap(
-                  alignment: WrapAlignment.end,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: KodimaliSpacing.xs,
-                  runSpacing: KodimaliSpacing.xs,
-                  children: <Widget>[
-                    _HeaderActionIcon(
-                      icon: Icons.location_on_outlined,
-                      label: context.tr("location.choose"),
-                      showLabel: showInlineLabels,
-                      onTap: widget.onChooseLocation,
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
         ],
-      ),
-    );
-  }
-}
-
-class _HeaderActionIcon extends StatelessWidget {
-  const _HeaderActionIcon({
-    required this.icon,
-    required this.label,
-    required this.showLabel,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool showLabel;
-  final Future<void> Function() onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: label,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: EdgeInsets.symmetric(
-          horizontal: showLabel ? KodimaliSpacing.sm : 0,
-          vertical: 0,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(KodimaliRadii.pill),
-          border: Border.all(color: Colors.white24),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              splashRadius: 18,
-              onPressed: onTap,
-              icon: Icon(icon, color: Colors.white, size: 18),
-            ),
-            AnimatedCrossFade(
-              duration: const Duration(milliseconds: 180),
-              crossFadeState: showLabel
-                  ? CrossFadeState.showFirst
-                  : CrossFadeState.showSecond,
-              firstChild: Padding(
-                padding: const EdgeInsets.only(right: KodimaliSpacing.sm),
-                child: Text(
-                  label,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.9),
-                  ),
-                ),
-              ),
-              secondChild: const SizedBox.shrink(),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -5246,33 +5183,38 @@ class _ThemeModeButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeMode current = context.themeMode;
-    return PopupMenuButton<ThemeMode>(
-      tooltip: context.tr('settings.appearance'),
-      initialValue: current,
-      onSelected: context.setThemeMode,
-      icon: Icon(
-        current == ThemeMode.dark
-            ? Icons.dark_mode_rounded
-            : current == ThemeMode.light
-            ? Icons.light_mode_rounded
-            : Icons.brightness_auto_rounded,
-        color: Colors.white,
-        size: 20,
+    return SizedBox(
+      width: 32,
+      height: 32,
+      child: PopupMenuButton<ThemeMode>(
+        padding: EdgeInsets.zero,
+        tooltip: context.tr('settings.appearance'),
+        initialValue: current,
+        onSelected: context.setThemeMode,
+        icon: Icon(
+          current == ThemeMode.dark
+              ? Icons.dark_mode_rounded
+              : current == ThemeMode.light
+              ? Icons.light_mode_rounded
+              : Icons.brightness_auto_rounded,
+          color: Colors.white,
+          size: 18,
+        ),
+        itemBuilder: (_) => <PopupMenuEntry<ThemeMode>>[
+          PopupMenuItem(
+            value: ThemeMode.system,
+            child: Text(context.tr('theme.system')),
+          ),
+          PopupMenuItem(
+            value: ThemeMode.light,
+            child: Text(context.tr('theme.light')),
+          ),
+          PopupMenuItem(
+            value: ThemeMode.dark,
+            child: Text(context.tr('theme.dark')),
+          ),
+        ],
       ),
-      itemBuilder: (_) => <PopupMenuEntry<ThemeMode>>[
-        PopupMenuItem(
-          value: ThemeMode.system,
-          child: Text(context.tr('theme.system')),
-        ),
-        PopupMenuItem(
-          value: ThemeMode.light,
-          child: Text(context.tr('theme.light')),
-        ),
-        PopupMenuItem(
-          value: ThemeMode.dark,
-          child: Text(context.tr('theme.dark')),
-        ),
-      ],
     );
   }
 }
@@ -5296,36 +5238,27 @@ class _LanguageSwitcherButton extends StatelessWidget {
       ],
       child: Container(
         padding: EdgeInsets.symmetric(
-          horizontal: compact ? 10 : 12,
-          vertical: compact ? 8 : 10,
+          horizontal: compact ? 7 : 12,
+          vertical: compact ? 6 : 10,
         ),
         decoration: BoxDecoration(
-          color: compact
-              ? Theme.of(context).colorScheme.surfaceContainerHighest
-              : Colors.white.withValues(alpha: 0.18),
+          color: Colors.white.withValues(alpha: compact ? 0.12 : 0.18),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: compact
-                ? Theme.of(context).colorScheme.outlineVariant
-                : Colors.white24,
-          ),
+          border: Border.all(color: compact ? Colors.white24 : Colors.white24),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(
-              Icons.language_rounded,
-              size: 18,
-              color: compact ? null : Colors.white,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              swahili ? "SW" : "EN",
-              style: TextStyle(
-                color: compact ? null : Colors.white,
-                fontWeight: FontWeight.w700,
+            Icon(Icons.language_rounded, size: 18, color: Colors.white),
+            if (!compact) const SizedBox(width: 8),
+            if (!compact)
+              Text(
+                swahili ? "SW" : "EN",
+                style: TextStyle(
+                  color: compact ? null : Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
           ],
         ),
       ),
