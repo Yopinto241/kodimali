@@ -11,6 +11,7 @@ import 'listing_approval_tab.dart';
 import 'locations_tab.dart';
 import 'promotions_tab.dart';
 import 'reports_tab.dart';
+import 'users_tab.dart';
 
 class AdminShellScreen extends StatefulWidget {
   const AdminShellScreen({super.key});
@@ -25,6 +26,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   static const List<String> _titles = <String>[
     "Dashboard",
     "Agents",
+    "Users",
     "Listings",
     "Categories",
     "Locations",
@@ -44,16 +46,21 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
             icon: Icons.dashboard_outlined,
             screen: AdminDashboardTab(
               onOpenAgents: () => setState(() => _currentIndex = 1),
-              onOpenListings: () => setState(() => _currentIndex = 2),
-              onOpenRequests: () => setState(() => _currentIndex = 5),
-              onOpenReports: () => setState(() => _currentIndex = 6),
-              onOpenNotifications: () => setState(() => _currentIndex = 8),
+              onOpenListings: () => setState(() => _currentIndex = 3),
+              onOpenRequests: () => setState(() => _currentIndex = 6),
+              onOpenReports: () => setState(() => _currentIndex = 7),
+              onOpenNotifications: () => setState(() => _currentIndex = 9),
             ),
           ),
           const ManageWorkspaceDestination(
             label: "Agents",
             icon: Icons.verified_user_outlined,
             screen: AgentVerificationTab(),
+          ),
+          const ManageWorkspaceDestination(
+            label: "Users",
+            icon: Icons.people_outline_rounded,
+            screen: UsersTab(),
           ),
           const ManageWorkspaceDestination(
             label: "Listings",

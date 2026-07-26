@@ -4,10 +4,11 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
+import { PageShell } from "@/components/page-shell";
 
 type Row = Record<string, unknown>;
 type Role = "admin" | "agent";
-type Tab = "dashboard" | "listings" | "requests" | "categories" | "agents" | "users";
+type Tab = "dashboard" | "listings" | "add-listing" | "requests" | "categories" | "agents" | "users" | "locations" | "reports" | "promotions" | "notifications" | "profile";
 
 const bookingStatuses = [
   "new", "checking_availability", "contacted", "viewing_scheduled",
@@ -31,6 +32,7 @@ export function ManagePortal() {
   const [categories, setCategories] = useState<Row[]>([]);
   const [agents, setAgents] = useState<Row[]>([]);
   const [users, setUsers] = useState<Row[]>([]);
+  const [extraRows, setExtraRows] = useState<Partial<Record<Tab, Row[]>>>({});
   const [counts, setCounts] = useState<Row>({});
   const [tabLoading, setTabLoading] = useState(false);
   const [online, setOnline] = useState(() =>
@@ -113,7 +115,8 @@ export function ManagePortal() {
       const currentLength = target === "listings" ? listings.length
         : target === "requests" ? bookings.length
         : target === "categories" ? categories.length
-        : target === "agents" ? agents.length : users.length;
+        : target === "agents" ? agents.length
+        : target === "users" ? users.length : (extraRows[target]?.length ?? 0);
       const from = append ? currentLength : 0;
       const to = from + 19;
       let result;
@@ -137,10 +140,32 @@ export function ManagePortal() {
         result = await withRetry(() => supabase.from("agents").select(
           "id, profile_id, display_name, business_name, phone_number, contact_email, verification_status, account_status, created_at",
         ).order("created_at", { ascending: false }).range(from, to));
-      } else {
+      } else if (target === "users") {
         result = await withRetry(() => supabase.rpc("get_admin_customer_users", {
           p_offset: from, p_limit: 20,
         } as never));
+      } else if (target === "locations") {
+        result = await withRetry(() => supabase.from("locations").select(
+          "id, parent_id, name, location_type, is_active, created_at",
+        ).order("location_type").order("name").range(from, to));
+      } else if (target === "reports") {
+        result = await withRetry(() => supabase.from("reports").select(
+          "id, listing_id, report_reason, details, status, created_at",
+        ).order("created_at", { ascending: false }).range(from, to));
+      } else if (target === "promotions") {
+        result = await withRetry(() => supabase.from("platform_promotions").select(
+          "id, title, description, placement, visibility_scope, is_active, start_at, end_at, created_at",
+        ).order("created_at", { ascending: false }).range(from, to));
+      } else if (target === "notifications") {
+        result = await withRetry(() => supabase.from("notifications").select(
+          "id, title, body, type, read_at, created_at",
+        ).eq("user_id", user!.id).order("created_at", { ascending: false }).range(from, to));
+      } else if (target === "profile") {
+        result = await withRetry(() => supabase.from("profiles").select(
+          "id, full_name, username, account_email, phone_number, preferred_language, created_at",
+        ).eq("id", user!.id).limit(1));
+      } else {
+        return;
       }
       if (result.error) throw result.error;
       const rows = (result.data ?? []) as unknown as Row[];
@@ -149,6 +174,9 @@ export function ManagePortal() {
       if (target === "categories") setCategories((old) => append ? [...old, ...rows] : rows);
       if (target === "agents") setAgents((old) => append ? [...old, ...rows] : rows);
       if (target === "users") setUsers((old) => append ? [...old, ...rows] : rows);
+      if (!["listings", "requests", "categories", "agents", "users"].includes(target)) {
+        setExtraRows((old) => ({ ...old, [target]: append ? [...(old[target] ?? []), ...rows] : rows }));
+      }
       loadedTabs.current.add(target);
       setHasMore((old) => ({ ...old, [target]: rows.length === 20 }));
     } catch (error) {
@@ -156,7 +184,7 @@ export function ManagePortal() {
     } finally {
       setTabLoading(false);
     }
-  }, [agentId, agents.length, bookings.length, categories.length, listings.length, role, supabase, users.length]);
+  }, [agentId, agents.length, bookings.length, categories.length, extraRows, listings.length, role, supabase, user, users.length]);
 
   useEffect(() => {
     const applyUser = (nextUser: User | null) => {
@@ -256,6 +284,38 @@ export function ManagePortal() {
     }, activate ? "Agent approved and activated." : "Agent deactivated.");
   }
 
+  async function updateReport(id: string, status: string) {
+    await perform(async () => {
+      const result = await supabase.from("reports").update({ status } as never).eq("id", id);
+      if (result.error) throw result.error;
+      loadedTabs.current.delete("reports"); await loadTabData("reports");
+    }, "Report status updated.");
+  }
+
+  async function togglePromotion(id: string, active: boolean) {
+    await perform(async () => {
+      const result = await supabase.from("platform_promotions").update({ is_active: active } as never).eq("id", id);
+      if (result.error) throw result.error;
+      loadedTabs.current.delete("promotions"); await loadTabData("promotions");
+    }, active ? "Promotion activated." : "Promotion paused.");
+  }
+
+  async function addLocation(name: string, locationType: string, parentId: string) {
+    await perform(async () => {
+      const result = await supabase.from("locations").insert({ name: name.trim(), location_type: locationType, parent_id: parentId || null } as never);
+      if (result.error) throw result.error;
+      loadedTabs.current.delete("locations"); await loadTabData("locations");
+    }, "Location added.");
+  }
+
+  async function deleteLocation(id: string) {
+    await perform(async () => {
+      const result = await supabase.from("locations").delete().eq("id", id);
+      if (result.error) throw result.error;
+      loadedTabs.current.delete("locations"); await loadTabData("locations");
+    }, "Location deleted.");
+  }
+
   async function perform(action: () => Promise<void>, success: string) {
     setBusy(true);
     setMessage(null);
@@ -287,23 +347,25 @@ export function ManagePortal() {
       { id: "users" as Tab, label: "Users" },
     ] : []),
     { id: "listings", label: "Listings" },
+    ...(role === "agent" ? [{ id: "add-listing" as Tab, label: "Add asset" }] : []),
     { id: "requests", label: "Requests" },
     ...(role === "admin" ? [
       { id: "categories" as Tab, label: "Categories & fields" },
       { id: "agents" as Tab, label: "Agents" },
+      { id: "locations" as Tab, label: "Locations" },
+      { id: "reports" as Tab, label: "Reports" },
+      { id: "promotions" as Tab, label: "Promotions" },
     ] : []),
+    { id: "notifications", label: "Notifications" },
+    { id: "profile", label: "Profile" },
   ];
 
-  return <main className="min-h-screen bg-brand-canvas">
-    <header className="border-b border-brand-border bg-white">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-5 sm:px-6">
-        <div><Link href="/" className="eyebrow">KODIMALI</Link><h1 className="font-heading text-2xl font-semibold">{role === "admin" ? "Admin" : "Agent"} workspace</h1></div>
-        <div className="flex items-center gap-3"><span className="hidden text-sm text-muted sm:inline">{user.email}</span>
-        <button className="btn btn-outline" onClick={() => void supabase.auth.signOut()}>Sign out</button></div>
-      </div>
-    </header>
-    <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[220px_1fr]">
-      <nav className="surface-card grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 lg:flex lg:flex-col" aria-label="Management navigation">
+  return <PageShell>
+    <section className="mb-6 overflow-hidden rounded-[20px] bg-brand-navy px-5 py-6 text-white shadow-[0_24px_52px_rgba(11,31,58,0.16)] sm:px-8">
+      <div className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-[0.22em] text-brand-green">Secure management</p><h1 className="mt-2 font-heading text-3xl font-semibold">{role === "admin" ? "Administrator" : "Agent"} workspace</h1><p className="mt-2 text-sm text-white/75">The same KODIMALI records and permissions used by Manage Mobile.</p></div><div className="flex items-center gap-3"><span className="hidden text-sm text-white/75 sm:inline">{user.email}</span><button className="btn btn-outline" onClick={() => void supabase.auth.signOut()}>Sign out</button></div></div>
+    </section>
+    <div className="grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
+      <nav className="surface-card grid h-fit grid-cols-2 gap-2 p-3 sm:grid-cols-3 lg:sticky lg:top-28 lg:flex lg:flex-col" aria-label="Management navigation">
         {tabs.map((item) => <button key={item.id} onClick={() => { setTab(item.id); void loadTabData(item.id); }}
           className={`min-w-0 rounded-xl px-3 py-3 text-center text-sm font-semibold sm:px-4 lg:text-left ${tab === item.id ? "bg-brand-navy text-white" : "hover:bg-brand-green-soft"}`}>{item.label}</button>)}
       </nav>
@@ -317,6 +379,12 @@ export function ManagePortal() {
         {tab === "categories" && role === "admin" ? <Categories categories={categories} edit={setEditingCategory} /> : null}
         {tab === "agents" && role === "admin" ? <Agents agents={agents} busy={busy} update={updateAgent} /> : null}
         {tab === "users" && role === "admin" ? <Users users={users} /> : null}
+        {tab === "locations" && role === "admin" ? <Locations rows={extraRows.locations ?? []} busy={busy} add={addLocation} remove={deleteLocation} /> : null}
+        {tab === "reports" && role === "admin" ? <Reports rows={extraRows.reports ?? []} busy={busy} update={updateReport} /> : null}
+        {tab === "promotions" && role === "admin" ? <Promotions rows={extraRows.promotions ?? []} busy={busy} toggle={togglePromotion} /> : null}
+        {tab === "notifications" ? <Notifications rows={extraRows.notifications ?? []} markRead={async (id) => { await supabase.from("notifications").update({ read_at: new Date().toISOString() } as never).eq("id", id); loadedTabs.current.delete("notifications"); await loadTabData("notifications"); }} /> : null}
+        {tab === "profile" ? <ProfilePanel rows={extraRows.profile ?? []} email={user.email ?? ""} /> : null}
+        {tab === "add-listing" && role === "agent" && agentId ? <AddListingForm agentId={agentId} onCreated={() => { loadedTabs.current.delete("listings"); setTab("listings"); void loadTabData("listings"); }} /> : null}
         {tab !== "dashboard" && hasMore[tab] ? <button className="btn btn-outline mt-4" disabled={tabLoading} onClick={() => void loadTabData(tab, true)}>{tabLoading ? "Loading..." : "Load 20 more"}</button> : null}
       </section>
     </div>
@@ -344,7 +412,7 @@ export function ManagePortal() {
       }
       setEditingCategory(null); await refresh();
     }, "Category fields saved.")} /> : null}
-  </main>;
+  </PageShell>;
 }
 
 function ManageLoading() {
@@ -421,6 +489,79 @@ function Users({ users }: { users: Row[] }) {
   </Panel>;
 }
 
+function Locations({ rows, busy, add, remove }: { rows: Row[]; busy: boolean; add: (name: string, type: string, parent: string) => Promise<void>; remove: (id: string) => Promise<void> }) {
+  const [name, setName] = useState(""); const [type, setType] = useState("region"); const [parent, setParent] = useState("");
+  const possibleParents = rows.filter((row) => row.location_type !== "area");
+  return <Panel title="Locations" subtitle="Manage the shared region, district, ward, and area hierarchy.">
+    <form className="mb-5 grid gap-3 rounded-2xl bg-brand-green-soft p-4 md:grid-cols-[1fr_150px_1fr_auto]" onSubmit={(event) => { event.preventDefault(); void add(name, type, parent).then(() => { setName(""); setParent(""); }); }}>
+      <Input label="Location name" value={name} set={setName} required />
+      <label className="grid gap-2 font-semibold">Type<select className="rounded-xl border border-brand-border bg-white p-3" value={type} onChange={(event) => { setType(event.target.value); if (event.target.value === "region") setParent(""); }}>{["region", "district", "ward", "area"].map((value) => <option key={value}>{value}</option>)}</select></label>
+      <label className="grid gap-2 font-semibold">Parent<select className="rounded-xl border border-brand-border bg-white p-3" value={parent} disabled={type === "region"} onChange={(event) => setParent(event.target.value)}><option value="">{type === "region" ? "No parent" : "Select parent"}</option>{possibleParents.map((row) => <option value={String(row.id)} key={String(row.id)}>{String(row.name)} ({String(row.location_type)})</option>)}</select></label>
+      <button className="btn btn-success self-end" disabled={busy || !name.trim() || (type !== "region" && !parent)}>Add</button>
+    </form>
+    <div className="grid gap-3">{rows.length === 0 ? <Empty text="No locations found." /> : rows.map((row) => <article className="rounded-2xl border border-brand-border bg-white p-4" key={String(row.id)}><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold">{String(row.name)}</h3><p className="text-sm text-muted">{String(row.location_type)}</p></div><button className="btn btn-outline" disabled={busy} onClick={() => { if (window.confirm(`Delete ${String(row.name)}?`)) void remove(String(row.id)); }}>Delete</button></div></article>)}</div>
+  </Panel>;
+}
+
+function Reports({ rows, busy, update }: { rows: Row[]; busy: boolean; update: (id: string, status: string) => Promise<void> }) {
+  return <Panel title="Reports" subtitle="Review marketplace safety and listing reports."><div className="grid gap-3">{rows.length === 0 ? <Empty text="No reports have been submitted." /> : rows.map((row) => <article className="rounded-2xl border border-brand-border bg-white p-4" key={String(row.id)}><h3 className="font-semibold">{String(row.report_reason)}</h3><p className="mt-1 text-sm text-muted">{String(row.details || "No additional details")}</p><label className="mt-4 grid max-w-xs gap-2 text-sm font-semibold">Status<select className="rounded-xl border border-brand-border bg-white p-3" disabled={busy} value={String(row.status)} onChange={(event) => void update(String(row.id), event.target.value)}>{["open", "in_review", "resolved", "dismissed"].map((value) => <option key={value}>{value}</option>)}</select></label></article>)}</div></Panel>;
+}
+
+function Promotions({ rows, busy, toggle }: { rows: Row[]; busy: boolean; toggle: (id: string, active: boolean) => Promise<void> }) {
+  return <Panel title="Promotions" subtitle="Control promotions shared by the mobile apps and website."><div className="grid gap-3">{rows.length === 0 ? <Empty text="No promotions available." /> : rows.map((row) => <article className="rounded-2xl border border-brand-border bg-white p-4" key={String(row.id)}><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">{String(row.title)}</h3><p className="mt-1 text-sm text-muted">{String(row.description || "")}</p><p className="mt-2 text-xs font-semibold uppercase tracking-wide">{String(row.placement)} · {String(row.visibility_scope)}</p></div><Status value={row.is_active ? "active" : "paused"} /></div><button className="btn btn-outline mt-4" disabled={busy} onClick={() => void toggle(String(row.id), row.is_active !== true)}>{row.is_active ? "Pause promotion" : "Activate promotion"}</button></article>)}</div></Panel>;
+}
+
+function Notifications({ rows, markRead }: { rows: Row[]; markRead: (id: string) => Promise<void> }) {
+  return <Panel title="Notifications" subtitle="Account and marketplace activity from the shared Supabase notification stream."><div className="grid gap-3">{rows.length === 0 ? <Empty text="No notifications available." /> : rows.map((row) =>
+    <article className={`rounded-2xl border p-4 ${row.read_at ? "border-brand-border bg-white" : "border-brand-green bg-brand-green-soft"}`} key={String(row.id)}>
+      <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">{String(row.title || "Notification")}</h3><p className="mt-1 text-sm">{String(row.body || "")}</p><p className="mt-2 text-xs text-muted">{new Date(String(row.created_at)).toLocaleString()}</p></div>{!row.read_at ? <button className="btn btn-outline" onClick={() => void markRead(String(row.id))}>Mark read</button> : <Status value="read" />}</div>
+    </article>)}</div></Panel>;
+}
+
+function ProfilePanel({ rows, email }: { rows: Row[]; email: string }) {
+  const profile = rows[0] ?? {};
+  return <Panel title="Profile" subtitle="The identity attached to this management account."><div className="grid gap-4 sm:grid-cols-2">
+    <Info label="Full name" value={String(profile.full_name || "Not provided")} />
+    <Info label="Email" value={String(profile.account_email || email)} />
+    <Info label="Username" value={String(profile.username || "Not provided")} />
+    <Info label="Phone" value={String(profile.phone_number || "Not provided")} />
+    <Info label="Language" value={String(profile.preferred_language || "sw")} />
+  </div></Panel>;
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return <div className="soft-panel p-4"><p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">{label}</p><p className="mt-2 font-semibold break-words">{value}</p></div>;
+}
+
+function AddListingForm({ agentId, onCreated }: { agentId: string; onCreated: () => void }) {
+  const supabase = useMemo(() => getBrowserSupabase(), []);
+  const [categories, setCategories] = useState<Row[]>([]); const [locations, setLocations] = useState<Row[]>([]);
+  const [categoryId, setCategoryId] = useState(""); const [locationId, setLocationId] = useState("");
+  const [title, setTitle] = useState(""); const [description, setDescription] = useState(""); const [price, setPrice] = useState("");
+  const [period, setPeriod] = useState("month"); const [attributes, setAttributes] = useState<Row>({}); const [busy, setBusy] = useState(false); const [message, setMessage] = useState<string | null>(null);
+  useEffect(() => { void Promise.all([
+    supabase.from("agent_service_categories").select("asset_categories(id, name, slug, field_schema)").eq("agent_id", agentId),
+    supabase.from("locations").select("id, name, location_type").eq("is_active", true).order("name"),
+  ]).then(([categoryResult, locationResult]) => {
+    if (categoryResult.error) setMessage(categoryResult.error.message); else setCategories((categoryResult.data ?? []).map((row) => relation((row as Row).asset_categories)));
+    if (locationResult.error) setMessage(locationResult.error.message); else setLocations((locationResult.data ?? []) as Row[]);
+  }); }, [agentId, supabase]);
+  const selectedCategory = categories.find((item) => item.id === categoryId); const fields = schema(selectedCategory ?? {});
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setMessage(null);
+    const location = locations.find((item) => item.id === locationId);
+    const result = await supabase.from("listings").insert({ agent_id: agentId, category_id: categoryId, title: title.trim(), description: description.trim(), location_id: locationId, public_location_label: String(location?.name ?? ""), price_amount: Number(price), price_period: period, listing_attributes: attributes, status: "draft", approval_status: "pending", availability_status: "available" } as never);
+    setBusy(false); if (result.error) setMessage(result.error.message); else onCreated();
+  }
+  return <Panel title="Add asset" subtitle="Create a Supabase listing draft using your assigned categories and dynamic fields."><form className="grid gap-4" onSubmit={submit}>
+    <Input label="Title" value={title} set={setTitle} required /><label className="grid gap-2 font-semibold">Description<textarea className="rounded-xl border border-brand-border bg-white p-3" minLength={10} rows={5} value={description} onChange={(event) => setDescription(event.target.value)} required /></label>
+    <div className="grid gap-4 sm:grid-cols-2"><label className="grid gap-2 font-semibold">Category<select className="rounded-xl border border-brand-border bg-white p-3" value={categoryId} onChange={(event) => { setCategoryId(event.target.value); setAttributes({}); }} required><option value="">Select category</option>{categories.map((item) => <option value={String(item.id)} key={String(item.id)}>{String(item.name)}</option>)}</select></label><label className="grid gap-2 font-semibold">Location<select className="rounded-xl border border-brand-border bg-white p-3" value={locationId} onChange={(event) => setLocationId(event.target.value)} required><option value="">Select location</option>{locations.map((item) => <option value={String(item.id)} key={String(item.id)}>{String(item.name)} ({String(item.location_type)})</option>)}</select></label></div>
+    <div className="grid gap-4 sm:grid-cols-2"><Input label="Price (TZS)" type="number" value={price} set={setPrice} required /><label className="grid gap-2 font-semibold">Price period<select className="rounded-xl border border-brand-border bg-white p-3" value={period} onChange={(event) => setPeriod(event.target.value)}>{["hour", "day", "week", "month", "year"].map((value) => <option key={value}>{value}</option>)}</select></label></div>
+    {fields.filter((field) => field.active !== false).map((field) => <DynamicField key={String(field.key)} field={field} value={attributes[String(field.key)]} set={(value) => setAttributes((current) => ({ ...current, [String(field.key)]: value }))} />)}
+    {message ? <p className="rounded-xl bg-brand-danger-soft p-3 text-sm text-brand-danger">{message}</p> : null}<button className="btn btn-success" disabled={busy || !categoryId || !locationId}>{busy ? "Creating..." : "Create draft"}</button>
+  </form></Panel>;
+}
+
 function ListingEditor({ listing, close, save }: { listing: Row; close: () => void; save: (values: Row) => void }) {
   const [title, setTitle] = useState(String(listing.title ?? ""));
   const [description, setDescription] = useState(String(listing.description ?? ""));
@@ -466,6 +607,7 @@ function Input({ label, value, set, type = "text", required = false }: { label: 
 function Status({ value }: { value: string }) { return <span className="h-fit rounded-full bg-brand-green-soft px-3 py-1 text-xs font-semibold text-brand-navy">{value.replaceAll("_", " ")}</span>; }
 function Empty({ text }: { text: string }) { return <p className="rounded-2xl bg-brand-info-soft p-5 text-muted">{text}</p>; }
 function schema(row: Row | null | undefined): Row[] { return Array.isArray(row?.field_schema) ? row.field_schema as Row[] : []; }
+function relation(value: unknown): Row { if (Array.isArray(value)) return (value[0] as Row | undefined) ?? {}; return value && typeof value === "object" ? value as Row : {}; }
 function categoryName(listing: Row) { const value = listing.asset_categories as Row | Row[] | null; const category = Array.isArray(value) ? value[0] : value; return String(category?.name ?? "Listing"); }
 function nestedTitle(value: unknown) { const row = Array.isArray(value) ? value[0] : value; return row && typeof row === "object" ? String((row as Row).title ?? "") : null; }
 function readError(error: unknown) { if (error && typeof error === "object" && "message" in error) return String(error.message); return "The request could not be completed."; }

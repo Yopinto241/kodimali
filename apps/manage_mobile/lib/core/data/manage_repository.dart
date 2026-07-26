@@ -2131,6 +2131,21 @@ class ManageRepository {
     return agents.map(_normalizeAdminAgent).toList();
   }
 
+  Future<List<JsonMap>> fetchAdminCustomerUsers({
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    return _decodeListRows(
+      _client.rpc(
+        "get_admin_customer_users",
+        params: <String, dynamic>{
+          "p_offset": offset,
+          "p_limit": limit.clamp(1, 100),
+        },
+      ),
+    );
+  }
+
   Future<JsonMap> fetchAdminAgents({
     String searchText = "",
     String? accountStatus,
