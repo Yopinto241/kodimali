@@ -5,18 +5,23 @@ class CustomerAppScope extends InheritedWidget {
     super.key,
     required this.languageCode,
     required this.onLanguageChanged,
+    required this.themeMode,
+    required this.onThemeModeChanged,
     required super.child,
   });
 
   final String languageCode;
   final Future<void> Function(String languageCode) onLanguageChanged;
+  final ThemeMode themeMode;
+  final Future<void> Function(ThemeMode themeMode) onThemeModeChanged;
 
   static CustomerAppScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<CustomerAppScope>();
 
   @override
   bool updateShouldNotify(CustomerAppScope oldWidget) =>
-      languageCode != oldWidget.languageCode;
+      languageCode != oldWidget.languageCode ||
+      themeMode != oldWidget.themeMode;
 }
 
 extension CustomerLocalizationX on BuildContext {
@@ -29,6 +34,11 @@ extension CustomerLocalizationX on BuildContext {
   Future<void> setLanguageCode(String nextLanguageCode) =>
       _customerScope?.onLanguageChanged(nextLanguageCode) ??
       Future<void>.value();
+
+  ThemeMode get themeMode => _customerScope?.themeMode ?? ThemeMode.system;
+
+  Future<void> setThemeMode(ThemeMode nextThemeMode) =>
+      _customerScope?.onThemeModeChanged(nextThemeMode) ?? Future<void>.value();
 
   String tr(
     String key, {
@@ -248,6 +258,23 @@ _localizedStrings = <String, Map<String, String>>{
         "Check your email to confirm the account, then sign in.",
     "account.haveAccount": "Already registered? Sign in",
     "account.needAccount": "New here? Create an account",
+    "settings.title": "Account settings",
+    "settings.appearance": "Appearance",
+    "settings.profile": "Profile information",
+    "settings.save": "Save profile",
+    "settings.saved": "Your profile was updated.",
+    "theme.system": "System",
+    "theme.light": "Light",
+    "theme.dark": "Dark",
+    "password.forgot": "Forgot password?",
+    "password.reset": "Reset password",
+    "password.resetSent":
+        "Check your email for the secure password-reset link.",
+    "password.resetHelp": "Enter a new password for your KODIMALI account.",
+    "password.new": "New password",
+    "password.change": "Change password",
+    "password.changed": "Your password was changed.",
+    "password.save": "Save new password",
     "saved.title": "Saved listings",
     "saved.empty": "Tap the heart on a listing to keep it here.",
     "recent.title": "Recently viewed",
@@ -521,6 +548,23 @@ _localizedStrings = <String, Map<String, String>>{
         "Angalia email yako kuthibitisha akaunti, kisha ingia.",
     "account.haveAccount": "Una akaunti tayari? Ingia",
     "account.needAccount": "Ni mara ya kwanza? Fungua akaunti",
+    "settings.title": "Mipangilio ya akaunti",
+    "settings.appearance": "Mwonekano",
+    "settings.profile": "Taarifa za wasifu",
+    "settings.save": "Hifadhi wasifu",
+    "settings.saved": "Wasifu wako umesasishwa.",
+    "theme.system": "Mfumo",
+    "theme.light": "Nyeupe",
+    "theme.dark": "Giza",
+    "password.forgot": "Umesahau nenosiri?",
+    "password.reset": "Weka upya nenosiri",
+    "password.resetSent":
+        "Angalia barua pepe kwa kiungo salama cha kuweka nenosiri upya.",
+    "password.resetHelp": "Weka nenosiri jipya la akaunti yako ya KODIMALI.",
+    "password.new": "Nenosiri jipya",
+    "password.change": "Badilisha nenosiri",
+    "password.changed": "Nenosiri lako limebadilishwa.",
+    "password.save": "Hifadhi nenosiri jipya",
     "saved.title": "Listings ulizohifadhi",
     "saved.empty": "Bonyeza moyo kwenye listing ili ibaki hapa.",
     "recent.title": "Ulizoangalia hivi karibuni",

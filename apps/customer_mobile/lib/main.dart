@@ -51,10 +51,7 @@ class _StartupErrorApp extends StatelessWidget {
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 12),
-                  Text(
-                    message,
-                    textAlign: TextAlign.center,
-                  ),
+                  Text(message, textAlign: TextAlign.center),
                 ],
               ),
             ),

@@ -90,11 +90,13 @@ class _PromotionCard extends StatelessWidget {
               else
                 ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: Image.network(
-                    mediaUrl,
-                    width: double.infinity,
-                    height: 180,
-                    fit: BoxFit.cover,
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: Image.network(
+                      mediaUrl,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
               const SizedBox(height: 14),
@@ -150,6 +152,27 @@ class _TapToPlayPromotionVideoState extends State<_TapToPlayPromotionVideo> {
   Future<void>? _initialization;
 
   @override
+  void initState() {
+    super.initState();
+    _initialization = _initializeAndPlay();
+  }
+
+  Future<void> _initializeAndPlay() async {
+    final VideoPlayerController controller = VideoPlayerController.networkUrl(
+      Uri.parse(widget.videoUrl),
+    );
+    _controller = controller;
+    await controller.initialize();
+    await controller.setVolume(0);
+    await controller.setLooping(true);
+    if (controller.value.duration > const Duration(milliseconds: 500)) {
+      await controller.seekTo(const Duration(milliseconds: 500));
+    }
+    await controller.play();
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
     _controller?.dispose();
     super.dispose();
@@ -157,23 +180,6 @@ class _TapToPlayPromotionVideoState extends State<_TapToPlayPromotionVideo> {
 
   Future<void> _handleTap() async {
     if (_controller == null) {
-      final VideoPlayerController controller = VideoPlayerController.networkUrl(
-        Uri.parse(widget.videoUrl),
-      );
-      final Future<void> initialization = controller.initialize();
-      setState(() {
-        _controller = controller;
-        _initialization = initialization;
-      });
-      await initialization;
-      if (!mounted) {
-        return;
-      }
-      await controller.play();
-      if (!mounted) {
-        return;
-      }
-      setState(() {});
       return;
     }
 
@@ -212,11 +218,17 @@ class _TapToPlayPromotionVideoState extends State<_TapToPlayPromotionVideo> {
 
     return GestureDetector(
       onTap: _handleTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: SizedBox(
-          width: double.infinity,
-          height: 180,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+            width: 0.6,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: AspectRatio(
+          aspectRatio: 1,
           child: controller == null
               ? placeholder
               : FutureBuilder<void>(

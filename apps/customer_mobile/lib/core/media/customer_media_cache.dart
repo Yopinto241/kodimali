@@ -12,5 +12,6 @@ class CustomerMediaCacheManager extends CacheManager {
 
   static const String _cacheKey = "kodimaliCustomerMediaCache";
 
-  static final CustomerMediaCacheManager instance = CustomerMediaCacheManager._();
+  static final CustomerMediaCacheManager instance =
+      CustomerMediaCacheManager._();
 }

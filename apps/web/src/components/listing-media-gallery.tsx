@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { DirectMediaImage } from "@/components/direct-media-image";
+import { SquareMediaVideo } from "@/components/square-media-video";
 
 type MediaItem = {
   media_type?: string | null;
@@ -19,6 +20,7 @@ export function ListingMediaGallery({
 }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const scrollerRef = useRef<HTMLDivElement>(null);
 
   const visibleMedia = useMemo(
     () =>
@@ -35,31 +37,37 @@ export function ListingMediaGallery({
   }
 
   const mainMedia = (
-    <div className="overflow-hidden rounded-[20px] border border-brand-border bg-brand-card-soft">
-      {selected.media_type === "video" ? (
-        <video
-          className="aspect-[16/10] w-full bg-black object-contain"
-          controls
-          playsInline
-          preload="metadata"
-        >
-          <source src={selected.signed_url} type="video/mp4" />
-        </video>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setFullscreenOpen(true)}
-          className="block w-full cursor-zoom-in bg-transparent p-0"
-        >
-          <DirectMediaImage
-            src={selected.signed_url}
-            alt={`${title} media ${selectedIndex + 1}`}
-            priority
-            sizes="(min-width: 1280px) 52vw, (min-width: 1024px) 58vw, 100vw"
-            className="aspect-[16/10] w-full object-cover"
-          />
-        </button>
-      )}
+    <div
+      ref={scrollerRef}
+      className="flex snap-x snap-mandatory overflow-x-auto scroll-smooth rounded-[20px] border border-brand-border/70 bg-brand-card-soft [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      onScroll={(event) => {
+        const node = event.currentTarget;
+        if (node.clientWidth > 0) {
+          setSelectedIndex(Math.round(node.scrollLeft / node.clientWidth));
+        }
+      }}
+    >
+      {visibleMedia.map((item, index) => (
+        <div className="aspect-square w-full shrink-0 snap-center" key={`${item.signed_url}-${index}`}>
+          {item.media_type === "video" ? (
+            <SquareMediaVideo src={item.signed_url!} />
+          ) : (
+            <button
+              type="button"
+              onClick={() => { setSelectedIndex(index); setFullscreenOpen(true); }}
+              className="block h-full w-full cursor-zoom-in bg-transparent p-0"
+            >
+              <DirectMediaImage
+                src={item.signed_url!}
+                alt={`${title} media ${index + 1}`}
+                priority={index === 0}
+                sizes="(min-width: 1280px) 52vw, (min-width: 1024px) 58vw, 100vw"
+                className="aspect-square h-full w-full object-cover"
+              />
+            </button>
+          )}
+        </div>
+      ))}
     </div>
   );
 
@@ -75,13 +83,16 @@ export function ListingMediaGallery({
         <div className="mt-4 space-y-4">
           {mainMedia}
           {visibleMedia.length > 1 ? (
-            <div className="grid grid-cols-4 gap-3 sm:grid-cols-6">
+            <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {visibleMedia.map((item, index) => (
                 <button
                   key={`${item.signed_url}-${index}`}
                   type="button"
-                  onClick={() => setSelectedIndex(index)}
-                  className={`overflow-hidden rounded-2xl border bg-brand-card-soft transition ${
+                  onClick={() => {
+                    setSelectedIndex(index);
+                    scrollerRef.current?.scrollTo({ left: index * scrollerRef.current.clientWidth, behavior: "smooth" });
+                  }}
+                  className={`w-20 shrink-0 snap-start overflow-hidden rounded-2xl border bg-brand-card-soft transition ${
                     index === selectedIndex
                       ? "border-brand-navy shadow-[0_12px_24px_rgba(11,31,58,0.12)]"
                       : "border-brand-border hover:border-brand-border-strong"

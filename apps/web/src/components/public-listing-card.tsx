@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { DirectMediaImage } from "@/components/direct-media-image";
 import { StatusPill } from "@/components/status-pill";
+import { SquareMediaVideo } from "@/components/square-media-video";
 
 type Listing = {
   listing_id: string;
@@ -10,6 +11,7 @@ type Listing = {
   price_period: string;
   category_name: string;
   cover_url?: string | null;
+  cover_media_type?: string | null;
 };
 
 export function PublicListingCard({ listing }: { listing: Listing }) {
@@ -37,15 +39,17 @@ export function PublicListingCard({ listing }: { listing: Listing }) {
         <StatusPill label="Verified" tone="active" />
       </div>
       <div className="relative overflow-hidden rounded-[16px] border border-brand-border bg-brand-card-soft">
-        {listing.cover_url ? (
+        {listing.cover_url && listing.cover_media_type === "video" ? (
+          <SquareMediaVideo src={listing.cover_url} controls={false} />
+        ) : listing.cover_url ? (
           <DirectMediaImage
             src={listing.cover_url}
             alt={listing.title}
             sizes="(min-width: 768px) 50vw, 100vw"
-            className="aspect-[4/3] w-full object-cover"
+            className="aspect-square w-full object-cover"
           />
         ) : (
-          <div className="flex aspect-[4/3] w-full items-center justify-center bg-brand-surface text-muted">
+          <div className="flex aspect-square w-full items-center justify-center bg-brand-surface text-muted">
             Image loading soon
           </div>
         )}

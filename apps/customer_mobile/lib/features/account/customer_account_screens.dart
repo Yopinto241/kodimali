@@ -156,6 +156,16 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
     }
   }
 
+  Future<void> _openSettings() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            CustomerSettingsScreen(repository: widget.accountRepository),
+      ),
+    );
+    if (mounted) await _refresh();
+  }
+
   Future<void> _requestAccountDeletion() async {
     final TextEditingController reasonController = TextEditingController();
     final bool? confirmed = await showDialog<bool>(
@@ -332,6 +342,12 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
             ),
           if (_signedIn) ...<Widget>[
             const SizedBox(height: KodimaliSpacing.sm),
+            OutlinedButton.icon(
+              onPressed: _openSettings,
+              icon: const Icon(Icons.settings_outlined),
+              label: Text(context.tr('settings.title')),
+            ),
+            const SizedBox(height: KodimaliSpacing.xs),
             OutlinedButton.icon(
               onPressed: _claimRequest,
               icon: const Icon(Icons.link_rounded),
@@ -659,6 +675,33 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
     }
   }
 
+  Future<void> _forgotPassword() async {
+    final String email = _emailController.text.trim();
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.tr('request.emailError'))));
+      return;
+    }
+    setState(() => _submitting = true);
+    try {
+      await widget.repository.sendPasswordReset(email);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('password.resetSent'))),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -773,6 +816,14 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                         : null,
                     onFieldSubmitted: (_) => _submitting ? null : _submit(),
                   ),
+                  if (!_createAccount)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _submitting ? null : _forgotPassword,
+                        child: Text(context.tr('password.forgot')),
+                      ),
+                    ),
                   const SizedBox(height: KodimaliSpacing.lg),
                   SizedBox(
                     width: double.infinity,
@@ -811,6 +862,255 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
       ),
     );
   }
+}
+
+class CustomerSettingsScreen extends StatefulWidget {
+  const CustomerSettingsScreen({super.key, required this.repository});
+  final CustomerAccountRepository repository;
+
+  @override
+  State<CustomerSettingsScreen> createState() => _CustomerSettingsScreenState();
+}
+
+class _CustomerSettingsScreenState extends State<CustomerSettingsScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _name = TextEditingController();
+  final _phone = TextEditingController();
+  final _password = TextEditingController();
+  bool _loading = true;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final profile = await widget.repository.fetchMyProfile();
+    if (!mounted) return;
+    _name.text = profile['full_name']?.toString() ?? '';
+    _phone.text = profile['phone_number']?.toString() ?? '';
+    setState(() => _loading = false);
+  }
+
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+    try {
+      await widget.repository.updateProfile(
+        fullName: _name.text,
+        phoneNumber: _phone.text,
+        preferredLanguage: context.languageCode,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(context.tr('settings.saved'))));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _changePassword() async {
+    if (_password.text.length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('account.passwordError'))),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await widget.repository.changePassword(_password.text);
+      _password.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(context.tr('password.changed'))));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _phone.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(context.tr('settings.title'))),
+    body: _loading
+        ? const Center(child: CircularProgressIndicator())
+        : ListView(
+            padding: KodimaliSpacing.screenPadding,
+            children: <Widget>[
+              Text(
+                context.tr('settings.appearance'),
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              SegmentedButton<ThemeMode>(
+                segments: <ButtonSegment<ThemeMode>>[
+                  ButtonSegment(
+                    value: ThemeMode.system,
+                    icon: const Icon(Icons.settings_suggest_outlined),
+                    label: Text(context.tr('theme.system')),
+                  ),
+                  ButtonSegment(
+                    value: ThemeMode.light,
+                    icon: const Icon(Icons.light_mode_outlined),
+                    label: Text(context.tr('theme.light')),
+                  ),
+                  ButtonSegment(
+                    value: ThemeMode.dark,
+                    icon: const Icon(Icons.dark_mode_outlined),
+                    label: Text(context.tr('theme.dark')),
+                  ),
+                ],
+                selected: <ThemeMode>{context.themeMode},
+                onSelectionChanged: (value) =>
+                    context.setThemeMode(value.first),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                context.tr('settings.profile'),
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+              Form(
+                key: _formKey,
+                child: Column(
+                  children: <Widget>[
+                    TextFormField(
+                      controller: _name,
+                      decoration: InputDecoration(
+                        labelText: context.tr('request.fullName'),
+                      ),
+                      validator: (v) => (v?.trim().length ?? 0) < 2
+                          ? context.tr('request.nameError')
+                          : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _phone,
+                      keyboardType: TextInputType.phone,
+                      decoration: InputDecoration(
+                        labelText: context.tr('request.phoneOptional'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _saving ? null : _saveProfile,
+                        child: Text(context.tr('settings.save')),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                context.tr('password.change'),
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _password,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: context.tr('password.new'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: _saving ? null : _changePassword,
+                child: Text(context.tr('password.change')),
+              ),
+            ],
+          ),
+  );
+}
+
+class CustomerPasswordResetScreen extends StatefulWidget {
+  const CustomerPasswordResetScreen({super.key, required this.repository});
+  final CustomerAccountRepository repository;
+  @override
+  State<CustomerPasswordResetScreen> createState() =>
+      _CustomerPasswordResetScreenState();
+}
+
+class _CustomerPasswordResetScreenState
+    extends State<CustomerPasswordResetScreen> {
+  final _password = TextEditingController();
+  bool _busy = false;
+  @override
+  void dispose() {
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_password.text.length < 8) return;
+    setState(() => _busy = true);
+    try {
+      await widget.repository.changePassword(_password.text);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(context.tr('password.changed'))));
+        Navigator.pop(context);
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: Text(context.tr('password.reset'))),
+    body: ListView(
+      padding: KodimaliSpacing.screenPadding,
+      children: <Widget>[
+        Text(context.tr('password.resetHelp')),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _password,
+          obscureText: true,
+          decoration: InputDecoration(labelText: context.tr('password.new')),
+        ),
+        const SizedBox(height: 16),
+        FilledButton(
+          onPressed: _busy ? null : _save,
+          child: Text(context.tr('password.save')),
+        ),
+      ],
+    ),
+  );
 }
 
 class CustomerRequestsScreen extends StatefulWidget {

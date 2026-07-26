@@ -86,6 +86,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
   bool _compressingVideo = false;
   double _videoCompressionProgress = 0;
   int _coverImageIndex = 0;
+  bool _videoIsCover = false;
 
   String? _stringValue(dynamic value) => value is String ? value : null;
 
@@ -796,6 +797,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
   Future<void> _removeVideo() async {
     setState(() {
       _video = null;
+      _videoIsCover = false;
       _videoCompressionResult = null;
       _videoCompressionProgress = 0;
     });
@@ -1088,6 +1090,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
     _videoCompressionResult = null;
     _videoCompressionProgress = 0;
     _coverImageIndex = 0;
+    _videoIsCover = false;
     _applyCategorySchema(_selectedCategory);
   }
 
@@ -1183,6 +1186,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
       return;
     }
     final int coverImageIndex = _coverImageIndex;
+    final bool videoIsCover = _videoIsCover;
     final String manualAreaName = _manualAreaController.text.trim();
     final String title = _titleController.text.trim();
     final String description = _descriptionController.text.trim();
@@ -1244,6 +1248,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
         images: images,
         video: video,
         coverImageIndex: coverImageIndex,
+        videoIsCover: videoIsCover,
         uploadController: controller,
         onProgress: (UploadProgressSnapshot progress) {
           if (!mounted) {
@@ -2010,7 +2015,10 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                         ),
                         onTap: _submitting || _compressingVideo
                             ? null
-                            : () => setState(() => _coverImageIndex = item.key),
+                            : () => setState(() {
+                                _coverImageIndex = item.key;
+                                _videoIsCover = false;
+                              }),
                       ),
                     ),
                   ),
@@ -2018,12 +2026,18 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                   const SizedBox(height: 6),
                   Card(
                     child: ListTile(
-                      leading: const Icon(Icons.videocam_outlined),
+                      leading: Icon(
+                        _videoIsCover
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_off,
+                      ),
                       title: Text(
                         _videoCompressionResult?.originalName ?? _video!.name,
                       ),
                       subtitle: Text(
-                        _videoCompressionResult == null
+                        _videoIsCover
+                            ? "Current cover video. It appears first and autoplays muted."
+                            : _videoCompressionResult == null
                             ? "Video must be selected again before publishing."
                             : "Compressed ${_videoCompressionResult!.reductionPercent.toStringAsFixed(0)}% to "
                                   "${ListingMediaValidator.formatMiB(_videoCompressionResult!.compressedBytes)}. "
@@ -2034,6 +2048,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                         onPressed: _submitting ? null : _removeVideo,
                         icon: const Icon(Icons.delete_outline_rounded),
                       ),
+                      onTap: _submitting
+                          ? null
+                          : () => setState(() => _videoIsCover = true),
                     ),
                   ),
                 ],

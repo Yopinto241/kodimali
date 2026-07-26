@@ -63,19 +63,34 @@ export async function SiteHeader() {
 
             <nav
               aria-label="Primary"
-              className="hidden items-center justify-end rounded-full border border-brand-navy bg-brand-navy px-1 py-1 shadow-[0_16px_34px_rgba(11,31,58,0.18)] lg:flex"
+              className="hidden items-center justify-end rounded-full border border-[#0b1f3a]/20 bg-white px-1 py-1 shadow-[0_12px_28px_rgba(11,31,58,0.10)] lg:flex"
             >
               {primaryNavItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="rounded-full border border-transparent px-4 py-2 text-sm font-semibold text-white transition hover:bg-white hover:text-brand-navy"
+                  className="rounded-full border border-transparent px-4 py-2 text-sm font-bold text-[#0b1f3a] transition hover:bg-[#eaf4d2] hover:text-[#0b1f3a]"
                 >
                   {item.label}
                 </Link>
               ))}
             </nav>
           </div>
+
+          <nav
+            aria-label="Primary mobile"
+            className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:hidden"
+          >
+            {primaryNavItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="shrink-0 rounded-full border border-[#0b1f3a]/20 bg-white px-4 py-2 text-sm font-bold text-[#0b1f3a] shadow-sm"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
 
           <nav aria-label="Categories" className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-3">

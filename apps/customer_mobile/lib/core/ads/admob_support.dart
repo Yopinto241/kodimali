@@ -27,7 +27,8 @@ class CustomerAdMobController {
   bool _privacyOptionsRequired = false;
 
   bool get canShowNativeAds => _canRequestAds && nativeAdUnitId != null;
-  bool get canShowInlineBannerAds => _canRequestAds && inlineBannerUnitId != null;
+  bool get canShowInlineBannerAds =>
+      _canRequestAds && inlineBannerUnitId != null;
   bool get privacyOptionsRequired => _privacyOptionsRequired;
 
   String? get nativeAdUnitId {
@@ -64,7 +65,9 @@ class CustomerAdMobController {
     ConsentInformation.instance.requestConsentInfoUpdate(
       ConsentRequestParameters(),
       () async {
-        await ConsentForm.loadAndShowConsentFormIfRequired((FormError? error) async {
+        await ConsentForm.loadAndShowConsentFormIfRequired((
+          FormError? error,
+        ) async {
           _canRequestAds = await ConsentInformation.instance.canRequestAds();
           _privacyOptionsRequired = await _resolvePrivacyOptionsRequired();
           await _initializeMobileAdsIfAllowed();
@@ -104,7 +107,8 @@ class CustomerAdMobController {
   }
 
   Future<bool> _resolvePrivacyOptionsRequired() async {
-    return await ConsentInformation.instance.getPrivacyOptionsRequirementStatus() ==
+    return await ConsentInformation.instance
+            .getPrivacyOptionsRequirementStatus() ==
         PrivacyOptionsRequirementStatus.required;
   }
 }
@@ -139,10 +143,12 @@ class CustomerInlineBannerAdCard extends StatefulWidget {
   const CustomerInlineBannerAdCard({super.key});
 
   @override
-  State<CustomerInlineBannerAdCard> createState() => _CustomerInlineBannerAdCardState();
+  State<CustomerInlineBannerAdCard> createState() =>
+      _CustomerInlineBannerAdCardState();
 }
 
-class _CustomerInlineBannerAdCardState extends State<CustomerInlineBannerAdCard> {
+class _CustomerInlineBannerAdCardState
+    extends State<CustomerInlineBannerAdCard> {
   BannerAd? _bannerAd;
   double _adHeight = 0;
   int _lastWidth = 0;
@@ -165,14 +171,16 @@ class _CustomerInlineBannerAdCardState extends State<CustomerInlineBannerAdCard>
     _lastWidth = width;
     await _bannerAd?.dispose();
 
-    final AdSize adSize = AdSize.getCurrentOrientationInlineAdaptiveBannerAdSize(width);
+    final AdSize adSize =
+        AdSize.getCurrentOrientationInlineAdaptiveBannerAdSize(width);
     final BannerAd bannerAd = BannerAd(
       size: adSize,
       adUnitId: CustomerAdMobController.instance.inlineBannerUnitId!,
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (Ad ad) async {
-          final AdSize? platformSize = await (ad as BannerAd).getPlatformAdSize();
+          final AdSize? platformSize = await (ad as BannerAd)
+              .getPlatformAdSize();
           if (!mounted) {
             return;
           }
@@ -247,7 +255,8 @@ class CustomerNativeFeedAdCard extends StatefulWidget {
   const CustomerNativeFeedAdCard({super.key});
 
   @override
-  State<CustomerNativeFeedAdCard> createState() => _CustomerNativeFeedAdCardState();
+  State<CustomerNativeFeedAdCard> createState() =>
+      _CustomerNativeFeedAdCardState();
 }
 
 class _CustomerNativeFeedAdCardState extends State<CustomerNativeFeedAdCard> {
@@ -273,9 +282,7 @@ class _CustomerNativeFeedAdCardState extends State<CustomerNativeFeedAdCard> {
 
     final NativeAd nativeAd = NativeAd(
       adUnitId: CustomerAdMobController.instance.nativeAdUnitId!,
-      request: const AdRequest(
-        nonPersonalizedAds: true,
-      ),
+      request: const AdRequest(nonPersonalizedAds: true),
       nativeAdOptions: NativeAdOptions(
         videoOptions: VideoOptions(
           startMuted: true,
@@ -290,12 +297,8 @@ class _CustomerNativeFeedAdCardState extends State<CustomerNativeFeedAdCard> {
           size: 16,
           style: NativeTemplateFontStyle.bold,
         ),
-        secondaryTextStyle: NativeTemplateTextStyle(
-          size: 13,
-        ),
-        tertiaryTextStyle: NativeTemplateTextStyle(
-          size: 12,
-        ),
+        secondaryTextStyle: NativeTemplateTextStyle(size: 13),
+        tertiaryTextStyle: NativeTemplateTextStyle(size: 12),
         callToActionTextStyle: NativeTemplateTextStyle(
           size: 14,
           style: NativeTemplateFontStyle.bold,
@@ -337,10 +340,7 @@ class _CustomerNativeFeedAdCardState extends State<CustomerNativeFeedAdCard> {
               style: Theme.of(context).textTheme.labelLarge,
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              height: 320,
-              child: AdWidget(ad: _nativeAd!),
-            ),
+            SizedBox(height: 320, child: AdWidget(ad: _nativeAd!)),
           ],
         ),
       ),

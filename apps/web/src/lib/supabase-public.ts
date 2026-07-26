@@ -293,6 +293,9 @@ export async function fetchPublicHomeFeed(params: {
       return Promise.all(
         rows.map(async (row: Record<string, unknown>) => ({
           ...row,
+          cover_media_type: isVideoPath(row.cover_storage_path)
+            ? "video"
+            : "image",
           cover_url: await createSignedListingMediaUrl(
             row.cover_storage_path as string | null | undefined,
           ),
@@ -300,6 +303,10 @@ export async function fetchPublicHomeFeed(params: {
       );
     },
   );
+}
+
+function isVideoPath(value: unknown) {
+  return typeof value === "string" && /\.(mp4|webm|mov)$/i.test(value);
 }
 
 export async function fetchPromotions(params: {
@@ -459,6 +466,9 @@ export async function fetchPublicListings(params: {
       return Promise.all(
         rows.map(async (row: Record<string, unknown>) => ({
           ...row,
+          cover_media_type: isVideoPath(row.cover_storage_path)
+            ? "video"
+            : "image",
           cover_url: await createSignedListingMediaUrl(
             row.cover_storage_path as string | null | undefined,
           ),

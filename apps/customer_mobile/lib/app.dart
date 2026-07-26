@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:app_links/app_links.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_design_system/flutter_design_system.dart';
 import 'package:geolocator/geolocator.dart';
@@ -62,7 +63,9 @@ class CustomerApp extends StatefulWidget {
 
 class _CustomerAppState extends State<CustomerApp> {
   static const String _languagePrefKey = "customer_language_code";
+  static const String _themePrefKey = "customer_theme_mode";
   String _languageCode = "sw";
+  ThemeMode _themeMode = ThemeMode.system;
   bool _languageReady = false;
 
   @override
@@ -77,8 +80,19 @@ class _CustomerAppState extends State<CustomerApp> {
     await CustomerActivityStore.instance.initialize(prefs);
     setState(() {
       _languageCode = prefs.getString(_languagePrefKey) ?? "sw";
+      _themeMode = switch (prefs.getString(_themePrefKey)) {
+        "light" => ThemeMode.light,
+        "dark" => ThemeMode.dark,
+        _ => ThemeMode.system,
+      };
       _languageReady = true;
     });
+  }
+
+  Future<void> _setThemeMode(ThemeMode nextThemeMode) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_themePrefKey, nextThemeMode.name);
+    if (mounted) setState(() => _themeMode = nextThemeMode);
   }
 
   Future<void> _setLanguageCode(String nextLanguageCode) async {
@@ -101,12 +115,14 @@ class _CustomerAppState extends State<CustomerApp> {
     return CustomerAppScope(
       languageCode: _languageCode,
       onLanguageChanged: _setLanguageCode,
+      themeMode: _themeMode,
+      onThemeModeChanged: _setThemeMode,
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: appName,
         theme: KodimaliTheme.light(),
         darkTheme: KodimaliTheme.dark(),
-        themeMode: ThemeMode.system,
+        themeMode: _themeMode,
         locale: Locale(_languageCode),
         supportedLocales: const <Locale>[Locale("en"), Locale("sw")],
         localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
@@ -147,6 +163,7 @@ class _CustomerRootState extends State<CustomerRoot> {
   double? _latitude;
   double? _longitude;
   bool _bannerHidden = false;
+  bool _navigationVisible = true;
   bool _loadingPrefs = true;
   double _helpBubbleX = 1;
   double _helpBubbleY = 1;
@@ -154,6 +171,7 @@ class _CustomerRootState extends State<CustomerRoot> {
       CustomerAccountRepository(Supabase.instance.client);
   late final AppLinks _appLinks = AppLinks();
   StreamSubscription<Uri>? _deepLinkSubscription;
+  Timer? _navigationRevealTimer;
   String? _lastOpenedDeepLink;
   DateTime? _lastOpenedDeepLinkAt;
 
@@ -174,6 +192,7 @@ class _CustomerRootState extends State<CustomerRoot> {
   void dispose() {
     WidgetsBinding.instance.removeObserver(_lifecycleObserver);
     unawaited(_deepLinkSubscription?.cancel());
+    _navigationRevealTimer?.cancel();
     super.dispose();
   }
 
@@ -196,6 +215,17 @@ class _CustomerRootState extends State<CustomerRoot> {
             _lastOpenedDeepLinkAt != null &&
             now.difference(_lastOpenedDeepLinkAt!) <
                 const Duration(seconds: 2))) {
+      return;
+    }
+    if (uri.scheme == 'kodimali' && uri.host == 'reset-password') {
+      _lastOpenedDeepLink = uri.toString();
+      _lastOpenedDeepLinkAt = now;
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              CustomerPasswordResetScreen(repository: _accountRepository),
+        ),
+      );
       return;
     }
     String? listingId;
@@ -333,6 +363,29 @@ class _CustomerRootState extends State<CustomerRoot> {
     widget.repository.invalidatePublicDataCache(includeCategories: true);
     setState(() => _refreshTick += 1);
     unawaited(_loadCategoryMenu());
+  }
+
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification is UserScrollNotification) {
+      if (notification.direction == ScrollDirection.reverse) {
+        _navigationRevealTimer?.cancel();
+        if (_navigationVisible) setState(() => _navigationVisible = false);
+      } else {
+        _scheduleNavigationReveal();
+      }
+    } else if (notification is ScrollEndNotification) {
+      _scheduleNavigationReveal();
+    }
+    return false;
+  }
+
+  void _scheduleNavigationReveal() {
+    _navigationRevealTimer?.cancel();
+    _navigationRevealTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted && !_navigationVisible) {
+        setState(() => _navigationVisible = true);
+      }
+    });
   }
 
   Future<void> _useGps() async {
@@ -613,120 +666,137 @@ class _CustomerRootState extends State<CustomerRoot> {
     ];
 
     return Scaffold(
-      body: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final double maxLeft = math.max(
-            constraints.maxWidth - _helpBubbleWidth - 12,
-            12,
-          );
-          final double maxTop = math.max(
-            constraints.maxHeight - _helpBubbleHeight - 12,
-            12,
-          );
-          final double helpLeft = 12 + ((maxLeft - 12) * _helpBubbleX);
-          final double helpTop = 12 + ((maxTop - 12) * _helpBubbleY);
-          return Stack(
-            children: <Widget>[
-              SafeArea(
-                child: IndexedStack(
-                  index: _index,
-                  children: List<Widget>.generate(pages.length, (
-                    int pageIndex,
-                  ) {
-                    if (_visitedIndexes.contains(pageIndex)) {
-                      return pages[pageIndex];
-                    }
-                    return const SizedBox.shrink();
-                  }),
+      body: NotificationListener<ScrollNotification>(
+        onNotification: _handleScrollNotification,
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final double maxLeft = math.max(
+              constraints.maxWidth - _helpBubbleWidth - 12,
+              12,
+            );
+            final double maxTop = math.max(
+              constraints.maxHeight - _helpBubbleHeight - 12,
+              12,
+            );
+            final double helpLeft = 12 + ((maxLeft - 12) * _helpBubbleX);
+            final double helpTop = 12 + ((maxTop - 12) * _helpBubbleY);
+            return Stack(
+              children: <Widget>[
+                SafeArea(
+                  child: IndexedStack(
+                    index: _index,
+                    children: List<Widget>.generate(pages.length, (
+                      int pageIndex,
+                    ) {
+                      if (_visitedIndexes.contains(pageIndex)) {
+                        return pages[pageIndex];
+                      }
+                      return const SizedBox.shrink();
+                    }),
+                  ),
                 ),
-              ),
-              Positioned(
-                left: helpLeft.clamp(12, maxLeft),
-                top: helpTop.clamp(12, maxTop),
-                child: GestureDetector(
-                  onPanUpdate: (DragUpdateDetails details) {
-                    _updateHelpBubblePosition(details, constraints);
-                  },
-                  onPanEnd: (_) => unawaited(_saveHelpBubblePosition()),
-                  child: SizedBox(
-                    width: _helpBubbleWidth,
-                    height: _helpBubbleHeight,
-                    child: Material(
-                      color: Theme.of(context).colorScheme.primaryContainer,
-                      elevation: 6,
-                      borderRadius: BorderRadius.circular(20),
-                      child: InkWell(
+                Positioned(
+                  left: helpLeft.clamp(12, maxLeft),
+                  top: helpTop.clamp(12, maxTop),
+                  child: GestureDetector(
+                    onPanUpdate: (DragUpdateDetails details) {
+                      _updateHelpBubblePosition(details, constraints);
+                    },
+                    onPanEnd: (_) => unawaited(_saveHelpBubblePosition()),
+                    child: SizedBox(
+                      width: _helpBubbleWidth,
+                      height: _helpBubbleHeight,
+                      child: Material(
+                        color: Theme.of(context).colorScheme.primaryContainer,
+                        elevation: 6,
                         borderRadius: BorderRadius.circular(20),
-                        onTap: _openHelp,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          child: Row(
-                            children: <Widget>[
-                              const Icon(Icons.help_rounded),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  context.tr("help.bubble"),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.titleSmall,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: _openHelp,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            child: Row(
+                              children: <Widget>[
+                                const Icon(Icons.help_rounded),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    context.tr("help.bubble"),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleSmall,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 6),
-                              Icon(
-                                Icons.drag_indicator_rounded,
-                                size: 18,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onPrimaryContainer,
-                              ),
-                            ],
+                                const SizedBox(width: 6),
+                                Icon(
+                                  Icons.drag_indicator_rounded,
+                                  size: 18,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimaryContainer,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (int next) {
-          setState(() {
-            _index = next;
-            _visitedIndexes.add(next);
-          });
-        },
-        destinations: <NavigationDestination>[
-          NavigationDestination(
-            icon: const Icon(Icons.home_outlined),
-            label: context.tr("nav.home"),
+      bottomNavigationBar: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+        height: _navigationVisible ? 80 : 0,
+        child: ClipRect(
+          child: OverflowBox(
+            alignment: Alignment.topCenter,
+            minHeight: 80,
+            maxHeight: 80,
+            child: NavigationBar(
+              selectedIndex: _index,
+              onDestinationSelected: (int next) {
+                setState(() {
+                  _index = next;
+                  _visitedIndexes.add(next);
+                });
+              },
+              destinations: <NavigationDestination>[
+                NavigationDestination(
+                  icon: const Icon(Icons.home_outlined),
+                  label: context.tr("nav.home"),
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.apartment_outlined),
+                  label: context.tr("nav.apartments"),
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.house_outlined),
+                  label: context.tr("nav.houses"),
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.directions_car_outlined),
+                  label: context.tr("nav.cars"),
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.search_outlined),
+                  label: context.tr("nav.search"),
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.person_outline_rounded),
+                  selectedIcon: const Icon(Icons.person_rounded),
+                  label: context.tr('nav.account'),
+                ),
+              ],
+            ),
           ),
-          NavigationDestination(
-            icon: const Icon(Icons.apartment_outlined),
-            label: context.tr("nav.apartments"),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.house_outlined),
-            label: context.tr("nav.houses"),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.directions_car_outlined),
-            label: context.tr("nav.cars"),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.search_outlined),
-            label: context.tr("nav.search"),
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.person_outline_rounded),
-            selectedIcon: const Icon(Icons.person_rounded),
-            label: context.tr('nav.account'),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -2560,6 +2630,7 @@ class PublicListingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final String? coverUrl = listing["cover_url"] as String?;
     final String? coverStoragePath = listing["cover_storage_path"] as String?;
+    final bool coverIsVideo = listing["cover_media_type"] == "video";
     final ThemeData theme = Theme.of(context);
     final String categoryName =
         listing["category_name"] as String? ?? "Listing";
@@ -2646,7 +2717,7 @@ class PublicListingCard extends StatelessWidget {
                   );
                 },
                 child: AspectRatio(
-                  aspectRatio: 4 / 3,
+                  aspectRatio: 1,
                   child: Stack(
                     fit: StackFit.expand,
                     children: <Widget>[
@@ -2658,6 +2729,13 @@ class PublicListingCard extends StatelessWidget {
                                 Icons.image_outlined,
                                 size: 52,
                                 color: theme.colorScheme.onPrimaryContainer,
+                              ),
+                            )
+                          : coverIsVideo
+                          ? AbsorbPointer(
+                              child: _AutoPlayListingVideo(
+                                videoUrl: coverUrl,
+                                cacheKey: coverStoragePath ?? coverUrl,
                               ),
                             )
                           : _NetworkMediaImage(
@@ -2675,6 +2753,18 @@ class PublicListingCard extends StatelessWidget {
                               Colors.transparent,
                               Colors.black.withValues(alpha: 0.12),
                             ],
+                          ),
+                        ),
+                      ),
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: theme.colorScheme.outlineVariant,
+                                width: 0.6,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -3266,8 +3356,15 @@ class _ListingMediaGalleryState extends State<_ListingMediaGallery> {
                   mediaItem["storage_path"] as String? ??
                   mediaItem["signed_url"] as String? ??
                   "listing-media-$index";
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(24),
+              return Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                    width: 0.6,
+                  ),
+                ),
+                clipBehavior: Clip.antiAlias,
                 child: mediaItem["media_type"] == "video"
                     ? _AutoPlayListingVideo(
                         videoUrl: signedUrl,
@@ -3379,8 +3476,12 @@ class _AutoPlayListingVideoState extends State<_AutoPlayListingVideo> {
     );
     _controller = controller;
     await controller.initialize();
-    await controller.setLooping(false);
+    await controller.setLooping(true);
     await controller.setVolume(0);
+    if (controller.value.duration > const Duration(milliseconds: 500)) {
+      await controller.seekTo(const Duration(milliseconds: 500));
+    }
+    await controller.play();
   }
 
   @override
@@ -4772,7 +4873,7 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
     const Color heroBrownLight = Color(0xFF8A5A35);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(KodimaliSpacing.sm),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: <Color>[heroBrownDark, heroBrownLight],
@@ -4787,78 +4888,53 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
       child: Column(
         children: <Widget>[
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
+                mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
                   Text(
                     "KODIMALI",
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: KodimaliSpacing.xs),
-                  PopupMenuButton<String>(
-                    tooltip: context.tr("nav.categories"),
-                    onSelected: (String value) {
-                      if (value == "__all__") {
-                        widget.onOpenCategoriesOverview();
-                        return;
-                      }
-                      final String slug = value.replaceFirst("slug:", "");
-                      for (final Map<String, dynamic> category
-                          in widget.categoryMenuItems) {
-                        if (category["slug"] == slug) {
-                          widget.onOpenCategory(category);
+                  SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: PopupMenuButton<String>(
+                      tooltip: context.tr("nav.categories"),
+                      onSelected: (String value) {
+                        if (value == "__all__") {
+                          widget.onOpenCategoriesOverview();
                           return;
                         }
-                      }
-                    },
-                    itemBuilder: (BuildContext context) =>
-                        _buildCategoryMenuItems(context),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 9,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(
-                          KodimaliRadii.input,
-                        ),
-                        border: Border.all(color: Colors.white30),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          const Icon(
-                            Icons.menu_rounded,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          const SizedBox(width: KodimaliSpacing.xs),
-                          Text(
-                            context.tr("nav.categories"),
-                            style: Theme.of(context).textTheme.labelLarge
-                                ?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                        ],
+                        final String slug = value.replaceFirst("slug:", "");
+                        for (final Map<String, dynamic> category
+                            in widget.categoryMenuItems) {
+                          if (category["slug"] == slug) {
+                            widget.onOpenCategory(category);
+                            return;
+                          }
+                        }
+                      },
+                      itemBuilder: (BuildContext context) =>
+                          _buildCategoryMenuItems(context),
+                      icon: const Icon(
+                        Icons.menu_rounded,
+                        color: Colors.white,
+                        size: 20,
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(width: KodimaliSpacing.sm),
+              const SizedBox(width: 4),
               Expanded(
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
-                  height: 40,
-                  margin: const EdgeInsets.only(top: 2),
+                  height: 36,
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(KodimaliRadii.input),
@@ -4927,13 +5003,10 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
                 ),
               ),
               const SizedBox(width: KodimaliSpacing.xs),
-              const Padding(
-                padding: EdgeInsets.only(top: 2),
-                child: _LanguageSwitcherButton(compact: false),
-              ),
+              const _LanguageSwitcherButton(compact: true),
             ],
           ),
-          const SizedBox(height: KodimaliSpacing.xs),
+          const SizedBox(height: 2),
           LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
               final bool compactActions = constraints.maxWidth < 320;

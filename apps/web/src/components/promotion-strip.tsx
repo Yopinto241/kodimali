@@ -1,5 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 
+import { SquareMediaVideo } from "@/components/square-media-video";
+
 type Promotion = {
   promotion_id: string;
   title: string;
@@ -22,11 +24,11 @@ export function PromotionStrip({
 
   return (
     <section className="py-4">
-      <div className="grid gap-4">
+      <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {promotions.map((promotion) => (
           <article
             key={promotion.promotion_id}
-            className="surface-card rounded-[20px] p-5 sm:p-6"
+            className="surface-card w-full shrink-0 snap-center rounded-[20px] p-5 sm:p-6"
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -40,22 +42,17 @@ export function PromotionStrip({
               </span>
             </div>
             {promotion.media_url ? (
-              <div className="mt-4 overflow-hidden rounded-[16px] border border-brand-border bg-brand-card-soft">
+              <div className="mt-4 overflow-hidden rounded-[16px] border border-brand-border/70 bg-brand-card-soft">
                 {promotion.media_type === "video" ? (
-                  <video
-                    className="aspect-[16/9] w-full bg-black object-cover"
-                    controls
-                    playsInline
-                    preload="none"
-                    poster={promotion.thumbnail_url ?? undefined}
-                  >
-                    <source src={promotion.media_url} type="video/mp4" />
-                  </video>
+                  <SquareMediaVideo
+                    src={promotion.media_url}
+                    poster={promotion.thumbnail_url}
+                  />
                 ) : (
                   <img
                     src={promotion.media_url}
                     alt={promotion.title}
-                    className="aspect-[16/9] w-full object-cover"
+                    className="aspect-square w-full object-cover"
                   />
                 )}
               </div>

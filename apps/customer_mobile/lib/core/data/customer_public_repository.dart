@@ -154,6 +154,9 @@ class CustomerPublicRepository {
         rows.map(
           (JsonMap row) async => <String, dynamic>{
             ...row,
+            "cover_media_type": _isVideoPath(row["cover_storage_path"])
+                ? "video"
+                : "image",
             "cover_url": await _signListingMediaPath(
               row["cover_storage_path"] as String?,
             ),
@@ -225,6 +228,9 @@ class CustomerPublicRepository {
         rows.map(
           (JsonMap row) async => <String, dynamic>{
             ...row,
+            "cover_media_type": _isVideoPath(row["cover_storage_path"])
+                ? "video"
+                : "image",
             "media_url": await _signPromotionMediaPath(
               row["media_path"] as String?,
             ),
@@ -897,6 +903,9 @@ class CustomerPublicRepository {
       if (url == null || url.isEmpty) {
         continue;
       }
+      if (listing["cover_media_type"] == "video") {
+        continue;
+      }
       final String key =
           listing["cover_storage_path"] as String? ??
           listing["listing_id"] as String? ??
@@ -904,6 +913,10 @@ class CustomerPublicRepository {
       unawaited(CustomerMediaCacheManager.instance.downloadFile(url, key: key));
     }
   }
+
+  bool _isVideoPath(dynamic value) =>
+      value is String &&
+      RegExp(r'\.(mp4|webm|mov)$', caseSensitive: false).hasMatch(value);
 
   void _prefetchListingDetailMedia(List<JsonMap> mediaItems) {
     for (final JsonMap media in mediaItems.take(5)) {

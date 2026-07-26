@@ -1325,6 +1325,7 @@ class ManageRepository {
     required List<XFile> images,
     required XFile? video,
     required int coverImageIndex,
+    required bool videoIsCover,
     UploadTaskController? uploadController,
     UploadProgressCallback? onProgress,
   }) async {
@@ -1339,6 +1340,9 @@ class ManageRepository {
     }
     if (video != null) {
       await ListingMediaValidator.validateCompressedVideo(video);
+    }
+    if (videoIsCover && video == null) {
+      throw StateError('Choose a video before setting it as the cover.');
     }
     final String normalizedCategoryId = _requiredInputId(
       categoryId,
@@ -1472,6 +1476,7 @@ class ManageRepository {
         images: images,
         video: video,
         coverImageIndex: coverImageIndex,
+        videoIsCover: videoIsCover,
         uploadController: uploadController,
         onProgress: (UploadProgressSnapshot progress) {
           final double base = totalSteps == 0 ? 0 : completedSteps / totalSteps;
@@ -1586,6 +1591,7 @@ class ManageRepository {
     required List<XFile> images,
     required XFile? video,
     required int coverImageIndex,
+    required bool videoIsCover,
   }) async {
     final String normalizedTitle = ListingContentValidator.requireValidTitle(
       title,
@@ -1598,6 +1604,9 @@ class ManageRepository {
     }
     if (video != null) {
       await ListingMediaValidator.validateCompressedVideo(video);
+    }
+    if (videoIsCover && video == null) {
+      throw StateError("Choose a video before setting it as the cover.");
     }
     _validatedPrivateCoordinates(latitude, longitude);
 
@@ -1707,6 +1716,7 @@ class ManageRepository {
         images: images,
         video: video,
         coverImageIndex: coverImageIndex,
+        videoIsCover: videoIsCover,
         uploadedPaths: uploadedPaths,
       );
 
@@ -3382,6 +3392,7 @@ class ManageRepository {
     required List<XFile> images,
     required XFile? video,
     required int coverImageIndex,
+    required bool videoIsCover,
     UploadTaskController? uploadController,
     UploadProgressCallback? onProgress,
     List<String>? uploadedPaths,
@@ -3445,8 +3456,8 @@ class ManageRepository {
           "listing_id": listingId,
           "media_type": "image",
           "storage_path": path,
-          "display_order": index,
-          "is_cover": index == coverImageIndex,
+          "display_order": videoIsCover ? index + 1 : index,
+          "is_cover": !videoIsCover && index == coverImageIndex,
         });
       } catch (error, stackTrace) {
         Error.throwWithStackTrace(
@@ -3495,8 +3506,8 @@ class ManageRepository {
           "listing_id": listingId,
           "media_type": "video",
           "storage_path": path,
-          "display_order": images.length,
-          "is_cover": false,
+          "display_order": videoIsCover ? 0 : images.length,
+          "is_cover": videoIsCover,
         });
       } catch (error, stackTrace) {
         Error.throwWithStackTrace(

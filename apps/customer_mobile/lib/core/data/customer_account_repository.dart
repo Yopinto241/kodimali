@@ -47,6 +47,42 @@ class CustomerAccountRepository {
 
   Future<void> signOut() => _client.auth.signOut();
 
+  Future<void> sendPasswordReset(String email) =>
+      _client.auth.resetPasswordForEmail(
+        email.trim().toLowerCase(),
+        redirectTo: 'kodimali://reset-password',
+      );
+
+  Future<void> changePassword(String newPassword) =>
+      _client.auth.updateUser(UserAttributes(password: newPassword));
+
+  Future<void> updateProfile({
+    required String fullName,
+    String? phoneNumber,
+    required String preferredLanguage,
+  }) async {
+    final User user = _requireUser();
+    final CustomerJson values = <String, dynamic>{
+      'id': user.id,
+      'full_name': fullName.trim(),
+      'phone_number': phoneNumber?.trim().isEmpty == true
+          ? null
+          : phoneNumber?.trim(),
+      'preferred_language': preferredLanguage,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    };
+    await _client.from('profiles').upsert(values, onConflict: 'id');
+    await _client.auth.updateUser(
+      UserAttributes(
+        data: <String, dynamic>{
+          'full_name': values['full_name'],
+          'phone_number': values['phone_number'],
+          'preferred_language': preferredLanguage,
+        },
+      ),
+    );
+  }
+
   Future<CustomerJson> fetchMyProfile() async {
     final User? user = currentUser;
     if (user == null) {
