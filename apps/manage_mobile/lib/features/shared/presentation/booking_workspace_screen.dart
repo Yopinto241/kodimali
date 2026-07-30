@@ -27,7 +27,6 @@ class BookingWorkspaceScreen extends StatefulWidget {
 }
 
 class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
-  final TextEditingController _messageController = TextEditingController();
   late Future<Map<String, dynamic>> _future;
   Timer? _chatTimer;
   bool _initialized = false;
@@ -57,7 +56,6 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
   @override
   void dispose() {
     _chatTimer?.cancel();
-    _messageController.dispose();
     super.dispose();
   }
 
@@ -137,27 +135,18 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
     }
   }
 
-  Future<void> _sendMessage(String conversationId) async {
-    final String body = _messageController.text.trim();
-    if (body.isEmpty) {
-      return;
-    }
+  Future<void> _sendResponse(String conversationId, String responseCode) async {
     await _run(
-      () => AppScope.of(context).repository.sendBookingMessage(
+      () => AppScope.of(context).repository.sendBookingResponse(
         conversationId: conversationId,
-        body: body,
+        responseCode: responseCode,
       ),
     );
-    if (mounted) {
-      _messageController.clear();
-    }
   }
 
   Future<void> _proposeViewing() async {
     DateTime selectedDate = DateTime.now().add(const Duration(days: 1));
     TimeOfDay selectedTime = const TimeOfDay(hour: 10, minute: 0);
-    int durationMinutes = 60;
-    final TextEditingController noteController = TextEditingController();
     final bool? shouldSave = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -207,29 +196,6 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                         }
                       },
                     ),
-                    DropdownButtonFormField<int>(
-                      initialValue: durationMinutes,
-                      decoration: const InputDecoration(labelText: "Duration"),
-                      items: const <DropdownMenuItem<int>>[
-                        DropdownMenuItem(value: 30, child: Text("30 minutes")),
-                        DropdownMenuItem(value: 60, child: Text("1 hour")),
-                        DropdownMenuItem(value: 90, child: Text("1.5 hours")),
-                        DropdownMenuItem(value: 120, child: Text("2 hours")),
-                      ],
-                      onChanged: (int? value) {
-                        if (value != null) {
-                          setDialogState(() => durationMinutes = value);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: noteController,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: "Meeting point or note",
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -249,7 +215,6 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
       },
     );
     if (shouldSave != true || !mounted) {
-      noteController.dispose();
       return;
     }
     final DateTime startAt = DateTime(
@@ -259,14 +224,12 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
       selectedTime.hour,
       selectedTime.minute,
     );
-    final String note = noteController.text;
-    noteController.dispose();
     await _run(
       () => AppScope.of(context).repository.proposeViewingAppointment(
         bookingId: _bookingId,
         startAt: startAt,
-        endAt: startAt.add(Duration(minutes: durationMinutes)),
-        locationNote: note,
+        endAt: startAt.add(const Duration(hours: 1)),
+        locationNote: null,
       ),
     );
   }
@@ -536,16 +499,6 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                     ),
                   ],
                 ),
-                if ((latest["location_note"] as String?)?.isNotEmpty ==
-                    true) ...<Widget>[
-                  const SizedBox(height: 8),
-                  Text("Meeting point: ${latest["location_note"]}"),
-                ],
-                if ((latest["response_note"] as String?)?.isNotEmpty ==
-                    true) ...<Widget>[
-                  const SizedBox(height: 8),
-                  Text("Response: ${latest["response_note"]}"),
-                ],
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 10,
@@ -596,28 +549,28 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
     final String? conversationId = conversation?["id"] as String?;
     if (!_hasCustomerAccount) {
       return const ManagePanel(
-        title: "In-app chat",
-        subtitle: "Chat requires a customer account linked to this request.",
+        title: "Request follow-up",
+        subtitle: "Structured responses require a linked customer account.",
         child: Text(
-          "This was sent as a guest request. Call or WhatsApp the customer; chat becomes available only after the customer signs in and claims the matching request.",
+          "This guest request can be followed through status changes and viewing appointments. Free-text messaging is not available.",
         ),
       );
     }
     if (conversationId == null) {
       return const ManagePanel(
-        title: "In-app chat",
+        title: "Request follow-up",
         subtitle: "The customer account is linked.",
         child: Text(
-          "Chat is not available from the server yet. Direct Call and WhatsApp actions remain available above.",
+          "Structured responses are not available from the server yet.",
         ),
       );
     }
     final String currentUserId =
         AppScope.of(context).controller.currentUser?.id ?? "";
     return ManagePanel(
-      title: "Chat with customer",
+      title: "Request follow-up",
       subtitle:
-          "Messages are linked to this request and refresh automatically.",
+          "Only safe predefined responses are allowed. Private conversation remains in paid listing chat.",
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
@@ -660,28 +613,38 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                 ),
               );
             }),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: TextField(
-                  controller: _messageController,
-                  minLines: 1,
-                  maxLines: 4,
-                  textInputAction: TextInputAction.newline,
-                  decoration: const InputDecoration(
-                    labelText: "Reply to customer",
-                    hintText: "Confirm availability or next step",
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              IconButton.filled(
-                tooltip: "Send message",
-                onPressed: _busy ? null : () => _sendMessage(conversationId),
-                icon: const Icon(Icons.send_rounded),
-              ),
-            ],
-          ),
+          if (widget.isAdmin)
+            const Text(
+              "Administrators can review this follow-up but cannot send responses or contact details.",
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children:
+                  const <MapEntry<String, String>>[
+                        MapEntry('request_received', 'Request received'),
+                        MapEntry(
+                          'checking_availability',
+                          'Checking availability',
+                        ),
+                        MapEntry('available', 'Available'),
+                        MapEntry('unavailable', 'Not available'),
+                        MapEntry('will_call', 'I will call you'),
+                        MapEntry('viewing_proposed', 'Viewing proposed'),
+                        MapEntry('need_more_time', 'Need more time'),
+                      ]
+                      .map(
+                        (response) => ActionChip(
+                          label: Text(response.value),
+                          onPressed: _busy
+                              ? null
+                              : () =>
+                                    _sendResponse(conversationId, response.key),
+                        ),
+                      )
+                      .toList(),
+            ),
         ],
       ),
     );

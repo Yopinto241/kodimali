@@ -16,7 +16,7 @@ class CustomerPublicRepository {
   static const int _listingMediaSignedUrlSeconds = 3600;
   static const int _promotionMediaSignedUrlSeconds = 3600;
   static const Duration _categoryCacheTtl = Duration(minutes: 30);
-  static const Duration _promotionCacheTtl = Duration(minutes: 5);
+  static const Duration _promotionCacheTtl = Duration(minutes: 1);
   static const Duration _feedCacheTtl = Duration(minutes: 2);
   static const Duration _listingDetailCacheTtl = Duration(seconds: 30);
   static final Map<String, _SignedUrlCacheEntry> _listingMediaUrlCache =
@@ -139,8 +139,8 @@ class CustomerPublicRepository {
       longitude: longitude,
     );
     try {
-      final List<JsonMap> rows = await _fetchHomeFeedRows(
-        limit: limit,
+      List<JsonMap> rows = await _fetchHomeFeedRows(
+        limit: page == 0 ? (limit * 5).clamp(50, 100) : limit,
         page: page,
         regionId: regionId,
         districtId: districtId,
@@ -150,6 +150,30 @@ class CustomerPublicRepository {
         longitude: longitude,
         sessionSeed: sessionSeed,
       );
+      if (page == 0) {
+        try {
+          final List<JsonMap> ranked =
+              (await _client.rpc(
+                        'get_recommended_listing_ids',
+                        params: <String, dynamic>{'p_limit': 100},
+                      )
+                      as List)
+                  .cast<JsonMap>();
+          final Map<String, int> order = <String, int>{
+            for (int i = 0; i < ranked.length; i++)
+              ranked[i]['listing_id'].toString(): i,
+          };
+          rows = List<JsonMap>.from(rows)
+            ..sort(
+              (a, b) => (order[a['listing_id']?.toString()] ?? 10000).compareTo(
+                order[b['listing_id']?.toString()] ?? 10000,
+              ),
+            );
+          rows = rows.take(limit).toList(growable: false);
+        } catch (_) {
+          // The regular feed remains available if ranking is temporarily unavailable.
+        }
+      }
       final List<JsonMap> feed = await Future.wait(
         rows.map(
           (JsonMap row) async => <String, dynamic>{
@@ -302,6 +326,10 @@ class CustomerPublicRepository {
     double? latitude,
     double? longitude,
     String? sessionSeed,
+    double? minPrice,
+    double? maxPrice,
+    String? pricePeriod,
+    String sort = "recommended",
   }) async {
     final String cacheKey = [
       categorySlug ?? "",
@@ -315,6 +343,10 @@ class CustomerPublicRepository {
       latitude?.toStringAsFixed(4) ?? "",
       longitude?.toStringAsFixed(4) ?? "",
       sessionSeed ?? "",
+      minPrice ?? "",
+      maxPrice ?? "",
+      pricePeriod ?? "",
+      sort,
     ].join("|");
     final _ListCacheEntry<JsonMap>? cached = _publicListingsCache[cacheKey];
     if (cached != null && cached.expiresAt.isAfter(DateTime.now())) {
@@ -344,6 +376,10 @@ class CustomerPublicRepository {
         latitude: latitude,
         longitude: longitude,
         sessionSeed: sessionSeed,
+        minPrice: minPrice,
+        maxPrice: maxPrice,
+        pricePeriod: pricePeriod,
+        sort: sort,
       );
       final List<JsonMap> listings = await Future.wait(
         rows.map(
@@ -464,10 +500,14 @@ class CustomerPublicRepository {
     required double? latitude,
     required double? longitude,
     required String? sessionSeed,
+    required double? minPrice,
+    required double? maxPrice,
+    required String? pricePeriod,
+    required String sort,
   }) async {
     try {
       return (await _client.rpc(
-        "get_public_listings",
+        "search_public_listings_v2",
         params: <String, dynamic>{
           "p_category_slug": categorySlug,
           "p_search_text": searchText,
@@ -480,12 +520,17 @@ class CustomerPublicRepository {
           "p_latitude": latitude,
           "p_longitude": longitude,
           "p_session_seed": sessionSeed,
+          "p_min_price": minPrice,
+          "p_max_price": maxPrice,
+          "p_price_period": pricePeriod,
+          "p_sort": sort,
         },
       )).cast<JsonMap>();
     } on PostgrestException catch (error) {
       if (!_isMissingRpcSignature(error)) {
         rethrow;
       }
+      // Compatibility while the advanced-search migration is being deployed.
       return (await _client.rpc(
         "get_public_listings",
         params: <String, dynamic>{
@@ -538,6 +583,16 @@ class CustomerPublicRepository {
         throw StateError("Listing not found.");
       }
       final JsonMap row = (rows.first as Map).cast<String, dynamic>();
+      JsonMap trust = <String, dynamic>{};
+      try {
+        final dynamic value = await _client.rpc(
+          'agent_trust_summary',
+          params: <String, dynamic>{'p_agent_id': row['agent_id']},
+        );
+        if (value is Map) trust = Map<String, dynamic>.from(value);
+      } catch (_) {
+        // Listing detail remains available while trust metrics are refreshed.
+      }
       final List<dynamic> mediaRows =
           row["media"] as List<dynamic>? ?? <dynamic>[];
       final List<JsonMap> signedMedia = await Future.wait(
@@ -577,6 +632,7 @@ class CustomerPublicRepository {
           "location_label": row["agent_location_label"],
           "verification_status": row["agent_verification_status"],
           "verified_at": row["agent_verified_at"],
+          ...trust,
           "profile_photo_url": _publicAgentPhotoUrl(
             row["agent_profile_photo_path"] as String?,
           ),
@@ -697,6 +753,8 @@ class CustomerPublicRepository {
         "phone_number": payload["phoneNumber"] ?? cached["phone_number"],
         "agent_display_name":
             payload["agentDisplayName"] ?? cached["agent_display_name"],
+        "access_expires_at":
+            payload["accessExpiresAt"] ?? cached["access_expires_at"],
         "updated_at": DateTime.now().toIso8601String(),
       };
       await CustomerSnapshotStore.saveContactAccess(listingId, updated);

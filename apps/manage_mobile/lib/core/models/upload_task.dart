@@ -12,9 +12,7 @@ class UploadProgressSnapshot {
   final bool canCancel;
 }
 
-typedef UploadProgressCallback = void Function(
-  UploadProgressSnapshot progress,
-);
+typedef UploadProgressCallback = void Function(UploadProgressSnapshot progress);
 
 class UploadTaskController {
   final StorageRetryController retryController = StorageRetryController();

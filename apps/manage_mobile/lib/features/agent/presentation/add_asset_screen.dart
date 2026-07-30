@@ -56,9 +56,11 @@ class _AddAssetScreenState extends State<AddAssetScreen>
   UploadTaskController? _uploadController;
   UploadProgressSnapshot? _uploadProgress;
   Timer? _draftTimer;
+  Timer? _publicationModeTimer;
   bool _draftReady = false;
   bool _draftRestored = false;
   DateTime? _draftSavedAt;
+  bool _listingPaymentRequired = false;
 
   List<Map<String, dynamic>> _owners = <Map<String, dynamic>>[];
   String? _selectedOwnerId;
@@ -158,6 +160,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_loadPublicationMode());
+    }
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
@@ -373,6 +378,10 @@ class _AddAssetScreenState extends State<AddAssetScreen>
       return;
     }
     _bootstrapped = true;
+    _publicationModeTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => unawaited(_loadPublicationMode()),
+    );
     _bootstrap();
   }
 
@@ -386,6 +395,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
         _loadOwners(),
         _loadLocationHierarchy(),
         _loadCategories(),
+        _loadPublicationMode(),
       ]);
       await _restoreDraft();
       if (!mounted) {
@@ -403,10 +413,21 @@ class _AddAssetScreenState extends State<AddAssetScreen>
     }
   }
 
+  Future<void> _loadPublicationMode() async {
+    final mode = await AppScope.of(
+      context,
+    ).repository.fetchAgentListingPublicationMode();
+    if (!mounted) return;
+    setState(() {
+      _listingPaymentRequired = mode['payment_required'] as bool? ?? true;
+    });
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _draftTimer?.cancel();
+    _publicationModeTimer?.cancel();
     if (_compressingVideo) {
       unawaited(_videoCompressor.cancel());
     }
@@ -1223,7 +1244,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
               manualAreaName: manualAreaName,
             )
           : null;
-      await repository.submitDynamicListing(
+      final String listingId = await repository.submitDynamicListing(
         categoryId: categoryId,
         existingOwnerId: existingOwnerId,
         ownerName: ownerName,
@@ -1257,12 +1278,53 @@ class _AddAssetScreenState extends State<AddAssetScreen>
           setState(() => _uploadProgress = progress);
         },
       );
+      final Map<String, dynamic> payment = await repository
+          .createAgentListingPayment(listingId);
+      final bool paymentRequired = payment["paymentRequired"] as bool? ?? true;
+      String paymentStatus = payment["paymentStatus"]?.toString() ?? "pending";
+      final String? paymentId = payment["paymentId"]?.toString();
+      if (paymentRequired && paymentId != null && paymentStatus != "paid") {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                "TSh 1,000 payment request sent. Confirm it on your agent phone.",
+              ),
+            ),
+          );
+        }
+        for (
+          int attempt = 0;
+          attempt < 20 && paymentStatus != "paid";
+          attempt += 1
+        ) {
+          await Future<void>.delayed(const Duration(seconds: 3));
+          final Map<String, dynamic> checked = await repository
+              .checkAgentListingPayment(paymentId);
+          paymentStatus = checked["paymentStatus"]?.toString() ?? paymentStatus;
+          if (<String>{
+            "failed",
+            "expired",
+            "cancelled",
+          }.contains(paymentStatus)) {
+            break;
+          }
+        }
+      }
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Listing is now live on the marketplace."),
+        SnackBar(
+          content: Text(
+            !paymentRequired
+                ? "Listing published. Agent listing publication is currently free."
+                : paymentStatus == "paid"
+                ? "Payment confirmed. Listing is now live on the marketplace."
+                : paymentRequired
+                ? "Listing saved privately. Complete the TSh 1,000 payment to publish it."
+                : "Listing published.",
+          ),
         ),
       );
       await _videoCompressor.clearCache();
@@ -1375,6 +1437,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                 _draftSavedAt == null
                     ? "Draft autosave ready"
                     : "Draft saved ${TimeOfDay.fromDateTime(_draftSavedAt!).format(context)}",
+                _listingPaymentRequired
+                    ? "Publication fee: TSh 1,000"
+                    : "Publication is currently FREE",
               ],
             ),
           ),
@@ -2090,7 +2155,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                   ? "Inatuma..."
                   : _compressingVideo
                   ? "Compressing video..."
-                  : "Publish listing",
+                  : _listingPaymentRequired
+                  ? "Save and pay TSh 1,000"
+                  : "Publish listing free",
             ),
           ),
           const SizedBox(height: 10),

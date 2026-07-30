@@ -23,7 +23,8 @@ class ManageAdMobController {
   bool _privacyOptionsRequired = false;
   Future<void>? _initializationFuture;
 
-  bool get canShowInlineBannerAds => _canRequestAds && inlineBannerUnitId != null;
+  bool get canShowInlineBannerAds =>
+      _canRequestAds && inlineBannerUnitId != null;
   bool get privacyOptionsRequired => _privacyOptionsRequired;
 
   String? get inlineBannerUnitId {
@@ -63,7 +64,9 @@ class ManageAdMobController {
     ConsentInformation.instance.requestConsentInfoUpdate(
       ConsentRequestParameters(),
       () async {
-        await ConsentForm.loadAndShowConsentFormIfRequired((FormError? error) async {
+        await ConsentForm.loadAndShowConsentFormIfRequired((
+          FormError? error,
+        ) async {
           _canRequestAds = await ConsentInformation.instance.canRequestAds();
           _privacyOptionsRequired = await _resolvePrivacyOptionsRequired();
           await _initializeMobileAdsIfAllowed();
@@ -103,7 +106,8 @@ class ManageAdMobController {
   }
 
   Future<bool> _resolvePrivacyOptionsRequired() async {
-    return await ConsentInformation.instance.getPrivacyOptionsRequirementStatus() ==
+    return await ConsentInformation.instance
+            .getPrivacyOptionsRequirementStatus() ==
         PrivacyOptionsRequirementStatus.required;
   }
 }
@@ -139,7 +143,8 @@ class ManageInlineBannerAdCard extends StatefulWidget {
   const ManageInlineBannerAdCard({super.key});
 
   @override
-  State<ManageInlineBannerAdCard> createState() => _ManageInlineBannerAdCardState();
+  State<ManageInlineBannerAdCard> createState() =>
+      _ManageInlineBannerAdCardState();
 }
 
 class _ManageInlineBannerAdCardState extends State<ManageInlineBannerAdCard> {
@@ -165,14 +170,16 @@ class _ManageInlineBannerAdCardState extends State<ManageInlineBannerAdCard> {
     _lastWidth = width;
     await _bannerAd?.dispose();
 
-    final AdSize adSize = AdSize.getCurrentOrientationInlineAdaptiveBannerAdSize(width);
+    final AdSize adSize =
+        AdSize.getCurrentOrientationInlineAdaptiveBannerAdSize(width);
     final BannerAd bannerAd = BannerAd(
       size: adSize,
       adUnitId: ManageAdMobController.instance.inlineBannerUnitId!,
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (Ad ad) async {
-          final AdSize? platformSize = await (ad as BannerAd).getPlatformAdSize();
+          final AdSize? platformSize = await (ad as BannerAd)
+              .getPlatformAdSize();
           if (!mounted) {
             return;
           }

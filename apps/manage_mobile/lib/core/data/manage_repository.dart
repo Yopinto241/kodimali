@@ -16,6 +16,7 @@ class ManageRepository {
   ManageRepository(this._client);
 
   final SupabaseClient _client;
+  String? get currentUserId => _client.auth.currentUser?.id;
   static const String _agentPhotoBucket = "agent-profile-photos";
   static const int _agentPhotoMaxBytes = 5 * 1024 * 1024;
   static const int _promotionMediaMaxBytes = 30 * 1024 * 1024;
@@ -542,10 +543,19 @@ class ManageRepository {
     try {
       final JsonMap? row = await _client
           .from("marketplace_settings")
-          .select("contact_payments_enabled, updated_at, updated_by")
+          .select(
+            "contact_payments_enabled, agent_listing_payments_enabled, chat_payments_enabled, subscription_payments_enabled, listing_boost_payments_enabled, updated_at, updated_by",
+          )
           .eq("id", true)
           .maybeSingle();
-      return row ?? <String, dynamic>{"contact_payments_enabled": true};
+      return row ??
+          <String, dynamic>{
+            "contact_payments_enabled": false,
+            "agent_listing_payments_enabled": false,
+            "chat_payments_enabled": false,
+            "subscription_payments_enabled": false,
+            "listing_boost_payments_enabled": false,
+          };
     } on PostgrestException catch (error) {
       if (_isManageIdentifierCompatibilityError(error)) {
         throw StateError(
@@ -572,6 +582,77 @@ class ManageRepository {
       }
       rethrow;
     }
+  }
+
+  Future<void> updateAgentListingPaymentsEnabled(bool enabled) async {
+    final User user = _requireUser();
+    await _client.from("marketplace_settings").upsert(<String, dynamic>{
+      "id": true,
+      "agent_listing_payments_enabled": enabled,
+      "updated_by": user.id,
+    });
+  }
+
+  Future<void> updateChatPaymentsEnabled(bool enabled) async {
+    final User user = _requireUser();
+    await _client.from("marketplace_settings").upsert(<String, dynamic>{
+      "id": true,
+      "chat_payments_enabled": enabled,
+      "updated_by": user.id,
+    });
+  }
+
+  Future<void> updateSubscriptionPaymentsEnabled(bool enabled) async {
+    final User user = _requireUser();
+    await _client.from("marketplace_settings").upsert(<String, dynamic>{
+      "id": true,
+      "subscription_payments_enabled": enabled,
+      "updated_by": user.id,
+    });
+  }
+
+  Future<void> updateListingBoostPaymentsEnabled(bool enabled) async {
+    final User user = _requireUser();
+    await _client.from("marketplace_settings").upsert(<String, dynamic>{
+      "id": true,
+      "listing_boost_payments_enabled": enabled,
+      "updated_by": user.id,
+    });
+  }
+
+  Future<bool> commercialPaymentEnabled(String productType) async =>
+      (await _client.rpc(
+        'commercial_payment_enabled',
+        params: <String, dynamic>{'p_product_type': productType},
+      )) ==
+      true;
+
+  Future<JsonMap> createAgentListingPayment(String listingId) async {
+    final FunctionResponse response = await _client.functions.invoke(
+      "create-agent-listing-payment",
+      body: <String, dynamic>{"listing_id": listingId},
+    );
+    if (response.status >= 400) {
+      throw StateError(
+        (response.data as Map?)?["error"]?.toString() ??
+            "Could not start listing payment.",
+      );
+    }
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<JsonMap> checkAgentListingPayment(String paymentId) async {
+    final FunctionResponse response = await _client.functions.invoke(
+      "check-agent-listing-payment",
+      body: <String, dynamic>{"payment_id": paymentId},
+    );
+    if (response.status >= 400) {
+      throw StateError(
+        (response.data as Map?)?["error"]?.toString() ??
+            "Could not check listing payment.",
+      );
+    }
+    return Map<String, dynamic>.from(response.data as Map);
   }
 
   Future<void> submitAgentApplication({
@@ -776,6 +857,34 @@ class ManageRepository {
           .order("display_order")
           .order("created_at", ascending: false),
     );
+  }
+
+  Future<JsonMap> preparePromotionPreview(JsonMap promotion) async {
+    final JsonMap preview = Map<String, dynamic>.from(promotion);
+    final List<dynamic> media =
+        promotion["platform_promotion_media"] as List<dynamic>? ?? <dynamic>[];
+    if (media.isEmpty) return preview;
+    final List<JsonMap> ordered =
+        media
+            .map((dynamic item) => Map<String, dynamic>.from(item as Map))
+            .toList()
+          ..sort((JsonMap a, JsonMap b) {
+            final bool aPrimary = a["is_primary"] as bool? ?? false;
+            final bool bPrimary = b["is_primary"] as bool? ?? false;
+            if (aPrimary != bPrimary) return aPrimary ? -1 : 1;
+            return (a["display_order"] as int? ?? 0).compareTo(
+              b["display_order"] as int? ?? 0,
+            );
+          });
+    final JsonMap primary = ordered.first;
+    preview["media_type"] = primary["media_type"];
+    preview["media_url"] = await _signPromotionMediaPath(
+      primary["media_path"] as String?,
+    );
+    preview["thumbnail_url"] = await _signPromotionMediaPath(
+      primary["thumbnail_path"] as String?,
+    );
+    return preview;
   }
 
   Future<void> savePromotion({
@@ -1109,6 +1218,9 @@ class ManageRepository {
     String search = "",
     String? category,
     String? status,
+    double? minPrice,
+    double? maxPrice,
+    String sort = "newest",
   }) async {
     final JsonMap agent = await _currentAgent();
     dynamic query = _client
@@ -1116,8 +1228,7 @@ class ManageRepository {
         .select(
           "id, title, category_id, public_location_label, price_amount, price_period, status, availability_status, removed_from_market_at, removed_reason, created_at, asset_categories(id, name, slug)",
         )
-        .eq("agent_id", agent["id"] as String)
-        .order("created_at", ascending: false);
+        .eq("agent_id", agent["id"] as String);
     if (search.isNotEmpty) {
       query = query.ilike("title", "%$search%");
     }
@@ -1127,6 +1238,17 @@ class ManageRepository {
     if (status != null && status.isNotEmpty) {
       query = query.eq("status", status);
     }
+    if (minPrice != null) {
+      query = query.gte("price_amount", minPrice);
+    }
+    if (maxPrice != null) {
+      query = query.lte("price_amount", maxPrice);
+    }
+    query = switch (sort) {
+      "price_low" => query.order("price_amount", ascending: true),
+      "price_high" => query.order("price_amount", ascending: false),
+      _ => query.order("created_at", ascending: false),
+    };
     final List<JsonMap> listings = await _decodeListRows(query);
     return _withInquiryCounts(listings);
   }
@@ -1300,7 +1422,7 @@ class ManageRepository {
     }
   }
 
-  Future<void> submitDynamicListing({
+  Future<String> submitDynamicListing({
     required String categoryId,
     required String? existingOwnerId,
     required String ownerName,
@@ -1493,30 +1615,8 @@ class ManageRepository {
         uploadedPaths: uploadedPaths,
       );
       completedSteps += totalMediaSteps;
-      phase = 'activating the completed listing';
-      markStep('Activating completed listing...', canCancel: false);
-      final dynamic activationResponse = await _client
-          .from('listings')
-          .update(<String, dynamic>{'status': 'active'})
-          .eq('id', listingId)
-          .select('id')
-          .single();
-      final JsonMap activatedListing = _requiredResponseMap(
-        activationResponse,
-        "Supabase did not confirm that the completed listing became active.",
-      );
-      final String activatedListingId = _requiredStringField(
-        activatedListing,
-        "id",
-        "Supabase returned an activation response without a listing "
-            "identifier.",
-      );
-      if (activatedListingId != listingId) {
-        throw StateError(
-          "Supabase confirmed a different listing during activation. "
-          "Refresh My Listings before retrying.",
-        );
-      }
+      phase = 'finalizing the completed listing';
+      markStep('Listing saved. Preparing payment...', canCancel: false);
       completedSteps += 1;
       onProgress?.call(
         const UploadProgressSnapshot(
@@ -1525,6 +1625,7 @@ class ManageRepository {
           canCancel: false,
         ),
       );
+      return listingId;
     } on UploadCancelledException catch (error, stackTrace) {
       final bool fullyRemoved = await _rollbackFailedListingCreation(
         listingId: listingId,
@@ -1910,26 +2011,22 @@ class ManageRepository {
     }
   }
 
-  Future<void> sendBookingMessage({
+  Future<void> sendBookingResponse({
     required String conversationId,
-    required String body,
+    required String responseCode,
   }) async {
-    final String trimmedBody = body.trim();
-    if (trimmedBody.isEmpty) {
-      return;
-    }
     try {
       await _client.rpc(
-        "send_booking_message",
+        "send_booking_response",
         params: <String, dynamic>{
           "p_conversation_id": conversationId,
-          "p_body": trimmedBody,
+          "p_response_code": responseCode,
         },
       );
     } on PostgrestException catch (error) {
       if (_isOptionalWorkflowCompatibilityError(error)) {
         throw StateError(
-          "In-app chat is being activated on the server. Use Call or WhatsApp for this request for now.",
+          "Structured request responses need the latest server update.",
         );
       }
       rethrow;
@@ -1947,6 +2044,66 @@ class ManageRepository {
         rethrow;
       }
     }
+  }
+
+  Future<List<JsonMap>> fetchListingChats() async {
+    final dynamic response = await _client.rpc("list_my_listing_conversations");
+    return (response as List<dynamic>)
+        .map((dynamic row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+  }
+
+  Future<void> markListingChatRead(String conversationId) async {
+    await _client.rpc(
+      "mark_listing_chat_read",
+      params: <String, dynamic>{"p_conversation_id": conversationId},
+    );
+  }
+
+  Future<JsonMap> fetchListingChatConversation(String conversationId) async {
+    final dynamic response = await _client.rpc(
+      "get_listing_chat_conversation",
+      params: <String, dynamic>{"p_conversation_id": conversationId},
+    );
+    final List<dynamic> rows = response as List<dynamic>;
+    if (rows.isEmpty) throw StateError("Chat is unavailable.");
+    return Map<String, dynamic>.from(rows.first as Map);
+  }
+
+  Stream<List<JsonMap>> watchListingChatMessages(String conversationId) async* {
+    while (true) {
+      final dynamic response = await _client.rpc(
+        "get_listing_chat_messages",
+        params: <String, dynamic>{"p_conversation_id": conversationId},
+      );
+      yield (response as List<dynamic>)
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList();
+      await Future<void>.delayed(const Duration(seconds: 2));
+    }
+  }
+
+  Future<JsonMap> fetchAgentListingPublicationMode() async {
+    final dynamic response = await _client.rpc(
+      "get_agent_listing_publication_mode",
+    );
+    final rows = response as List<dynamic>;
+    return rows.isEmpty
+        ? <String, dynamic>{"payment_required": false, "amount_tzs": 0}
+        : Map<String, dynamic>.from(rows.first as Map);
+  }
+
+  Future<void> sendListingChatMessage({
+    required String conversationId,
+    required String body,
+  }) async {
+    await _client.rpc(
+      "send_listing_chat_message",
+      params: <String, dynamic>{
+        "p_conversation_id": conversationId,
+        "p_body": body.trim(),
+      },
+    );
   }
 
   Future<List<JsonMap>> fetchViewingAppointments(String bookingId) async {
@@ -3621,6 +3778,282 @@ class ManageRepository {
         message.contains("could not find the function") ||
         message.contains("does not exist");
   }
+
+  Future<JsonMap> fetchAdminBusinessAnalytics({int days = 30}) async {
+    final dynamic value = await _client.rpc(
+      'get_admin_business_analytics',
+      params: <String, dynamic>{'p_days': days},
+    );
+    final JsonMap result = value is Map
+        ? Map<String, dynamic>.from(value)
+        : <String, dynamic>{};
+    final dynamic breakdown = await _client.rpc(
+      'get_admin_profitability_breakdown',
+      params: <String, dynamic>{'p_days': days},
+    );
+    if (breakdown is Map) {
+      result.addAll(Map<String, dynamic>.from(breakdown));
+    }
+    return result;
+  }
+
+  Future<JsonMap> fetchAgentBusinessDashboard() async {
+    final dynamic value = await _client.rpc('get_my_agent_business_dashboard');
+    return value is Map
+        ? Map<String, dynamic>.from(value)
+        : <String, dynamic>{};
+  }
+
+  Future<List<JsonMap>> fetchSubscriptionPlans() => _decodeListRows(
+    _client
+        .from('agent_subscription_plans')
+        .select()
+        .eq('is_active', true)
+        .order('monthly_price_tzs'),
+  );
+
+  Future<List<JsonMap>> fetchMyLeadPipeline() async {
+    final String agentId = await _client.rpc('current_agent_id') as String;
+    return _decodeListRows(
+      _client
+          .from('agent_lead_notes')
+          .select()
+          .eq('agent_id', agentId)
+          .order('follow_up_at'),
+    );
+  }
+
+  Future<void> saveLeadPipeline({
+    required String bookingRequestId,
+    required String stage,
+    String? note,
+    DateTime? followUpAt,
+    num? transactionValueTzs,
+  }) async {
+    final String agentId = await _client.rpc('current_agent_id') as String;
+    await _client.from('agent_lead_notes').upsert(<String, dynamic>{
+      'booking_request_id': bookingRequestId,
+      'agent_id': agentId,
+      'stage': stage,
+      'note': note,
+      'follow_up_at': followUpAt?.toUtc().toIso8601String(),
+      'transaction_value_tzs': transactionValueTzs,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'booking_request_id');
+  }
+
+  Future<JsonMap> requestListingBoost({
+    required String listingId,
+    required String placement,
+    required int durationDays,
+    required int amountTzs,
+  }) async {
+    final String agentId = await _client.rpc('current_agent_id') as String;
+    final JsonMap row = await _client
+        .from('listing_boosts')
+        .insert(<String, dynamic>{
+          'listing_id': listingId,
+          'agent_id': agentId,
+          'placement': placement,
+          'duration_days': durationDays,
+          'amount_tzs': amountTzs,
+        })
+        .select()
+        .single();
+    return row;
+  }
+
+  Future<List<JsonMap>> fetchMyListingBoosts() async {
+    final String agentId = (await _currentAgent())['id'].toString();
+    return _decodeListRows(
+      _client
+          .from('listing_boosts')
+          .select('*, listings(title)')
+          .eq('agent_id', agentId)
+          .order('created_at', ascending: false),
+    );
+  }
+
+  Future<List<JsonMap>> fetchMyReceipts() async => _decodeListRows(
+    _client
+        .from('payment_receipts')
+        .select()
+        .order('issued_at', ascending: false)
+        .limit(100),
+  );
+
+  Future<JsonMap> createCommercialPayment({
+    required String productType,
+    String? planId,
+    String? boostId,
+    required String phoneNumber,
+  }) async {
+    final FunctionResponse response = await _client.functions.invoke(
+      'create-agent-commercial-payment',
+      body: <String, dynamic>{
+        'product_type': productType,
+        'plan_id': planId,
+        'listing_boost_id': boostId,
+        'phone_number': phoneNumber,
+      },
+    );
+    if (response.status >= 400) {
+      throw StateError(
+        (response.data as Map?)?['error']?.toString() ??
+            'Could not start payment.',
+      );
+    }
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<JsonMap> checkCommercialPayment(String paymentId) async {
+    final FunctionResponse response = await _client.functions.invoke(
+      'check-agent-commercial-payment',
+      body: <String, dynamic>{'payment_id': paymentId},
+    );
+    if (response.status >= 400) {
+      throw StateError(
+        (response.data as Map?)?['error']?.toString() ??
+            'Could not check payment.',
+      );
+    }
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<JsonMap> fetchAdminGrowthOperations() async {
+    final dynamic value = await _client.rpc('get_admin_growth_operations');
+    return value is Map
+        ? Map<String, dynamic>.from(value)
+        : <String, dynamic>{};
+  }
+
+  Future<List<JsonMap>> fetchRiskFlags() => _decodeListRows(
+    _client
+        .from('platform_risk_flags')
+        .select()
+        .order('created_at', ascending: false)
+        .limit(200),
+  );
+  Future<List<JsonMap>> fetchRefunds() => _decodeListRows(
+    _client
+        .from('payment_refunds')
+        .select()
+        .order('created_at', ascending: false)
+        .limit(200),
+  );
+  Future<List<JsonMap>> fetchCommercialPayments() => _decodeListRows(
+    _client
+        .from('agent_commercial_payments')
+        .select('*, agents(business_name)')
+        .order('created_at', ascending: false)
+        .limit(200),
+  );
+  Future<List<JsonMap>> fetchPendingBoosts() => _decodeListRows(
+    _client
+        .from('listing_boosts')
+        .select('*, listings(title), agents(business_name)')
+        .order('created_at', ascending: false)
+        .limit(200),
+  );
+
+  Future<void> updateRiskFlag(String id, String status) => _client
+      .from('platform_risk_flags')
+      .update(<String, dynamic>{
+        'status': status,
+        'resolved_at': status == 'resolved'
+            ? DateTime.now().toUtc().toIso8601String()
+            : null,
+      })
+      .eq('id', id);
+  Future<void> updateRefund(String id, String status) => _client
+      .from('payment_refunds')
+      .update(<String, dynamic>{
+        'status': status,
+        'reviewed_by': currentUserId,
+        'reviewed_at': DateTime.now().toUtc().toIso8601String(),
+      })
+      .eq('id', id);
+  Future<void> updateBoost(String id, String status) => _client
+      .from('listing_boosts')
+      .update(<String, dynamic>{
+        'status': status,
+        if (status == 'active')
+          'starts_at': DateTime.now().toUtc().toIso8601String(),
+      })
+      .eq('id', id);
+
+  Future<List<JsonMap>> fetchAdminRoleDefinitions() => _decodeListRows(
+    _client
+        .from('admin_role_definitions')
+        .select()
+        .eq('is_active', true)
+        .order('rank', ascending: false),
+  );
+
+  Future<List<JsonMap>> fetchAdminRoleDirectory() =>
+      _decodeListRows(_client.rpc('get_admin_role_directory'));
+
+  Future<void> assignAdminRole(String userId, String roleId, bool assign) =>
+      _client.rpc(
+        'assign_admin_role',
+        params: <String, dynamic>{
+          'p_user_id': userId,
+          'p_role_id': roleId,
+          'p_assign': assign,
+        },
+      );
+
+  Future<Set<String>> fetchMyAdminPermissions() async {
+    final User user = _requireUser();
+    final List<JsonMap> rows = await _decodeListRows(
+      _client
+          .from('admin_role_assignments')
+          .select('admin_role_definitions(permissions)')
+          .eq('user_id', user.id),
+    );
+    final Set<String> permissions = <String>{};
+    for (final JsonMap row in rows) {
+      final dynamic definition = row['admin_role_definitions'];
+      if (definition is Map && definition['permissions'] is List) {
+        permissions.addAll(
+          (definition['permissions'] as List).map(
+            (dynamic value) => value.toString(),
+          ),
+        );
+      }
+    }
+    return permissions;
+  }
+
+  Future<List<JsonMap>> fetchMyWalletTransactions() async {
+    final String agentId = (await _currentAgent())['id'].toString();
+    return _decodeListRows(
+      _client
+          .from('agent_wallet_transactions')
+          .select()
+          .eq('agent_id', agentId)
+          .order('created_at', ascending: false)
+          .limit(100),
+    );
+  }
+
+  Future<List<JsonMap>> fetchAdminAgentWallets() =>
+      _decodeListRows(_client.rpc('get_admin_agent_wallets'));
+
+  Future<void> adjustAgentWallet({
+    required String agentId,
+    required String balanceKind,
+    required num amountTzs,
+    required String description,
+  }) => _client.rpc(
+    'admin_adjust_agent_wallet',
+    params: <String, dynamic>{
+      'p_agent_id': agentId,
+      'p_balance_kind': balanceKind,
+      'p_amount_tzs': amountTzs,
+      'p_description': description,
+    },
+  );
 
   String _documentTypeFromName(String fileName) {
     final String lower = fileName.toLowerCase();

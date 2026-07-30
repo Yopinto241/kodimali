@@ -3,6 +3,7 @@ import 'package:shared_models/shared_models.dart';
 
 import '../../features/admin/presentation/admin_shell_screen.dart';
 import '../../features/agent/presentation/agent_shell_screen.dart';
+import '../../features/agent/presentation/agent_listing_chats_tab.dart';
 import '../../features/auth/presentation/access_denied_screen.dart';
 import '../../features/auth/presentation/agent_account_status_screen.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
@@ -50,6 +51,9 @@ GoRouter createAppRouter(AppController controller) {
       if (location.startsWith("/agent") && role == AppRole.agent) {
         return controller.isAgentAccessBlocked ? "/agent-account-status" : null;
       }
+      if (location.startsWith("/listing-chat/") && role == AppRole.agent) {
+        return controller.isAgentAccessBlocked ? "/agent-account-status" : null;
+      }
       if (location == "/agent-account-status" && role == AppRole.agent) {
         return controller.isAgentAccessBlocked ? null : "/agent";
       }
@@ -85,6 +89,12 @@ GoRouter createAppRouter(AppController controller) {
       GoRoute(
         path: "/agent",
         builder: (context, state) => const AgentShellScreen(),
+      ),
+      GoRoute(
+        path: "/listing-chat/:conversationId",
+        builder: (context, state) => AgentListingChatScreen(
+          conversationId: state.pathParameters["conversationId"]!,
+        ),
       ),
       GoRoute(
         path: "/admin",

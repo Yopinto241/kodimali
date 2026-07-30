@@ -17,7 +17,7 @@ const supabaseUrl =
 const supabasePublishableKey =
   process.env.SUPABASE_PUBLISHABLE_KEY ??
   "sb_publishable_3Txem_vMHZbvLswFzjR6ng_OGXbur1K";
-const signedMediaUrlSeconds = 60 * 60;
+const signedMediaUrlSeconds = 24 * 60 * 60;
 const cacheTtl = {
   categories: 60 * 60,
   locations: 60 * 60,
@@ -147,7 +147,7 @@ const createSignedListingMediaUrl = unstable_cache(
   },
   ["listing-media-signed-url"],
   {
-    revalidate: cacheTtl.listings,
+    revalidate: signedMediaUrlSeconds - 3600,
     tags: ["public-listing-media"],
   },
 );
@@ -168,7 +168,7 @@ const createSignedPromotionMediaUrl = unstable_cache(
   },
   ["promotion-media-signed-url"],
   {
-    revalidate: cacheTtl.promotions,
+    revalidate: signedMediaUrlSeconds - 3600,
     tags: ["public-promotions"],
   },
 );
@@ -223,6 +223,10 @@ export async function fetchPublicHomeFeed(params: {
   latitude?: number;
   longitude?: number;
   sessionSeed?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  pricePeriod?: string;
+  sort?: "recommended" | "newest" | "price_low" | "price_high";
 }) {
   const normalizedParams = {
     limit: params.limit ?? 20,
@@ -234,6 +238,10 @@ export async function fetchPublicHomeFeed(params: {
     latitude: params.latitude ?? null,
     longitude: params.longitude ?? null,
     sessionSeed: params.sessionSeed ?? null,
+    minPrice: params.minPrice ?? null,
+    maxPrice: params.maxPrice ?? null,
+    pricePeriod: params.pricePeriod ?? null,
+    sort: params.sort ?? "recommended",
   };
 
   return cacheQuery(
@@ -336,6 +344,10 @@ export async function fetchPromotions(params: {
               p_surface: normalizedParams.surface,
               p_placement: normalizedParams.placement,
               p_limit: normalizedParams.limit,
+              p_selected_region_id: null,
+              p_selected_district_id: null,
+              p_selected_ward_id: null,
+              p_selected_area_id: null,
             }),
           },
           {
@@ -414,7 +426,7 @@ export async function fetchPublicListings(params: {
       let rows;
       try {
         rows = await supabaseFetch(
-          `/rest/v1/rpc/get_public_listings`,
+          `/rest/v1/rpc/search_public_listings_v2`,
           {
             method: "POST",
             body: JSON.stringify({
@@ -429,6 +441,10 @@ export async function fetchPublicListings(params: {
               p_latitude: normalizedParams.latitude,
               p_longitude: normalizedParams.longitude,
               p_session_seed: normalizedParams.sessionSeed,
+              p_min_price: normalizedParams.minPrice,
+              p_max_price: normalizedParams.maxPrice,
+              p_price_period: normalizedParams.pricePeriod,
+              p_sort: normalizedParams.sort,
             }),
           },
           {
@@ -655,4 +671,21 @@ export async function checkListingAvailability(body: {
     throw new Error(payload.error ?? "Availability check failed");
   }
   return payload;
+}
+
+export async function fetchPublicAgentProfile(agentId: string) {
+  const rows = await supabaseFetch(
+    "/rest/v1/rpc/get_public_agent_profile",
+    { method: "POST", body: JSON.stringify({ p_agent_id: agentId }) },
+    { revalidate: 60, tags: [`public-agent-${agentId}`] },
+  );
+  return rows && typeof rows === "object" ? rows as Record<string, unknown> : null;
+}
+
+export async function fetchActiveFeaturedListingIds(limit = 100) {
+  return await supabaseFetch(
+    "/rest/v1/rpc/get_active_featured_listing_ids",
+    { method: "POST", body: JSON.stringify({ p_limit: limit }) },
+    { revalidate: 60, tags: ["featured-listings"] },
+  ) as Array<{ listing_id: string; placement: string; ends_at: string }>;
 }

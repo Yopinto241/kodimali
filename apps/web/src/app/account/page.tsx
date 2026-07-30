@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ContentSection } from "@/components/content-section";
 import { CustomerAccountPortal } from "@/components/customer-account-portal";
+import { CustomerGrowthTools } from "@/components/customer-growth-tools";
 import { PageHero } from "@/components/page-hero";
 import { PageShell } from "@/components/page-shell";
 
@@ -14,6 +15,7 @@ export default function AccountPage() {
         actions={<><Link href="/listings" className="btn btn-success">Browse listings</Link><Link href="/manage" className="btn btn-outline">Agent registration</Link></>}
       />
       <CustomerAccountPortal />
+      <CustomerGrowthTools />
       <ContentSection title="Your request stays with the correct agent">
         <p>When you request a listing, KODIMALI records the agent assigned to that listing. Status updates and conversation access remain tied to that request, so another agent cannot take it silently.</p>
       </ContentSection>

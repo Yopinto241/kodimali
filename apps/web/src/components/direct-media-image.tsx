@@ -1,4 +1,4 @@
-/* eslint-disable @next/next/no-img-element */
+import Image from "next/image";
 
 type DirectMediaImageProps = {
   src: string;
@@ -16,13 +16,14 @@ export function DirectMediaImage({
   priority = false,
 }: DirectMediaImageProps) {
   return (
-    <img
+    <Image
       src={src}
       alt={alt}
       className={className}
-      loading={priority ? "eager" : "lazy"}
-      decoding="async"
-      fetchPriority={priority ? "high" : "auto"}
+      width={1200}
+      height={1200}
+      quality={72}
+      priority={priority}
       sizes={sizes}
     />
   );

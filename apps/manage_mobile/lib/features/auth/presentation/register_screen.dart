@@ -60,8 +60,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _optionsError = null;
     });
     try {
-      final List<Map<String, dynamic>> categories =
-          await repository.fetchCategoriesForAgentAssignment();
+      final List<Map<String, dynamic>> categories = await repository
+          .fetchCategoriesForAgentAssignment();
       if (!mounted) {
         return;
       }
@@ -333,8 +333,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 trailing: _selectedCategoryId == value
                                     ? const Icon(Icons.check_rounded)
                                     : null,
-                                onTap: () =>
-                                    Navigator.of(context).pop(value),
+                                onTap: () => Navigator.of(context).pop(value),
                               );
                             }).toList(),
                           ),

@@ -7,6 +7,8 @@ import 'add_asset_screen.dart';
 import 'agent_bookings_tab.dart';
 import 'agent_dashboard_tab.dart';
 import 'agent_listings_tab.dart';
+import 'agent_listing_chats_tab.dart';
+import 'agent_business_center_screen.dart';
 
 class AgentShellScreen extends StatefulWidget {
   const AgentShellScreen({super.key});
@@ -23,6 +25,8 @@ class _AgentShellScreenState extends State<AgentShellScreen> {
     "My Listings",
     "Add Asset",
     "Requests",
+    "Chats",
+    "Business",
     "Notifications",
     "Profile",
   ];
@@ -37,7 +41,7 @@ class _AgentShellScreenState extends State<AgentShellScreen> {
             screen: AgentDashboardTab(
               onOpenRequests: () => setState(() => _currentIndex = 3),
               onOpenListings: () => setState(() => _currentIndex = 1),
-              onOpenNotifications: () => setState(() => _currentIndex = 4),
+              onOpenNotifications: () => setState(() => _currentIndex = 6),
             ),
           ),
           const ManageWorkspaceDestination(
@@ -54,6 +58,16 @@ class _AgentShellScreenState extends State<AgentShellScreen> {
             label: "Requests",
             icon: Icons.calendar_month_outlined,
             screen: AgentBookingsTab(),
+          ),
+          const ManageWorkspaceDestination(
+            label: "Chats",
+            icon: Icons.forum_outlined,
+            screen: AgentListingChatsTab(),
+          ),
+          const ManageWorkspaceDestination(
+            label: "Business",
+            icon: Icons.auto_graph_outlined,
+            screen: AgentBusinessCenterScreen(),
           ),
           const ManageWorkspaceDestination(
             label: "Notifications",

@@ -1,11 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function SquareMediaVideo({
   src,
   poster,
-  autoPlay = true,
+  autoPlay = false,
   controls = true,
   className = "",
 }: {
@@ -16,10 +16,22 @@ export function SquareMediaVideo({
   className?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [nearViewport, setNearViewport] = useState(false);
   const [generatedPoster, setGeneratedPoster] = useState<string | undefined>(
     poster ?? undefined,
   );
   const [posterAttempted, setPosterAttempted] = useState(Boolean(poster));
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setNearViewport(entry.isIntersecting),
+      { rootMargin: "320px" },
+    );
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, []);
 
   function captureUsefulFrame() {
     const video = videoRef.current;
@@ -59,12 +71,12 @@ export function SquareMediaVideo({
       muted
       loop={autoPlay}
       playsInline
-      preload="metadata"
+      preload={nearViewport ? "metadata" : "none"}
       poster={generatedPoster}
       onLoadedMetadata={seekForPoster}
       onSeeked={captureUsefulFrame}
     >
-      <source src={src} type="video/mp4" />
+      {nearViewport ? <source src={src} type="video/mp4" /> : null}
     </video>
   );
 }

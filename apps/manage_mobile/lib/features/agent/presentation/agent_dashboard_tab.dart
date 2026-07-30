@@ -6,6 +6,7 @@ import '../../../core/widgets/app_scope.dart';
 import '../../../core/widgets/kodimali_empty_state.dart';
 import '../../../core/widgets/manage_ui.dart';
 import '../../shared/presentation/platform_promotions_panel.dart';
+import '../../shared/presentation/business_growth_panels.dart';
 
 class AgentDashboardTab extends StatefulWidget {
   const AgentDashboardTab({
@@ -103,6 +104,8 @@ class _AgentDashboardTabState extends State<AgentDashboardTab> {
                 ],
               ),
             ),
+            const SizedBox(height: 18),
+            const AgentBusinessPanel(),
             const SizedBox(height: 18),
             ManageMetricGrid(
               children: <Widget>[

@@ -83,6 +83,131 @@ class CustomerAccountRepository {
     );
   }
 
+  Future<List<CustomerJson>> fetchSavedSearches() async {
+    final User user = _requireUser();
+    return (await _client
+            .from('saved_searches')
+            .select()
+            .eq('user_id', user.id)
+            .order('created_at', ascending: false))
+        .cast<CustomerJson>();
+  }
+
+  Future<void> saveSearch({
+    required String name,
+    required CustomerJson filters,
+  }) async {
+    final User user = _requireUser();
+    await _client.from('saved_searches').insert(<String, dynamic>{
+      'user_id': user.id,
+      'name': name.trim(),
+      'filters': filters,
+    });
+  }
+
+  Future<List<CustomerJson>> fetchPriceAlerts() async {
+    final User user = _requireUser();
+    return (await _client
+            .from('price_alerts')
+            .select('*, listings(title, price_amount)')
+            .eq('user_id', user.id)
+            .order('created_at', ascending: false))
+        .cast<CustomerJson>();
+  }
+
+  Future<void> setPriceAlert(String listingId, num? targetPrice) async {
+    final User user = _requireUser();
+    await _client.from('price_alerts').upsert(<String, dynamic>{
+      'user_id': user.id,
+      'listing_id': listingId,
+      'target_price': targetPrice,
+      'is_active': true,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'user_id,listing_id');
+  }
+
+  Future<List<CustomerJson>> fetchComparisonListings() async {
+    final User user = _requireUser();
+    return (await _client
+            .from('listing_comparisons')
+            .select(
+              'listing_id, created_at, listings(id, title, price_amount, currency_code, public_location_label)',
+            )
+            .eq('user_id', user.id)
+            .order('created_at', ascending: false))
+        .cast<CustomerJson>();
+  }
+
+  Future<void> setCompared(String listingId, bool selected) async {
+    final User user = _requireUser();
+    if (selected) {
+      await _client.from('listing_comparisons').upsert(<String, dynamic>{
+        'user_id': user.id,
+        'listing_id': listingId,
+      });
+    } else {
+      await _client
+          .from('listing_comparisons')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('listing_id', listingId);
+    }
+  }
+
+  Future<CustomerJson> fetchNotificationPreferences() async {
+    final User user = _requireUser();
+    final CustomerJson? row = await _client
+        .from('notification_preferences')
+        .select()
+        .eq('user_id', user.id)
+        .maybeSingle();
+    return row ??
+        <String, dynamic>{
+          'chat_enabled': true,
+          'requests_enabled': true,
+          'payments_enabled': true,
+          'reminders_enabled': true,
+          'promotions_enabled': true,
+        };
+  }
+
+  Future<void> saveNotificationPreferences(CustomerJson values) async {
+    final User user = _requireUser();
+    await _client.from('notification_preferences').upsert(<String, dynamic>{
+      'user_id': user.id,
+      ...values,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'user_id');
+  }
+
+  Future<void> deleteSavedSearch(String id) async {
+    final User user = _requireUser();
+    await _client
+        .from('saved_searches')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id);
+  }
+
+  Future<void> deletePriceAlert(String id) async {
+    final User user = _requireUser();
+    await _client
+        .from('price_alerts')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id);
+  }
+
+  Future<List<CustomerJson>> fetchMyReceipts() async {
+    _requireUser();
+    return (await _client
+            .from('payment_receipts')
+            .select()
+            .order('issued_at', ascending: false)
+            .limit(100))
+        .cast<CustomerJson>();
+  }
+
   Future<CustomerJson> fetchMyProfile() async {
     final User? user = currentUser;
     if (user == null) {
@@ -266,6 +391,13 @@ class CustomerAccountRepository {
     }
     try {
       await _client.rpc(
+        'track_business_event',
+        params: <String, dynamic>{
+          'p_event_type': 'listing_view',
+          'p_listing_id': listingId,
+        },
+      );
+      await _client.rpc(
         'record_listing_view',
         params: <String, dynamic>{'p_listing_id': listingId},
       );
@@ -320,22 +452,18 @@ class CustomerAccountRepository {
         );
   }
 
-  Future<void> sendMessage({
+  Future<void> sendBookingResponse({
     required String conversationId,
-    required String body,
+    required String responseCode,
     required String clientMessageId,
   }) async {
     _requireUser();
-    final String message = body.trim();
-    if (message.isEmpty) {
-      return;
-    }
     try {
       await _client.rpc(
-        'send_booking_message',
+        'send_booking_response',
         params: <String, dynamic>{
           'p_conversation_id': conversationId,
-          'p_body': message,
+          'p_response_code': responseCode,
           'p_client_message_id': clientMessageId,
         },
       );
@@ -353,6 +481,115 @@ class CustomerAccountRepository {
     } catch (_) {
       // Read receipts must never stop the conversation from loading.
     }
+  }
+
+  Future<List<CustomerJson>> fetchListingChats() async {
+    _requireUser();
+    final dynamic response = await _client.rpc('list_my_listing_conversations');
+    return (response as List<dynamic>)
+        .map((dynamic row) => CustomerJson.from(row as Map))
+        .toList();
+  }
+
+  Future<bool> fetchChatPaymentsEnabled() async {
+    final dynamic response = await _client.rpc('chat_payments_enabled');
+    return response as bool? ?? true;
+  }
+
+  Future<void> markListingChatRead(String conversationId) async {
+    _requireUser();
+    await _client.rpc(
+      'mark_listing_chat_read',
+      params: <String, dynamic>{'p_conversation_id': conversationId},
+    );
+  }
+
+  Future<CustomerJson> openListingConversation(String listingId) async {
+    _requireUser();
+    final dynamic response = await _client.rpc(
+      'get_or_create_listing_conversation',
+      params: <String, dynamic>{'p_listing_id': listingId},
+    );
+    final CustomerJson? conversation = _firstMap(response);
+    if (conversation == null) throw StateError('Chat could not be opened.');
+    return conversation;
+  }
+
+  Future<CustomerJson> fetchListingConversation(String conversationId) async {
+    _requireUser();
+    final dynamic response = await _client.rpc(
+      'get_listing_chat_conversation',
+      params: <String, dynamic>{'p_conversation_id': conversationId},
+    );
+    final CustomerJson? conversation = _firstMap(response);
+    if (conversation == null) throw StateError('Chat is unavailable.');
+    return conversation;
+  }
+
+  Stream<List<CustomerJson>> watchListingChatMessages(
+    String conversationId,
+  ) async* {
+    _requireUser();
+    while (true) {
+      final dynamic response = await _client.rpc(
+        'get_listing_chat_messages',
+        params: <String, dynamic>{'p_conversation_id': conversationId},
+      );
+      yield (response as List<dynamic>)
+          .map((dynamic row) => CustomerJson.from(row as Map))
+          .toList();
+      await Future<void>.delayed(const Duration(seconds: 2));
+    }
+  }
+
+  Future<void> sendListingChatMessage({
+    required String conversationId,
+    required String body,
+  }) async {
+    _requireUser();
+    await _client.rpc(
+      'send_listing_chat_message',
+      params: <String, dynamic>{
+        'p_conversation_id': conversationId,
+        'p_body': body.trim(),
+      },
+    );
+  }
+
+  Future<CustomerJson> createListingChatPayment({
+    required String listingId,
+    required String phoneNumber,
+  }) async {
+    _requireUser();
+    final FunctionResponse response = await _client.functions.invoke(
+      'create-listing-chat-payment',
+      body: <String, dynamic>{
+        'listing_id': listingId,
+        'phone_number': phoneNumber.trim(),
+      },
+    );
+    if (response.status >= 400) {
+      throw StateError(
+        (response.data as Map?)?['error']?.toString() ??
+            'Could not start chat payment.',
+      );
+    }
+    return CustomerJson.from(response.data as Map);
+  }
+
+  Future<CustomerJson> checkListingChatPayment(String paymentId) async {
+    _requireUser();
+    final FunctionResponse response = await _client.functions.invoke(
+      'check-listing-chat-payment',
+      body: <String, dynamic>{'payment_id': paymentId},
+    );
+    if (response.status >= 400) {
+      throw StateError(
+        (response.data as Map?)?['error']?.toString() ??
+            'Could not check chat payment.',
+      );
+    }
+    return CustomerJson.from(response.data as Map);
   }
 
   Future<List<CustomerJson>> fetchViewingAppointments(

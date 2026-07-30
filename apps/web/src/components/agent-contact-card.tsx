@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { StatusPill } from "@/components/status-pill";
+import Link from "next/link";
 
 type AgentSummary = {
+  id?: string | null;
   display_name?: string | null;
   business_name?: string | null;
   phone_number?: string | null;
@@ -214,6 +216,7 @@ export function AgentContactCard({
           <p className="section-copy mt-2 text-sm">
             {agentSummary?.location_label?.trim() || "Location not shared yet"}
           </p>
+          {agentSummary?.id ? <Link className="mt-2 inline-block text-sm font-bold text-brand-navy underline" href={`/agent/${agentSummary.id}`}>View public agent profile</Link> : null}
         </div>
         <StatusPill
           label={verified ? "Verified agent" : "Verification pending"}

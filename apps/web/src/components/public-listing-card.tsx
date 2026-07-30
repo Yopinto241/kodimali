@@ -2,6 +2,7 @@ import Link from "next/link";
 import { DirectMediaImage } from "@/components/direct-media-image";
 import { StatusPill } from "@/components/status-pill";
 import { SquareMediaVideo } from "@/components/square-media-video";
+import { ListingActions } from "@/components/listing-actions";
 
 type Listing = {
   listing_id: string;
@@ -12,14 +13,14 @@ type Listing = {
   category_name: string;
   cover_url?: string | null;
   cover_media_type?: string | null;
+  featured?: boolean;
+  featured_placement?: string | null;
 };
 
-export function PublicListingCard({ listing }: { listing: Listing }) {
+export function PublicListingCard({ listing, priority = false }: { listing: Listing; priority?: boolean }) {
   return (
-    <Link
-      href={`/listing/${listing.listing_id}`}
-      className="surface-card block overflow-hidden rounded-[20px] p-5 transition hover:-translate-y-1 hover:shadow-[0_24px_48px_rgba(11,31,58,0.12)]"
-    >
+    <article className="surface-card block overflow-hidden rounded-[20px] p-5 transition hover:-translate-y-1 hover:shadow-[0_24px_48px_rgba(11,31,58,0.12)]">
+      <Link href={`/listing/${listing.listing_id}`} className="block">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-green-soft text-brand-navy">
@@ -36,7 +37,7 @@ export function PublicListingCard({ listing }: { listing: Listing }) {
             </p>
           </div>
         </div>
-        <StatusPill label="Verified" tone="active" />
+        <div className="flex flex-col items-end gap-2"><StatusPill label="Verified" tone="active" />{listing.featured ? <StatusPill label={listing.featured_placement === "homepage" ? "Homepage featured" : "Featured"} tone="pending" /> : null}</div>
       </div>
       <div className="relative overflow-hidden rounded-[16px] border border-brand-border bg-brand-card-soft">
         {listing.cover_url && listing.cover_media_type === "video" ? (
@@ -47,6 +48,7 @@ export function PublicListingCard({ listing }: { listing: Listing }) {
             alt={listing.title}
             sizes="(min-width: 768px) 50vw, 100vw"
             className="aspect-square w-full object-cover"
+            priority={priority}
           />
         ) : (
           <div className="flex aspect-square w-full items-center justify-center bg-brand-surface text-muted">
@@ -67,7 +69,8 @@ export function PublicListingCard({ listing }: { listing: Listing }) {
           wakala anayehusika.
         </p>
         <p className="mt-4 text-sm font-bold text-brand-navy">Fungua detail</p>
-      </div>
-    </Link>
+      </div></Link>
+      <ListingActions listingId={listing.listing_id} />
+    </article>
   );
 }

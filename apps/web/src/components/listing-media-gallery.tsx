@@ -50,7 +50,7 @@ export function ListingMediaGallery({
       {visibleMedia.map((item, index) => (
         <div className="aspect-square w-full shrink-0 snap-center" key={`${item.signed_url}-${index}`}>
           {item.media_type === "video" ? (
-            <SquareMediaVideo src={item.signed_url!} />
+            index === selectedIndex ? <SquareMediaVideo src={item.signed_url!} controls /> : <div className="flex h-full w-full items-center justify-center bg-brand-navy text-white"><span className="rounded-full border border-white/30 px-4 py-2 text-sm font-bold">VIDEO {index + 1}</span></div>
           ) : (
             <button
               type="button"

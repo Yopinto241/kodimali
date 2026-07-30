@@ -33,7 +33,8 @@ class AccessDeniedScreen extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton(
-                          onPressed: () => AppScope.of(context).controller.signOut(),
+                          onPressed: () =>
+                              AppScope.of(context).controller.signOut(),
                           child: const Text("Toka"),
                         ),
                       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_scope.dart';
 import '../../shared/presentation/manage_workspace_scaffold.dart';
 import '../../shared/presentation/notifications_screen.dart';
 import '../../shared/presentation/profile_screen.dart';
@@ -12,6 +13,7 @@ import 'locations_tab.dart';
 import 'promotions_tab.dart';
 import 'reports_tab.dart';
 import 'users_tab.dart';
+import 'admin_growth_operations_screen.dart';
 
 class AdminShellScreen extends StatefulWidget {
   const AdminShellScreen({super.key});
@@ -22,35 +24,33 @@ class AdminShellScreen extends StatefulWidget {
 
 class _AdminShellScreenState extends State<AdminShellScreen> {
   int _currentIndex = 0;
+  Set<String>? _permissions;
+  bool _loadingPermissions = false;
 
-  static const List<String> _titles = <String>[
-    "Dashboard",
-    "Agents",
-    "Users",
-    "Listings",
-    "Categories",
-    "Locations",
-    "Requests",
-    "Reports",
-    "Promotions",
-    "Notifications",
-    "Profile",
-  ];
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_permissions != null || _loadingPermissions) return;
+    _loadingPermissions = true;
+    AppScope.of(context).repository.fetchMyAdminPermissions().then((value) {
+      if (mounted) setState(() => _permissions = value);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final Set<String>? permissions = _permissions;
+    if (permissions == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final bool all = permissions.contains('*');
+    bool allowed(String permission) => all || permissions.contains(permission);
     final List<ManageWorkspaceDestination> destinations =
         <ManageWorkspaceDestination>[
-          ManageWorkspaceDestination(
+          const ManageWorkspaceDestination(
             label: "Dashboard",
             icon: Icons.dashboard_outlined,
-            screen: AdminDashboardTab(
-              onOpenAgents: () => setState(() => _currentIndex = 1),
-              onOpenListings: () => setState(() => _currentIndex = 3),
-              onOpenRequests: () => setState(() => _currentIndex = 6),
-              onOpenReports: () => setState(() => _currentIndex = 7),
-              onOpenNotifications: () => setState(() => _currentIndex = 9),
-            ),
+            screen: AdminDashboardTab(),
           ),
           const ManageWorkspaceDestination(
             label: "Agents",
@@ -93,6 +93,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
             screen: PromotionsTab(),
           ),
           const ManageWorkspaceDestination(
+            label: "Growth Ops",
+            icon: Icons.monitor_heart_outlined,
+            screen: AdminGrowthOperationsScreen(),
+          ),
+          const ManageWorkspaceDestination(
             label: "Notifications",
             icon: Icons.notifications_outlined,
             screen: NotificationsScreen(),
@@ -103,8 +108,31 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
             screen: ProfileScreen(),
           ),
         ];
+    destinations.removeWhere(
+      (destination) => switch (destination.label) {
+        'Dashboard' => !allowed('dashboard.view'),
+        'Agents' => !allowed('agents.manage'),
+        'Users' => !allowed('users.view'),
+        'Listings' => !allowed('listings.manage'),
+        'Categories' =>
+          !(allowed('listings.manage') || allowed('promotions.manage')),
+        'Locations' => !(allowed('health.view') || allowed('agents.manage')),
+        'Requests' => !allowed('bookings.manage'),
+        'Reports' => !allowed('reports.manage'),
+        'Promotions' => !allowed('promotions.manage'),
+        'Growth Ops' =>
+          !(allowed('analytics.view') ||
+              allowed('payments.manage') ||
+              allowed('risk.manage') ||
+              allowed('boosts.manage')),
+        'Notifications' =>
+          !(allowed('support.manage') || allowed('health.view')),
+        _ => false,
+      },
+    );
+    if (_currentIndex >= destinations.length) _currentIndex = 0;
     return ManageWorkspaceScaffold(
-      title: _titles[_currentIndex],
+      title: destinations[_currentIndex].label,
       currentIndex: _currentIndex,
       onSelect: (int index) => setState(() => _currentIndex = index),
       destinations: destinations,

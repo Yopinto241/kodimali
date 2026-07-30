@@ -144,6 +144,12 @@ export default async function Home({
         </article>
       </section>
 
+      <form action="/listings" className="surface-card my-6 grid gap-4 p-5 md:grid-cols-[1fr_260px_auto] sm:p-7">
+        <label className="field-label">What are you looking for?<input className="field-input mt-2" name="q" placeholder="Apartment, house, office, car..." /></label>
+        <label className="field-label">Category<select className="field-input mt-2" name="category"><option value="">All categories</option>{categories.map((category: { id: string; slug: string; name: string }) => <option key={category.id} value={category.slug}>{category.name}</option>)}</select></label>
+        <button className="btn btn-success self-end">Search now</button>
+      </form>
+
       <section className="py-2">
         <LocationBanner
           visibleByDefault
@@ -153,6 +159,8 @@ export default async function Home({
           }))}
         />
       </section>
+
+      <section className="py-6"><SectionHeading eyebrow="Popular locations" title="Discover listings by region" description="Start broadly, then narrow down to district, ward and area without exposing private property coordinates." /><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{regions.slice(0, 8).map((region: { id: string; name: string }) => <Link className="surface-card p-5 font-bold text-brand-navy transition hover:-translate-y-1" href={`/listings?regionId=${region.id}`} key={region.id}>{region.name}<span className="mt-2 block text-xs font-normal text-muted">Explore this region →</span></Link>)}</div></section>
 
       <PromotionStrip promotions={promotions as never} />
       <GoogleAdSlot
@@ -203,6 +211,8 @@ export default async function Home({
           ))}
         </div>
       </section>
+
+      <section className="grid gap-5 py-8 md:grid-cols-2"><article className="navy-panel p-7"><p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-green">KODIMALI mobile</p><h2 className="mt-3 font-heading text-3xl font-semibold">Get alerts and manage activity anywhere</h2><p className="mt-3 text-white/75">Install the customer or manage app for push notifications, synchronized chats and quicker workflows.</p><Link href="/download" className="btn btn-success mt-5">View mobile apps</Link></article><article className="surface-card p-7"><p className="eyebrow">Business growth</p><h2 className="mt-3 font-heading text-3xl font-semibold">Promote listings and campaigns</h2><p className="section-copy mt-3">Reach customers with measured sponsored campaigns, featured listings and agent plans.</p><Link href="/advertise" className="btn btn-primary mt-5">Advertising options</Link></article></section>
 
       {section(
         "Karibu na wewe",

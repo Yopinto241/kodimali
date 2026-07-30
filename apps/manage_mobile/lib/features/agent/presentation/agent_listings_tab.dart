@@ -18,8 +18,11 @@ class AgentListingsTab extends StatefulWidget {
 class _AgentListingsTabState extends State<AgentListingsTab> {
   static const double _menuMaxHeight = 360;
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _minPriceController = TextEditingController();
+  final TextEditingController _maxPriceController = TextEditingController();
   String? _selectedCategoryId;
   String? _selectedStatus;
+  String _sort = "newest";
   List<Map<String, dynamic>> _categories = <Map<String, dynamic>>[];
   late Future<List<Map<String, dynamic>>> _future;
   bool _initialized = false;
@@ -42,6 +45,8 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
   @override
   void dispose() {
     _searchController.dispose();
+    _minPriceController.dispose();
+    _maxPriceController.dispose();
     super.dispose();
   }
 
@@ -50,6 +55,9 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
       search: _searchController.text.trim(),
       category: _selectedCategoryId,
       status: _selectedStatus,
+      minPrice: double.tryParse(_minPriceController.text.trim()),
+      maxPrice: double.tryParse(_maxPriceController.text.trim()),
+      sort: _sort,
     );
   }
 
@@ -72,17 +80,16 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
   String _categoryLabel(Map<String, dynamic> listing) {
     final Map<String, dynamic>? category =
         listing["asset_categories"] as Map<String, dynamic>?;
-    return category?["name"] as String? ?? listing["category"] as String? ?? "-";
+    return category?["name"] as String? ??
+        listing["category"] as String? ??
+        "-";
   }
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _future,
-      builder: (
-        BuildContext context,
-        AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
-      ) {
+      builder: (BuildContext context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -102,8 +109,12 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
               bottom: ManageMetaWrap(
                 items: <String>[
                   "${listings.length} listing${listings.length == 1 ? "" : "s"} loaded",
-                  _selectedStatus == null ? "All statuses" : "Status: $_selectedStatus",
-                  _selectedCategoryId == null ? "All categories" : "Category filter active",
+                  _selectedStatus == null
+                      ? "All statuses"
+                      : "Status: $_selectedStatus",
+                  _selectedCategoryId == null
+                      ? "All categories"
+                      : "Category filter active",
                 ],
               ),
             ),
@@ -128,66 +139,132 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: TextField(
+                          controller: _minPriceController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: "Minimum price",
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: _maxPriceController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: "Maximum price",
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: _sort,
+                    decoration: const InputDecoration(
+                      labelText: "Sort listings",
+                    ),
+                    items: const <DropdownMenuItem<String>>[
+                      DropdownMenuItem(
+                        value: "newest",
+                        child: Text("Newest first"),
+                      ),
+                      DropdownMenuItem(
+                        value: "price_low",
+                        child: Text("Lowest price"),
+                      ),
+                      DropdownMenuItem(
+                        value: "price_high",
+                        child: Text("Highest price"),
+                      ),
+                    ],
+                    onChanged: (String? value) =>
+                        setState(() => _sort = value ?? "newest"),
+                  ),
+                  const SizedBox(height: 12),
                   LayoutBuilder(
-                    builder: (BuildContext context, BoxConstraints constraints) {
-                      final bool stacked = constraints.maxWidth < 680;
-                      final Widget categoryField = DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        menuMaxHeight: _menuMaxHeight,
-                        initialValue: _selectedCategoryId,
-                        decoration: const InputDecoration(labelText: "Category"),
-                        items: <DropdownMenuItem<String>>[
-                          const DropdownMenuItem<String>(
-                            value: null,
-                            child: Text("All categories"),
-                          ),
-                          ..._categories.map(
-                            (Map<String, dynamic> category) => DropdownMenuItem<String>(
-                              value: category["id"] as String,
-                              child: Text(category["name"] as String? ?? "-"),
-                            ),
-                          ),
-                        ],
-                        onChanged: (String? value) {
-                          setState(() => _selectedCategoryId = value);
-                        },
-                      );
-                      final Widget statusField = DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        menuMaxHeight: _menuMaxHeight,
-                        initialValue: _selectedStatus,
-                        decoration: const InputDecoration(labelText: "Status"),
-                        items: const <DropdownMenuItem<String>>[
-                          DropdownMenuItem<String>(
-                            value: null,
-                            child: Text("All statuses"),
-                          ),
-                          DropdownMenuItem(value: "active", child: Text("Active")),
-                          DropdownMenuItem(value: "inactive", child: Text("Inactive")),
-                          DropdownMenuItem(value: "suspended", child: Text("Suspended")),
-                        ],
-                        onChanged: (String? value) {
-                          setState(() => _selectedStatus = value);
-                        },
-                      );
+                    builder:
+                        (BuildContext context, BoxConstraints constraints) {
+                          final bool stacked = constraints.maxWidth < 680;
+                          final Widget categoryField =
+                              DropdownButtonFormField<String>(
+                                isExpanded: true,
+                                menuMaxHeight: _menuMaxHeight,
+                                initialValue: _selectedCategoryId,
+                                decoration: const InputDecoration(
+                                  labelText: "Category",
+                                ),
+                                items: <DropdownMenuItem<String>>[
+                                  const DropdownMenuItem<String>(
+                                    value: null,
+                                    child: Text("All categories"),
+                                  ),
+                                  ..._categories.map(
+                                    (Map<String, dynamic> category) =>
+                                        DropdownMenuItem<String>(
+                                          value: category["id"] as String,
+                                          child: Text(
+                                            category["name"] as String? ?? "-",
+                                          ),
+                                        ),
+                                  ),
+                                ],
+                                onChanged: (String? value) {
+                                  setState(() => _selectedCategoryId = value);
+                                },
+                              );
+                          final Widget statusField =
+                              DropdownButtonFormField<String>(
+                                isExpanded: true,
+                                menuMaxHeight: _menuMaxHeight,
+                                initialValue: _selectedStatus,
+                                decoration: const InputDecoration(
+                                  labelText: "Status",
+                                ),
+                                items: const <DropdownMenuItem<String>>[
+                                  DropdownMenuItem<String>(
+                                    value: null,
+                                    child: Text("All statuses"),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: "active",
+                                    child: Text("Active"),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: "inactive",
+                                    child: Text("Inactive"),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: "suspended",
+                                    child: Text("Suspended"),
+                                  ),
+                                ],
+                                onChanged: (String? value) {
+                                  setState(() => _selectedStatus = value);
+                                },
+                              );
 
-                      if (stacked) {
-                        return Column(
-                          children: <Widget>[
-                            categoryField,
-                            const SizedBox(height: 12),
-                            statusField,
-                          ],
-                        );
-                      }
-                      return Row(
-                        children: <Widget>[
-                          Expanded(child: categoryField),
-                          const SizedBox(width: 12),
-                          Expanded(child: statusField),
-                        ],
-                      );
-                    },
+                          if (stacked) {
+                            return Column(
+                              children: <Widget>[
+                                categoryField,
+                                const SizedBox(height: 12),
+                                statusField,
+                              ],
+                            );
+                          }
+                          return Row(
+                            children: <Widget>[
+                              Expanded(child: categoryField),
+                              const SizedBox(width: 12),
+                              Expanded(child: statusField),
+                            ],
+                          );
+                        },
                   ),
                   const SizedBox(height: 14),
                   Row(
@@ -203,9 +280,12 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                       OutlinedButton(
                         onPressed: () {
                           _searchController.clear();
+                          _minPriceController.clear();
+                          _maxPriceController.clear();
                           setState(() {
                             _selectedCategoryId = null;
                             _selectedStatus = null;
+                            _sort = "newest";
                             _future = _load();
                           });
                         },
@@ -258,20 +338,27 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                               children: <Widget>[
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: <Widget>[
                                       Text(
                                         listing["title"] as String? ?? "-",
-                                        style: Theme.of(context).textTheme.titleLarge,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleLarge,
                                       ),
                                       const SizedBox(height: 8),
                                       Text(
                                         _categoryLabel(listing),
-                                        style: Theme.of(context).textTheme.titleMedium,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleMedium,
                                       ),
                                       const SizedBox(height: 6),
                                       Text(
-                                        listing["public_location_label"] as String? ?? "-",
+                                        listing["public_location_label"]
+                                                as String? ??
+                                            "-",
                                       ),
                                     ],
                                   ),
@@ -296,7 +383,8 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                                 "${DateFormatters.formatCurrency(priceAmount)} / ${listing["price_period"] ?? "-"}",
                                 "Inquiries: ${listing["inquiry_count"] ?? 0}",
                                 "Created ${DateFormatters.formatDateTime(listing["created_at"] as String?)}",
-                                if (removedReason.isNotEmpty) "Reason: $removedReason",
+                                if (removedReason.isNotEmpty)
+                                  "Reason: $removedReason",
                               ],
                             ),
                             const SizedBox(height: 14),
@@ -305,12 +393,15 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                                 Expanded(
                                   child: Text(
                                     "Open listing to edit details, reactivate, remove, or delete when it has no inquiries.",
-                                    style: Theme.of(context).textTheme.bodyMedium,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 FilledButton.tonal(
-                                  onPressed: () => _openDetail(listing["id"] as String),
+                                  onPressed: () =>
+                                      _openDetail(listing["id"] as String),
                                   child: const Text("Open"),
                                 ),
                               ],

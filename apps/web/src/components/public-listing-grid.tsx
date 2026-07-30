@@ -35,7 +35,7 @@ export function PublicListingGrid({
 
   listings.forEach((listing, index) => {
     items.push(
-      <PublicListingCard key={listing.listing_id} listing={listing as never} />,
+      <PublicListingCard key={listing.listing_id} listing={listing as never} priority={index < 2} />,
     );
 
     if ((index + 1) % 8 === 0 && index < listings.length - 1) {

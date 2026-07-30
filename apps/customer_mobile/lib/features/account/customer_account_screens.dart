@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/cache/customer_activity_store.dart';
 import '../../core/data/customer_account_repository.dart';
+import '../chat/listing_chat_screens.dart';
 import '../../core/data/customer_public_repository.dart';
 import '../../core/localization/customer_localization.dart';
 
@@ -343,6 +344,31 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
             ),
           if (_signedIn) ...<Widget>[
             const SizedBox(height: KodimaliSpacing.sm),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => CustomerListingChatsScreen(
+                    repository: widget.accountRepository,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.forum_outlined),
+              label: const Text('My chats'),
+            ),
+            const SizedBox(height: KodimaliSpacing.sm),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => CustomerGrowthToolsScreen(
+                    repository: widget.accountRepository,
+                    onOpenListing: widget.onOpenListing,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.auto_graph_outlined),
+              label: const Text('Saved searches, alerts & comparison'),
+            ),
+            const SizedBox(height: KodimaliSpacing.xs),
             OutlinedButton.icon(
               onPressed: _openSettings,
               icon: const Icon(Icons.settings_outlined),
@@ -393,6 +419,259 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
       ),
     );
   }
+}
+
+class CustomerGrowthToolsScreen extends StatefulWidget {
+  const CustomerGrowthToolsScreen({
+    super.key,
+    required this.repository,
+    required this.onOpenListing,
+  });
+  final CustomerAccountRepository repository;
+  final OpenCustomerListing onOpenListing;
+  @override
+  State<CustomerGrowthToolsScreen> createState() =>
+      _CustomerGrowthToolsScreenState();
+}
+
+class _CustomerGrowthToolsScreenState extends State<CustomerGrowthToolsScreen> {
+  late Future<List<List<Map<String, dynamic>>>> _future;
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<List<List<Map<String, dynamic>>>> _load() async =>
+      Future.wait(<Future<List<Map<String, dynamic>>>>[
+        widget.repository.fetchSavedSearches(),
+        widget.repository.fetchPriceAlerts(),
+        widget.repository.fetchComparisonListings(),
+      ]);
+  Future<void> _refresh() async {
+    setState(() => _future = _load());
+    await _future;
+  }
+
+  Future<void> _saveCurrentSearch() async {
+    final controller = TextEditingController();
+    final String? name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Save a search'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Search name',
+            hintText: 'Example: Apartments in Arusha',
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty) return;
+    await widget.repository.saveSearch(
+      name: name,
+      filters: <String, dynamic>{'query': name},
+    );
+    await _refresh();
+  }
+
+  Future<void> _preferences() async {
+    final values = await widget.repository.fetchNotificationPreferences();
+    if (!mounted) return;
+    final updated = Map<String, dynamic>.from(values);
+    final bool? save = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: const Text('Notification preferences'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              for (final item in const <MapEntry<String, String>>[
+                MapEntry('chat_enabled', 'Messages'),
+                MapEntry('requests_enabled', 'Viewing requests'),
+                MapEntry('payments_enabled', 'Payments and receipts'),
+                MapEntry('reminders_enabled', 'Follow-up reminders'),
+                MapEntry('promotions_enabled', 'Promotions and price alerts'),
+              ])
+                SwitchListTile(
+                  value: updated[item.key] != false,
+                  title: Text(item.value),
+                  onChanged: (v) => setDialog(() => updated[item.key] = v),
+                ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (save == true) {
+      await widget.repository.saveNotificationPreferences(updated);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('My discovery tools'),
+      actions: <Widget>[
+        IconButton(
+          tooltip: 'Notification preferences',
+          onPressed: _preferences,
+          icon: const Icon(Icons.notifications_active_outlined),
+        ),
+      ],
+    ),
+    floatingActionButton: FloatingActionButton.extended(
+      onPressed: _saveCurrentSearch,
+      icon: const Icon(Icons.bookmark_add_outlined),
+      label: const Text('Save search'),
+    ),
+    body: FutureBuilder<List<List<Map<String, dynamic>>>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text(_accountError(snapshot.error!)));
+        }
+        final data = snapshot.data!;
+        return RefreshIndicator(
+          onRefresh: _refresh,
+          child: ListView(
+            padding: KodimaliSpacing.screenPadding,
+            children: <Widget>[
+              _GrowthSummary(
+                title: 'Saved searches',
+                icon: Icons.manage_search_outlined,
+                count: data[0].length,
+                subtitle:
+                    'Keep useful filters and receive matching-listing alerts.',
+              ),
+              ...data[0].map(
+                (row) => ListTile(
+                  leading: const Icon(Icons.search),
+                  title: Text(row['name'].toString()),
+                  subtitle: Text(
+                    row['alerts_enabled'] == false
+                        ? 'Alerts off'
+                        : 'New-match alerts on',
+                  ),
+                  trailing: IconButton(
+                    onPressed: () async {
+                      await widget.repository.deleteSavedSearch(
+                        row['id'].toString(),
+                      );
+                      await _refresh();
+                    },
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _GrowthSummary(
+                title: 'Price-drop alerts',
+                icon: Icons.trending_down_outlined,
+                count: data[1].length,
+                subtitle:
+                    'Watch prices and return when a listing reaches your budget.',
+              ),
+              ...data[1].map((row) {
+                final listing = _relatedMap(row['listings']);
+                return ListTile(
+                  leading: const Icon(Icons.price_change_outlined),
+                  title: Text(listing['title']?.toString() ?? 'Listing'),
+                  subtitle: Text(
+                    'Target: ${row['target_price'] ?? 'Any drop'} TZS',
+                  ),
+                  trailing: IconButton(
+                    onPressed: () async {
+                      await widget.repository.deletePriceAlert(
+                        row['id'].toString(),
+                      );
+                      await _refresh();
+                    },
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                );
+              }),
+              const SizedBox(height: 12),
+              _GrowthSummary(
+                title: 'Comparison list',
+                icon: Icons.compare_arrows_outlined,
+                count: data[2].length,
+                subtitle:
+                    'Compare price and location before contacting an agent.',
+              ),
+              ...data[2].map((row) {
+                final listing = _relatedMap(row['listings']);
+                return ListTile(
+                  leading: const Icon(Icons.home_work_outlined),
+                  title: Text(listing['title']?.toString() ?? 'Listing'),
+                  subtitle: Text(
+                    '${listing['price_amount'] ?? '-'} ${listing['currency_code'] ?? 'TZS'} · ${listing['public_location_label'] ?? ''}',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () =>
+                      widget.onOpenListing(row['listing_id'].toString()),
+                );
+              }),
+              const SizedBox(height: 80),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
+class _GrowthSummary extends StatelessWidget {
+  const _GrowthSummary({
+    required this.title,
+    required this.icon,
+    required this.count,
+    required this.subtitle,
+  });
+  final String title;
+  final IconData icon;
+  final int count;
+  final String subtitle;
+  @override
+  Widget build(BuildContext context) => Card(
+    child: ListTile(
+      leading: CircleAvatar(child: Icon(icon)),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: Text(
+        '$count',
+        style: Theme.of(
+          context,
+        ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+      ),
+    ),
+  );
 }
 
 class _AccountWelcomeCard extends StatelessWidget {
@@ -1660,13 +1939,8 @@ class _CustomerRequestDetailScreenState
                           ),
                         ),
                         subtitle: Text(
-                          '${_bookingStatusLabel(context, appointmentStatus)}'
-                          '${appointment['location_note'] == null ? '' : '\n${appointment['location_note']}'}'
-                          '${appointment['response_note'] == null ? '' : '\n${appointment['response_note']}'}',
+                          _bookingStatusLabel(context, appointmentStatus),
                         ),
-                        isThreeLine:
-                            appointment['location_note'] != null ||
-                            appointment['response_note'] != null,
                       ),
                       if (active)
                         Padding(
@@ -1816,7 +2090,6 @@ class CustomerAgentChatScreen extends StatefulWidget {
 }
 
 class _CustomerAgentChatScreenState extends State<CustomerAgentChatScreen> {
-  final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   Future<Map<String, dynamic>>? _conversationFuture;
   bool _sending = false;
@@ -1831,24 +2104,21 @@ class _CustomerAgentChatScreenState extends State<CustomerAgentChatScreen> {
 
   @override
   void dispose() {
-    _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _send(String conversationId) async {
-    final String body = _messageController.text.trim();
-    if (body.isEmpty || _sending) {
+  Future<void> _sendResponse(String conversationId, String responseCode) async {
+    if (_sending) {
       return;
     }
     setState(() => _sending = true);
     try {
-      await widget.repository.sendMessage(
+      await widget.repository.sendBookingResponse(
         conversationId: conversationId,
-        body: body,
+        responseCode: responseCode,
         clientMessageId: _newUuid(),
       );
-      _messageController.clear();
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -1969,34 +2239,49 @@ class _CustomerAgentChatScreenState extends State<CustomerAgentChatScreen> {
                   SafeArea(
                     top: false,
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 8, 12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Expanded(
-                            child: TextField(
-                              controller: _messageController,
-                              minLines: 1,
-                              maxLines: 4,
-                              textCapitalization: TextCapitalization.sentences,
-                              decoration: InputDecoration(
-                                hintText: context.tr('chat.hint'),
-                              ),
-                            ),
+                          const Text(
+                            'Choose a response. Free-text and contact details are not allowed in requests.',
                           ),
-                          const SizedBox(width: 8),
-                          IconButton.filled(
-                            onPressed: _sending
-                                ? null
-                                : () => _send(conversationId),
-                            icon: _sending
-                                ? const SizedBox.square(
-                                    dimension: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.send_rounded),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children:
+                                const <MapEntry<String, String>>[
+                                      MapEntry('acknowledged', 'Okay'),
+                                      MapEntry(
+                                        'still_interested',
+                                        'Still interested',
+                                      ),
+                                      MapEntry(
+                                        'confirm_viewing',
+                                        'Confirm viewing',
+                                      ),
+                                      MapEntry(
+                                        'request_reschedule',
+                                        'Request another time',
+                                      ),
+                                      MapEntry(
+                                        'not_interested',
+                                        'Not interested',
+                                      ),
+                                    ]
+                                    .map(
+                                      (response) => ActionChip(
+                                        label: Text(response.value),
+                                        onPressed: _sending
+                                            ? null
+                                            : () => _sendResponse(
+                                                conversationId,
+                                                response.key,
+                                              ),
+                                      ),
+                                    )
+                                    .toList(),
                           ),
                         ],
                       ),
@@ -2065,16 +2350,9 @@ class CustomerViewingAppointmentScreen extends StatefulWidget {
 
 class _CustomerViewingAppointmentScreenState
     extends State<CustomerViewingAppointmentScreen> {
-  final TextEditingController _noteController = TextEditingController();
   DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
   TimeOfDay _selectedTime = const TimeOfDay(hour: 10, minute: 0);
   bool _submitting = false;
-
-  @override
-  void dispose() {
-    _noteController.dispose();
-    super.dispose();
-  }
 
   Future<void> _pickDate() async {
     final DateTime now = DateTime.now();
@@ -2119,7 +2397,7 @@ class _CustomerViewingAppointmentScreenState
         bookingRequestId: widget.bookingRequestId,
         scheduledStartAt: start,
         scheduledEndAt: start.add(const Duration(hours: 1)),
-        locationNote: _noteController.text,
+        locationNote: null,
       );
       if (mounted) {
         Navigator.of(context).pop(true);
@@ -2164,15 +2442,6 @@ class _CustomerViewingAppointmentScreenState
             onPressed: _submitting ? null : _pickTime,
             icon: const Icon(Icons.schedule_outlined),
             label: Text(localizations.formatTimeOfDay(_selectedTime)),
-          ),
-          const SizedBox(height: KodimaliSpacing.md),
-          TextField(
-            controller: _noteController,
-            maxLines: 3,
-            decoration: InputDecoration(
-              labelText: context.tr('viewing.note'),
-              helperText: context.tr('viewing.noteHelp'),
-            ),
           ),
           const SizedBox(height: KodimaliSpacing.lg),
           FilledButton.icon(

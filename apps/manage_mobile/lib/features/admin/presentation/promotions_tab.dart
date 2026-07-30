@@ -19,6 +19,121 @@ class PromotionsTab extends StatefulWidget {
   State<PromotionsTab> createState() => _PromotionsTabState();
 }
 
+class _AdminPromotionCustomerPreview extends StatelessWidget {
+  const _AdminPromotionCustomerPreview({required this.promotion});
+
+  final Map<String, dynamic> promotion;
+
+  @override
+  Widget build(BuildContext context) {
+    final String title = promotion["title"]?.toString() ?? "Sponsored update";
+    final String description = promotion["description"]?.toString() ?? "";
+    final String cta =
+        promotion["cta_label"]?.toString().trim().isNotEmpty == true
+        ? promotion["cta_label"].toString().trim()
+        : "Open promotion";
+    final String? mediaUrl = promotion["media_url"] as String?;
+    final String? thumbnailUrl = promotion["thumbnail_url"] as String?;
+    final bool isVideo = promotion["media_type"]?.toString() == "video";
+    final String? displayMedia = isVideo ? thumbnailUrl : mediaUrl;
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      elevation: 3,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+            child: Row(
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF102A56),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        Icons.campaign_rounded,
+                        size: 15,
+                        color: Colors.white,
+                      ),
+                      SizedBox(width: 6),
+                      Text(
+                        "Sponsored",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Icon(isVideo ? Icons.videocam_outlined : Icons.photo_outlined),
+              ],
+            ),
+          ),
+          if (displayMedia != null)
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  Image.network(
+                    displayMedia,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const ColoredBox(
+                          color: Color(0xFFE7ECF4),
+                          child: Center(
+                            child: Icon(Icons.broken_image_outlined),
+                          ),
+                        ),
+                  ),
+                  if (isVideo)
+                    const Center(
+                      child: CircleAvatar(
+                        radius: 27,
+                        child: Icon(Icons.play_arrow_rounded, size: 34),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(title, style: Theme.of(context).textTheme.titleLarge),
+                if (description.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 6),
+                  Text(description),
+                ],
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.open_in_new_rounded),
+                    label: Text(cta),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PromotionsTabState extends State<PromotionsTab> {
   static const int _promotionMediaMaxBytes = 30 * 1024 * 1024;
   static const double _menuMaxHeight = 360;
@@ -721,6 +836,96 @@ class _PromotionsTabState extends State<PromotionsTab> {
     };
   }
 
+  List<String> _deliveryIssues(Map<String, dynamic> promotion) {
+    final List<String> issues = <String>[];
+    final DateTime now = DateTime.now().toUtc();
+    if (promotion["is_active"] != true) issues.add("Campaign is switched off");
+    final DateTime? starts = DateTime.tryParse(
+      promotion["start_at"]?.toString() ?? "",
+    )?.toUtc();
+    final DateTime? ends = DateTime.tryParse(
+      promotion["end_at"]?.toString() ?? "",
+    )?.toUtc();
+    if (starts != null && starts.isAfter(now)) {
+      issues.add("Scheduled for later");
+    }
+    if (ends != null && !ends.isAfter(now)) issues.add("Campaign has expired");
+    final String visibility =
+        promotion["visibility_scope"]?.toString() ?? "all";
+    if (!<String>{"public", "all"}.contains(visibility)) {
+      issues.add("Not visible to customers");
+    }
+    final String placement = promotion["placement"]?.toString() ?? "global";
+    if (!<String>{
+      "global",
+      "home_feed",
+      "category_page",
+      "listing_detail",
+    }.contains(placement)) {
+      issues.add("Not placed on a customer-app surface");
+    }
+    return issues;
+  }
+
+  Future<void> _previewPromotion(Map<String, dynamic> promotion) async {
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520, maxHeight: 720),
+          child: FutureBuilder<Map<String, dynamic>>(
+            future: AppScope.of(
+              context,
+            ).repository.preparePromotionPreview(promotion),
+            builder:
+                (
+                  BuildContext context,
+                  AsyncSnapshot<Map<String, dynamic>> snapshot,
+                ) {
+                  return Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Row(
+                          children: <Widget>[
+                            Expanded(
+                              child: Text(
+                                "Customer preview",
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => Navigator.pop(dialogContext),
+                              icon: const Icon(Icons.close_rounded),
+                            ),
+                          ],
+                        ),
+                        const Text(
+                          "This reproduces the sponsored card customers will see.",
+                        ),
+                        const SizedBox(height: 14),
+                        if (snapshot.connectionState == ConnectionState.waiting)
+                          const Center(child: CircularProgressIndicator())
+                        else
+                          Flexible(
+                            child: SingleChildScrollView(
+                              child: _AdminPromotionCustomerPreview(
+                                promotion: snapshot.data ?? promotion,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildFormCard() {
     return Card(
       child: Padding(
@@ -1168,6 +1373,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
             <dynamic>[];
         final String promotionId = promotion["id"] as String;
         final bool deleting = _deletingPromotionIds.contains(promotionId);
+        final List<String> deliveryIssues = _deliveryIssues(promotion);
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(18),
@@ -1209,6 +1415,19 @@ class _PromotionsTabState extends State<PromotionsTab> {
                       ),
                     ),
                     Chip(label: Text("Media files: ${media.length}")),
+                    Chip(
+                      avatar: Icon(
+                        deliveryIssues.isEmpty
+                            ? Icons.check_circle_rounded
+                            : Icons.warning_amber_rounded,
+                        size: 18,
+                      ),
+                      label: Text(
+                        deliveryIssues.isEmpty
+                            ? "Eligible for customers now"
+                            : deliveryIssues.join(" · "),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -1220,11 +1439,25 @@ class _PromotionsTabState extends State<PromotionsTab> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                FilledButton.tonal(
-                  onPressed: _saving || deleting || _compressingVideo
-                      ? null
-                      : () => _loadIntoForm(promotion),
-                  child: const Text("Edit this promotion"),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: <Widget>[
+                    FilledButton.tonalIcon(
+                      onPressed: _saving || deleting || _compressingVideo
+                          ? null
+                          : () => _loadIntoForm(promotion),
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text("Edit promotion"),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: deleting
+                          ? null
+                          : () => _previewPromotion(promotion),
+                      icon: const Icon(Icons.visibility_outlined),
+                      label: const Text("Preview as customer"),
+                    ),
+                  ],
                 ),
               ],
             ),

@@ -58,4 +58,25 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.clickpesa-return-page]
-verify_jwt = false
+  verify_jwt = false
+
+[functions.create-agent-listing-payment]
+  verify_jwt = true
+
+[functions.check-agent-listing-payment]
+  verify_jwt = true
+
+[functions.create-listing-chat-payment]
+  verify_jwt = true
+
+[functions.check-listing-chat-payment]
+  verify_jwt = true
+
+[functions.dispatch-push-notifications]
+  verify_jwt = false
+
+[functions.create-agent-commercial-payment]
+  verify_jwt = true
+
+[functions.check-agent-commercial-payment]
+  verify_jwt = true

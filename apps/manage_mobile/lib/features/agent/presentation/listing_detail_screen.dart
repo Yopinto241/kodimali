@@ -201,14 +201,46 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     await _refresh();
   }
 
-  Future<void> _reactivateListing() async {
-    await AppScope.of(context).repository.reactivateListing(widget.listingId);
-    if (!mounted) {
-      return;
+  Future<void> _payAndPublish() async {
+    final repository = AppScope.of(context).repository;
+    final Map<String, dynamic> payment = await repository
+        .createAgentListingPayment(widget.listingId);
+    String status = payment["paymentStatus"]?.toString() ?? "pending";
+    final bool paymentRequired = payment["paymentRequired"] as bool? ?? true;
+    final bool published = payment["published"] as bool? ?? false;
+    final String? paymentId = payment["paymentId"]?.toString();
+    if (paymentRequired && paymentId != null && status != "paid") {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "TSh 1,000 payment request sent to your agent phone.",
+            ),
+          ),
+        );
+      }
+      for (int attempt = 0; attempt < 20 && status != "paid"; attempt += 1) {
+        await Future<void>.delayed(const Duration(seconds: 3));
+        final Map<String, dynamic> checked = await repository
+            .checkAgentListingPayment(paymentId);
+        status = checked["paymentStatus"]?.toString() ?? status;
+        if (<String>{"failed", "expired", "cancelled"}.contains(status)) break;
+      }
     }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Listing imerudi sokoni.")));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          !paymentRequired && published
+              ? "Listing published free. It is now live on the marketplace."
+              : status == "paid"
+              ? "Payment confirmed. Listing is now live."
+              : !paymentRequired
+              ? "Free publication is enabled, but this listing needs a valid cover image before it can go live."
+              : "Payment is not confirmed yet; the listing remains private.",
+        ),
+      ),
+    );
     await _refresh();
   }
 
@@ -504,8 +536,8 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                         ),
                       if (_status == "inactive")
                         OutlinedButton(
-                          onPressed: _reactivateListing,
-                          child: const Text("Reactivate listing"),
+                          onPressed: _payAndPublish,
+                          child: const Text("Publish listing"),
                         ),
                       const SizedBox(height: 14),
                       if (inquiryCount == 0)

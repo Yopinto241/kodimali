@@ -56,9 +56,9 @@ class _ApplyAgentScreenState extends State<ApplyAgentScreen> {
       return;
     }
     if (_document == null || _document!.bytes == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Pakia kitambulisho au hati.")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Pakia kitambulisho au hati.")),
+      );
       return;
     }
     final appScope = AppScope.of(context);
@@ -152,7 +152,9 @@ class _ApplyAgentScreenState extends State<ApplyAgentScreen> {
                   onPressed: _pickDocument,
                   icon: const Icon(Icons.upload_file_outlined),
                   label: Text(
-                    _document == null ? "Upload ID or verification document" : _document!.name,
+                    _document == null
+                        ? "Upload ID or verification document"
+                        : _document!.name,
                   ),
                 ),
                 const SizedBox(height: 24),

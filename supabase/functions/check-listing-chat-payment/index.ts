@@ -1,0 +1,10 @@
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { fetchClickPesaToken,json,mapClickPesaStatus,queryPaymentStatus,readClickPesaConfig } from "../_shared/clickpesa.ts";
+Deno.serve(async(request)=>{
+ if(request.method!=="POST")return json({error:"Method not allowed"},405); const db=createClient(Deno.env.get("SUPABASE_URL")??"",Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")??"");
+ try{const jwt=(request.headers.get("Authorization")??"").replace(/^Bearer\s+/i,"");const{data:{user}}=await db.auth.getUser(jwt);if(!user)return json({error:"Sign in again."},401);const paymentId=String((await request.json())?.payment_id??"");
+ const{data:p}=await db.from("listing_chat_payments").select("id,order_reference,payment_status,listing_id").eq("id",paymentId).eq("customer_id",user.id).single();if(!p)return json({error:"Payment not found."},404);
+ let status=p.payment_status;if(!["paid","failed","expired","cancelled"].includes(status)){const config=readClickPesaConfig({clientIdEnv:"CLICKPESA_COLLECTION_CLIENT_ID",apiKeyEnv:"CLICKPESA_COLLECTION_API_KEY",checksumKeyEnv:"CLICKPESA_COLLECTION_CHECKSUM_KEY"});const token=await fetchClickPesaToken(config);const result=await queryPaymentStatus(config,token,p.order_reference);status=mapClickPesaStatus(result?.status);await db.from("listing_chat_payments").update({payment_status:status,paid_at:status==="paid"?new Date().toISOString():null,provider_payment_reference:result?.paymentReference??null}).eq("id",p.id);}
+ let expiresAt=null;if(status==="paid"){let{data:a}=await db.from("listing_chat_access").select("expires_at").eq("customer_id",user.id).eq("listing_id",p.listing_id).maybeSingle();if(!a){await db.rpc("grant_listing_chat_access",{p_payment_id:p.id});const result=await db.from("listing_chat_access").select("expires_at").eq("customer_id",user.id).eq("listing_id",p.listing_id).single();a=result.data;}expiresAt=a?.expires_at??null;}
+ return json({success:true,paymentStatus:status,expiresAt});}catch(error){return json({error:error instanceof Error?error.message:"Could not check chat payment."},500);}
+});

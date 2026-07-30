@@ -7,10 +7,12 @@ import { GuestRequestForm } from "@/components/guest-request-form";
 import { GoogleAdSlot } from "@/components/google-ad-slot";
 import { ListingMediaGallery } from "@/components/listing-media-gallery";
 import { ListingShareButton } from "@/components/listing-share-button";
+import { ListingActions, ListingViewRecorder } from "@/components/listing-actions";
 import { PageShell } from "@/components/page-shell";
 import { PromotionStrip } from "@/components/promotion-strip";
 import { StatusPill } from "@/components/status-pill";
-import { fetchListingDetail, fetchPromotions } from "@/lib/supabase-public";
+import { fetchListingDetail, fetchPromotions, fetchPublicListings } from "@/lib/supabase-public";
+import { PublicListingCard } from "@/components/public-listing-card";
 
 export const revalidate = 15;
 
@@ -120,6 +122,7 @@ export default async function ListingPage({
   }
 
   const attributes = (listing.listing_attributes ?? {}) as Record<string, unknown>;
+  const similar = (await fetchPublicListings({ categorySlug: listing.asset_categories?.slug, limit: 4, page: 0, sessionSeed: `similar-${id}` })).filter((item: { listing_id: string }) => item.listing_id !== id).slice(0, 3);
   const fieldSchema = Array.isArray(listing.asset_categories?.field_schema)
     ? (listing.asset_categories.field_schema as Array<{
         key?: string;
@@ -157,6 +160,8 @@ export default async function ListingPage({
 
   return (
     <PageShell className="pb-20">
+      <ListingViewRecorder listingId={id} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ "@context": "https://schema.org", "@type": "Offer", name: listing.title, description: listing.description, price: listing.price_amount, priceCurrency: "TZS", availability: "https://schema.org/InStock", areaServed: listing.public_location_label, url: `https://kodimali.co.tz/listing/${id}` }).replaceAll("<", "\\u003c") }} />
       <div className="mb-4">
         <BackNavButton fallbackHref="/listings" label="Back" />
       </div>
@@ -198,6 +203,7 @@ export default async function ListingPage({
               Rudi kwenye listings
             </Link>
           </div>
+          <ListingActions listingId={id} />
 
           <ListingMediaGallery media={media} title={listing.title} />
 
@@ -256,7 +262,7 @@ export default async function ListingPage({
           ) : null}
         </section>
 
-        <aside className="space-y-6">
+        <aside className="space-y-6 lg:sticky lg:top-32 lg:self-start">
           <AgentContactCard
             listingId={id}
             agentSummary={listing.agent_summary as never}
@@ -275,6 +281,7 @@ export default async function ListingPage({
           />
         </aside>
       </div>
+      {similar.length > 0 ? <section className="mt-10"><p className="eyebrow">Similar listings</p><h2 className="mt-2 font-heading text-3xl font-semibold">You may also consider</h2><div className="mt-6 grid gap-5 md:grid-cols-3">{similar.map((item: { listing_id: string }) => <PublicListingCard key={item.listing_id} listing={item as never} />)}</div></section> : null}
     </PageShell>
   );
 }

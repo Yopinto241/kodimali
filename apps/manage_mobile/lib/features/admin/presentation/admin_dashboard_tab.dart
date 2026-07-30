@@ -9,6 +9,7 @@ import '../../../core/widgets/kodimali_empty_state.dart';
 import '../../../core/widgets/kodimali_status_chip.dart';
 import '../../../core/widgets/manage_ui.dart';
 import '../../shared/presentation/platform_promotions_panel.dart';
+import '../../shared/presentation/business_growth_panels.dart';
 
 class AdminDashboardTab extends StatefulWidget {
   const AdminDashboardTab({
@@ -101,6 +102,8 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
                 ],
               ),
             ),
+            const SizedBox(height: 18),
+            const AdminBusinessAnalyticsPanel(),
             const SizedBox(height: 18),
             const _ContactPaymentSettingsPanel(),
             const SizedBox(height: 18),
@@ -241,7 +244,52 @@ class _ContactPaymentSettingsPanelState
     return AppScope.of(context).repository.fetchMarketplaceSettings();
   }
 
+  Future<bool> _confirmToggle({
+    required String feature,
+    required bool enablePayment,
+    required String paidWarning,
+    required String freeWarning,
+  }) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(
+          Icons.warning_amber_rounded,
+          color: Theme.of(dialogContext).colorScheme.error,
+        ),
+        title: Text(
+          enablePayment
+              ? 'Enable payment for $feature?'
+              : 'Make $feature free?',
+        ),
+        content: Text(enablePayment ? paidWarning : freeWarning),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(enablePayment ? 'Enable payment' : 'Make free'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
   Future<void> _setEnabled(bool enabled) async {
+    final bool confirmed = await _confirmToggle(
+      feature: 'agent contact numbers',
+      enablePayment: enabled,
+      paidWarning:
+          'Customers will have to complete the configured contact payment before seeing an agent number. This can reduce contact conversions.',
+      freeWarning:
+          'Agent phone numbers will be available without payment. KODIMALI will receive no contact-unlock revenue.',
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
     setState(() => _saving = true);
     try {
       await AppScope.of(
@@ -250,7 +298,9 @@ class _ContactPaymentSettingsPanelState
       if (!mounted) {
         return;
       }
-      setState(() => _future = _load());
+      setState(() {
+        _future = _load();
+      });
     } catch (error) {
       if (!mounted) {
         return;
@@ -265,17 +315,159 @@ class _ContactPaymentSettingsPanelState
     }
   }
 
+  Future<void> _setAgentListingEnabled(bool enabled) async {
+    final bool confirmed = await _confirmToggle(
+      feature: 'listing publication',
+      enablePayment: enabled,
+      paidWarning:
+          'Agents will be charged their plan publication fee for every new listing before it becomes active.',
+      freeWarning:
+          'All eligible agent listings will publish without payment. Existing inactive eligible listings may also be released.',
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await AppScope.of(
+        context,
+      ).repository.updateAgentListingPaymentsEnabled(enabled);
+      if (mounted) {
+        setState(() {
+          _future = _load();
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  Future<void> _setChatEnabled(bool enabled) async {
+    final bool confirmed = await _confirmToggle(
+      feature: 'private listing chat',
+      enablePayment: enabled,
+      paidWarning:
+          'Customers will be charged TSh 500 to open seven-day private chat access.',
+      freeWarning:
+          'Customers will open private listing chats without payment. KODIMALI will receive no chat-access revenue.',
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await AppScope.of(context).repository.updateChatPaymentsEnabled(enabled);
+      if (mounted) {
+        setState(() {
+          _future = _load();
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  Future<void> _setSubscriptionEnabled(bool enabled) async {
+    final bool confirmed = await _confirmToggle(
+      feature: 'agent subscriptions',
+      enablePayment: enabled,
+      paidWarning:
+          'Agents must complete ClickPesa payment before a paid package activates.',
+      freeWarning:
+          'Agents may activate Basic, Pro or Business packages without payment while this switch remains free.',
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await AppScope.of(
+        context,
+      ).repository.updateSubscriptionPaymentsEnabled(enabled);
+      if (mounted) {
+        setState(() => _future = _load());
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  Future<void> _setBoostEnabled(bool enabled) async {
+    final bool confirmed = await _confirmToggle(
+      feature: 'featured listing campaigns',
+      enablePayment: enabled,
+      paidWarning:
+          'Agents must complete ClickPesa payment before a featured, homepage or search campaign activates.',
+      freeWarning:
+          'Agents may activate featured campaigns without payment. KODIMALI will receive no campaign revenue.',
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await AppScope.of(
+        context,
+      ).repository.updateListingBoostPaymentsEnabled(enabled);
+      if (mounted) {
+        setState(() => _future = _load());
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, dynamic>>(
       future: _future,
       builder: (BuildContext context, AsyncSnapshot<Map<String, dynamic>> snapshot) {
         final bool enabled =
-            snapshot.data?["contact_payments_enabled"] as bool? ?? true;
+            snapshot.data?["contact_payments_enabled"] as bool? ?? false;
+        final bool agentListingEnabled =
+            snapshot.data?["agent_listing_payments_enabled"] as bool? ?? false;
+        final bool chatEnabled =
+            snapshot.data?["chat_payments_enabled"] as bool? ?? false;
+        final bool subscriptionEnabled =
+            snapshot.data?["subscription_payments_enabled"] as bool? ?? false;
+        final bool boostEnabled =
+            snapshot.data?["listing_boost_payments_enabled"] as bool? ?? false;
         final String? updatedAt = snapshot.data?["updated_at"] as String?;
         final String? updatedBy = snapshot.data?["updated_by"] as String?;
         return ManagePanel(
-          title: "Agent number payment",
+          title: "Marketplace payment controls",
           subtitle: enabled
               ? "Payments are on. Customer app and website hide agent numbers until contact payment is confirmed."
               : "Payments are off. Customer app and website can show agent numbers for free.",
@@ -296,6 +488,78 @@ class _ContactPaymentSettingsPanelState
                         _saving
                     ? null
                     : _setEnabled,
+              ),
+              const Divider(height: 24),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: agentListingEnabled,
+                title: Text(
+                  agentListingEnabled
+                      ? "Agent listing payment required"
+                      : "Agent listings are free",
+                ),
+                subtitle: const Text(
+                  "When enabled, each new agent listing costs TSh 1,000 and remains private until payment succeeds.",
+                ),
+                onChanged:
+                    snapshot.connectionState == ConnectionState.waiting ||
+                        _saving
+                    ? null
+                    : _setAgentListingEnabled,
+              ),
+              const Divider(height: 24),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: chatEnabled,
+                title: Text(
+                  chatEnabled
+                      ? "Customer chat payment required"
+                      : "Customer chat is free",
+                ),
+                subtitle: const Text(
+                  "Paid mode charges TSh 500 for 7 days of private listing chat. Each participant can send 10 messages per day.",
+                ),
+                onChanged:
+                    snapshot.connectionState == ConnectionState.waiting ||
+                        _saving
+                    ? null
+                    : _setChatEnabled,
+              ),
+              const Divider(height: 24),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: subscriptionEnabled,
+                title: Text(
+                  subscriptionEnabled
+                      ? 'Subscription payment required'
+                      : 'Subscriptions are free',
+                ),
+                subtitle: const Text(
+                  'Controls ClickPesa payment for Basic, Pro and Business package activation.',
+                ),
+                onChanged:
+                    snapshot.connectionState == ConnectionState.waiting ||
+                        _saving
+                    ? null
+                    : _setSubscriptionEnabled,
+              ),
+              const Divider(height: 24),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: boostEnabled,
+                title: Text(
+                  boostEnabled
+                      ? 'Featured campaign payment required'
+                      : 'Featured campaigns are free',
+                ),
+                subtitle: const Text(
+                  'Controls payment for featured, homepage and top-of-search campaigns.',
+                ),
+                onChanged:
+                    snapshot.connectionState == ConnectionState.waiting ||
+                        _saving
+                    ? null
+                    : _setBoostEnabled,
               ),
               const SizedBox(height: 8),
               ManageMetaWrap(

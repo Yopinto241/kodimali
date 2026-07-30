@@ -77,7 +77,7 @@ Deno.serve(async (request) => {
     const { data: payment, error: paymentError } = await supabase
       .from("listing_contact_payments")
       .select(
-        "id, listing_id, agent_id, order_reference, access_token, payment_status, provider_payment_id, provider_payment_reference, status_message",
+        "id, listing_id, agent_id, order_reference, access_token, payment_status, provider_payment_id, provider_payment_reference, status_message, paid_at, access_expires_at",
       )
       .eq("id", paymentId)
       .eq("access_token", accessToken)
@@ -181,6 +181,7 @@ Deno.serve(async (request) => {
       paymentReference = statusPayload?.paymentReference ?? paymentReference;
       providerPaymentId = statusPayload?.id ?? providerPaymentId;
 
+      const paidNow = mappedStatus === "paid" ? new Date() : null;
       await supabase
         .from("listing_contact_payments")
         .update({
@@ -190,7 +191,10 @@ Deno.serve(async (request) => {
           provider_channel: statusPayload?.channel ?? null,
           status_message: paymentMessage,
           provider_response: providerPayload ?? {},
-          paid_at: mappedStatus === "paid" ? new Date().toISOString() : null,
+          paid_at: paidNow?.toISOString() ?? null,
+          access_expires_at: paidNow
+            ? new Date(paidNow.getTime() + 24 * 60 * 60 * 1000).toISOString()
+            : null,
           failed_at: mappedStatus === "failed"
             ? new Date().toISOString()
             : null,
@@ -201,6 +205,17 @@ Deno.serve(async (request) => {
         })
         .eq("id", paymentId);
     } else {
+      const expiresAt = payment.access_expires_at
+        ? new Date(payment.access_expires_at as string)
+        : new Date(new Date(payment.paid_at as string).getTime() + 24 * 60 * 60 * 1000);
+      if (expiresAt.getTime() <= Date.now()) {
+        return json({
+          success: false,
+          paymentStatus: "expired",
+          message: "Your 24-hour phone access has expired. Pay again to unlock it.",
+          accessExpiresAt: expiresAt.toISOString(),
+        });
+      }
       await supabase
         .from("listing_contact_payments")
         .update({
@@ -225,6 +240,8 @@ Deno.serve(async (request) => {
       message,
       phoneNumber: agentPhoneNumber,
       agentDisplayName: displayName,
+      accessExpiresAt: payment.access_expires_at ??
+        new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     });
   } catch (error) {
     const status = error instanceof ClickPesaRequestError ? error.status : 500;

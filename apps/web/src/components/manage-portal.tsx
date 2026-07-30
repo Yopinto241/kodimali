@@ -5,10 +5,12 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import type { User } from "@supabase/supabase-js";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
 import { PageShell } from "@/components/page-shell";
+import { BusinessOperations } from "@/components/business-operations";
+import { AdminAccessPanel } from "@/components/admin-access-panel";
 
 type Row = Record<string, unknown>;
 type Role = "admin" | "agent";
-type Tab = "dashboard" | "listings" | "add-listing" | "requests" | "categories" | "agents" | "users" | "locations" | "reports" | "promotions" | "notifications" | "profile";
+type Tab = "dashboard" | "business" | "admin-access" | "listings" | "add-listing" | "requests" | "categories" | "agents" | "users" | "locations" | "reports" | "promotions" | "notifications" | "profile";
 
 const bookingStatuses = [
   "new", "checking_availability", "contacted", "viewing_scheduled",
@@ -107,7 +109,7 @@ export function ManagePortal() {
   }, [loadDashboardCounts, supabase]);
 
   const loadTabData = useCallback(async (target: Tab, append = false) => {
-    if (target === "dashboard" || !role) return;
+    if (target === "dashboard" || target === "business" || target === "admin-access" || !role) return;
     if (!append && loadedTabs.current.has(target)) return;
     setTabLoading(true);
     setMessage(null);
@@ -343,8 +345,10 @@ export function ManagePortal() {
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "dashboard", label: "Dashboard" },
+    { id: "business", label: role === "admin" ? "Business operations" : "Business centre" },
     ...(role === "admin" ? [
       { id: "users" as Tab, label: "Users" },
+      { id: "admin-access" as Tab, label: "Admin access" },
     ] : []),
     { id: "listings", label: "Listings" },
     ...(role === "agent" ? [{ id: "add-listing" as Tab, label: "Add asset" }] : []),
@@ -373,6 +377,8 @@ export function ManagePortal() {
         {!online ? <p className="mb-4 rounded-2xl bg-brand-amber-soft p-4 text-sm font-semibold text-brand-navy">You are offline. Existing information remains visible; reconnect before saving changes.</p> : null}
         {message ? <p className="mb-4 rounded-2xl bg-brand-info-soft p-4 text-sm text-brand-navy" role="status">{message}</p> : null}
         {tab === "dashboard" ? <Dashboard role={role} counts={counts} /> : null}
+        {tab === "business" ? <BusinessOperations role={role} agentId={agentId} /> : null}
+        {tab === "admin-access" && role === "admin" ? <AdminAccessPanel /> : null}
         {tabLoading ? <div className="mb-4 rounded-2xl bg-brand-info-soft p-4 font-semibold">Loading this workspace...</div> : null}
         {tab === "listings" ? <Listings role={role} listings={listings} busy={busy} edit={setEditingListing} moderate={moderateListing} /> : null}
         {tab === "requests" ? <Requests bookings={bookings} busy={busy} update={updateBooking} /> : null}

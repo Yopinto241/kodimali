@@ -17,7 +17,9 @@ class AppDependencies {
   final GoRouter router;
 
   factory AppDependencies.create() {
-    final ManageRepository repository = ManageRepository(Supabase.instance.client);
+    final ManageRepository repository = ManageRepository(
+      Supabase.instance.client,
+    );
     final AppController controller = AppController(repository);
     final GoRouter router = createAppRouter(controller);
     return AppDependencies(

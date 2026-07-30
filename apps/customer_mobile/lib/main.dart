@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 import 'core/ads/admob_support.dart';
 import 'core/config/app_env.dart';
+import 'core/notifications/push_notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +21,7 @@ Future<void> main() async {
     runApp(const CustomerApp());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(CustomerAdMobController.instance.initialize());
+      unawaited(PushNotificationService.instance.initialize());
     });
   } catch (error, stackTrace) {
     FlutterError.reportError(

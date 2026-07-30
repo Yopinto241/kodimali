@@ -49,11 +49,25 @@ Deno.serve(async (request) => {
       return json({ received: true, ignored: true });
     }
 
-    const { data: payment } = await supabase
+    const { data: contactPayment } = await supabase
       .from("listing_contact_payments")
       .select("id")
       .eq("order_reference", orderReference)
       .maybeSingle();
+    const { data: agentListingPayment } = contactPayment ? { data: null } : await supabase
+      .from("agent_listing_payments")
+      .select("id")
+      .eq("order_reference", orderReference)
+      .maybeSingle();
+    const { data: chatPayment } = contactPayment || agentListingPayment ? { data: null } : await supabase
+      .from("listing_chat_payments")
+      .select("id")
+      .eq("order_reference", orderReference)
+      .maybeSingle();
+    const payment = contactPayment ?? agentListingPayment ?? chatPayment;
+    const paymentTable = contactPayment
+      ? "listing_contact_payments"
+      : agentListingPayment ? "agent_listing_payments" : "listing_chat_payments";
 
     const providerEventId = typeof record.eventId === "string"
       ? record.eventId.trim()
@@ -63,7 +77,8 @@ Deno.serve(async (request) => {
     const { data: eventRow, error: eventInsertError } = await supabase
       .from("payment_provider_events")
       .insert({
-        payment_id: payment?.id ?? null,
+        // payment_provider_events currently references contact payments only.
+        payment_id: contactPayment?.id ?? null,
         order_reference: orderReference,
         provider_event_id: providerEventId || null,
         event_type: eventName || "UNKNOWN",
@@ -116,7 +131,7 @@ Deno.serve(async (request) => {
     };
 
     const { error: paymentUpdateError } = await supabase
-      .from("listing_contact_payments")
+      .from(paymentTable)
       .update(updatePayload)
       .eq("id", payment.id);
 

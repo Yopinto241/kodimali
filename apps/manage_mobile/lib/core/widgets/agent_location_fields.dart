@@ -112,11 +112,10 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
           continue;
         }
         final String cacheKey = "$parentId::$locationType";
-        final List<Map<String, dynamic>> bucket =
-            childrenCache.putIfAbsent(
-              cacheKey,
-              () => <Map<String, dynamic>>[],
-            );
+        final List<Map<String, dynamic>> bucket = childrenCache.putIfAbsent(
+          cacheKey,
+          () => <Map<String, dynamic>>[],
+        );
         bucket.add(Map<String, dynamic>.from(item));
       }
       setState(() {
@@ -287,7 +286,8 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
                   ),
                   const Divider(height: 1),
                   Expanded(
-                    child: filteredItems.isEmpty &&
+                    child:
+                        filteredItems.isEmpty &&
                             (emptyValue == null || emptyLabel == null)
                         ? const Center(
                             child: Text("No matching locations found."),
@@ -304,7 +304,8 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
                                       Navigator.of(context).pop(emptyValue),
                                 ),
                               ...filteredItems.map((Map<String, dynamic> item) {
-                                final String value = item["id"] as String? ?? "";
+                                final String value =
+                                    item["id"] as String? ?? "";
                                 final String label =
                                     item["name"] as String? ?? "-";
                                 return ListTile(
@@ -312,8 +313,7 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
                                   trailing: selectedId == value
                                       ? const Icon(Icons.check_rounded)
                                       : null,
-                                  onTap: () =>
-                                      Navigator.of(context).pop(value),
+                                  onTap: () => Navigator.of(context).pop(value),
                                 );
                               }),
                             ],
@@ -432,7 +432,8 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
         const SizedBox(height: 16),
         _selectionField(
           label: "Saved area",
-          helperText: "Reuse an existing area in this ward if it already exists.",
+          helperText:
+              "Reuse an existing area in this ward if it already exists.",
           valueText: _savedAreaId == null
               ? "Type a new area or choose one below"
               : (_labelFor(_areas, _savedAreaId) ?? "Saved area selected"),

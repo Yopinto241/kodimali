@@ -2,13 +2,15 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { fetchCategories } from "@/lib/supabase-public";
+import { LanguageSwitch } from "@/components/language-switch";
 
 const primaryNavItems = [
   { href: "/", label: "Home" },
   { href: "/category/apartment", label: "Apartment" },
   { href: "/listings", label: "All listings" },
   { href: "/account", label: "Customer account" },
-  { href: "/safety", label: "Safety" },
+  { href: "/compare", label: "Compare" },
+  { href: "/advertise", label: "Advertise" },
   { href: "/manage", label: "Manage" },
 ];
 
@@ -39,7 +41,7 @@ export async function SiteHeader() {
     <header className="sticky top-0 z-50 border-b border-brand-border bg-white/92 shadow-[0_18px_40px_rgba(11,31,58,0.08)] backdrop-blur-xl">
       <div className="app-shell">
         <div className="flex min-h-[84px] flex-col justify-center gap-4 py-4">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
             <Link href="/" className="flex min-w-0 items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-brand-border bg-white shadow-[0_12px_28px_rgba(11,31,58,0.08)]">
                 <Image
@@ -75,6 +77,7 @@ export async function SiteHeader() {
                 </Link>
               ))}
             </nav>
+            <LanguageSwitch />
           </div>
 
           <nav
@@ -104,7 +107,7 @@ export async function SiteHeader() {
                 View all listings
               </Link>
             </div>
-            <div className="-mx-1 flex gap-2 overflow-x-auto rounded-[20px] bg-brand-navy-surface/8 px-3 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="category-nav -mx-1 flex min-w-0 max-w-full gap-2 overflow-x-auto rounded-[20px] bg-brand-card-soft px-3 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <Link
                 href="/listings"
                 className="shrink-0 rounded-full border border-brand-navy bg-brand-navy px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(11,31,58,0.12)] transition hover:bg-brand-navy-surface"
