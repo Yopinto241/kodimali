@@ -126,7 +126,7 @@ export function ManagePortal() {
       let result;
       if (target === "listings") {
         let query = supabase.from("listings").select(
-          "id, agent_id, title, description, price_amount, price_period, deposit_required_amount, listing_rules, public_location_label, status, approval_status, availability_status, listing_attributes, created_at, asset_categories(id, name, slug, field_schema)",
+          "id, agent_id, title, description, price_amount, price_period, deposit_required_amount, listing_rules, public_location_label, status, availability_status, listing_attributes, created_at, asset_categories(id, name, slug, field_schema)",
         ).order("created_at", { ascending: false }).range(from, to);
         if (role === "agent" && agentId) query = query.eq("agent_id", agentId);
         result = await withRetry(() => query);
