@@ -36,6 +36,7 @@ class AppController extends ChangeNotifier {
   String? get agentAccountStatus => _profile?.agentAccountStatus;
   bool get isAgentAccessBlocked =>
       highestRole == AppRole.agent && agentAccountStatus != "active";
+  bool get isEventsAgent => _profile?.isEventsAgent ?? false;
 
   Future<void> initialize() async {
     _authSubscription ??= Supabase.instance.client.auth.onAuthStateChange

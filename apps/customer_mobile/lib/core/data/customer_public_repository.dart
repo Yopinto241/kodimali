@@ -198,19 +198,23 @@ class CustomerPublicRepository {
     required String eventTypeId,
     required DateTime startsAt,
     required DateTime endsAt,
-    required String locationDetails,
+    String? locationId,
+    String? locationDetails,
     required int attendance,
     double? budgetTzs,
     String? title,
   }) async {
+    if (_client.auth.currentUser == null) {
+      throw StateError('Sign in to plan an event.');
+    }
     final dynamic response = await _client.rpc(
       'create_event_plan',
       params: <String, dynamic>{
         'p_event_type_id': eventTypeId,
         'p_start_at': startsAt.toUtc().toIso8601String(),
         'p_end_at': endsAt.toUtc().toIso8601String(),
-        'p_location_id': null,
-        'p_private_location_details': locationDetails.trim(),
+        'p_location_id': locationId,
+        'p_private_location_details': locationDetails?.trim(),
         'p_attendance': attendance,
         'p_budget_tzs': budgetTzs,
         'p_title': title?.trim(),
@@ -255,7 +259,7 @@ class CustomerPublicRepository {
       (await _client
               .from('event_plans')
               .select(
-                'id,reference,title,event_period,attendance,budget_tzs,status,created_at,event_types(name_sw,name_en),event_quote_revisions(id,revision,total_tzs,status,expires_at),event_agreements(id,version,terms,status,sent_at)',
+                'id,reference,title,event_period,attendance,budget_tzs,status,created_at,event_types(name_sw,name_en),event_quote_revisions!event_quote_revisions_plan_id_fkey(id,revision,total_tzs,status,expires_at),event_agreements(id,version,terms,status,sent_at)',
               )
               .order('created_at'))
           .cast<JsonMap>();

@@ -59,7 +59,8 @@ class ListingImageCompressor {
 
   XFile _asWebp(XFile source, Uint8List bytes) {
     final dot = source.name.lastIndexOf('.');
-    final base = dot > 0 ? source.name.substring(0, dot) : source.name;
+    final originalBase = dot > 0 ? source.name.substring(0, dot) : source.name;
+    final base = originalBase.trim().isEmpty ? 'listing-image' : originalBase;
     return XFile.fromData(
       bytes,
       name: '${base.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '-')}.webp',

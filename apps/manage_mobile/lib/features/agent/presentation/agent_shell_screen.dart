@@ -9,7 +9,6 @@ import 'agent_dashboard_tab.dart';
 import 'agent_listings_tab.dart';
 import 'agent_listing_chats_tab.dart';
 import 'agent_business_center_screen.dart';
-import '../../events/presentation/events_provider_workspace_screen.dart';
 
 class AgentShellScreen extends StatefulWidget {
   const AgentShellScreen({super.key});
@@ -28,7 +27,6 @@ class _AgentShellScreenState extends State<AgentShellScreen> {
     "Requests",
     "Chats",
     "Business",
-    "Events",
     "Notifications",
     "Profile",
   ];
@@ -43,7 +41,7 @@ class _AgentShellScreenState extends State<AgentShellScreen> {
             screen: AgentDashboardTab(
               onOpenRequests: () => setState(() => _currentIndex = 3),
               onOpenListings: () => setState(() => _currentIndex = 1),
-              onOpenNotifications: () => setState(() => _currentIndex = 7),
+              onOpenNotifications: () => setState(() => _currentIndex = 6),
             ),
           ),
           const ManageWorkspaceDestination(
@@ -70,11 +68,6 @@ class _AgentShellScreenState extends State<AgentShellScreen> {
             label: "Business",
             icon: Icons.auto_graph_outlined,
             screen: AgentBusinessCenterScreen(),
-          ),
-          const ManageWorkspaceDestination(
-            label: "Events",
-            icon: Icons.celebration_outlined,
-            screen: EventsProviderWorkspaceScreen(),
           ),
           const ManageWorkspaceDestination(
             label: "Notifications",

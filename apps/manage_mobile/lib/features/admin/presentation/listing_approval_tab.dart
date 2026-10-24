@@ -79,11 +79,24 @@ class _ListingApprovalTabState extends State<ListingApprovalTab> {
     if (!mounted) {
       return;
     }
-    await AppScope.of(context).repository.adminDeleteListing(
-      listing["id"] as String,
-      confirmDeleteWithInquiries: inquiryCount > 0,
-    );
-    await _refresh();
+    try {
+      await AppScope.of(context).repository.adminDeleteListing(
+        listing["id"] as String,
+        confirmDeleteWithInquiries: inquiryCount > 0,
+      );
+      await _refresh();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Listing deleted permanently.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Permanent deletion failed: $error')),
+        );
+      }
+    }
   }
 
   String _categoryLabel(Map<String, dynamic> listing) {

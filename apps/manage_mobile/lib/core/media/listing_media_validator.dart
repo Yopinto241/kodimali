@@ -33,14 +33,17 @@ class ListingMediaValidator {
     }
     for (int index = 0; index < images.length; index += 1) {
       final XFile image = images[index];
-      final String extension = extensionOf(image.name);
+      String extension = imageExtensionOf(image);
+      final int bytes = await image.length();
+      if (extension.isEmpty && bytes > 0) {
+        extension = _extensionFromHeader(await image.readAsBytes());
+      }
       if (!imageExtensions.contains(extension)) {
         throw StateError(
           'Image ${index + 1} (${image.name}) is not supported. '
           'Use JPG, PNG, WebP, GIF, HEIC, or HEIF.',
         );
       }
-      final int bytes = await image.length();
       if (bytes <= 0) {
         throw StateError('Image ${index + 1} (${image.name}) is empty.');
       }
@@ -93,6 +96,48 @@ class ListingMediaValidator {
       return '';
     }
     return fileName.substring(dot + 1).toLowerCase();
+  }
+
+  static String imageExtensionOf(XFile image) {
+    final String namedExtension = extensionOf(image.name);
+    if (namedExtension.isNotEmpty) return namedExtension;
+    final String pathExtension = extensionOf(image.path);
+    if (pathExtension.isNotEmpty) return pathExtension;
+    return switch (image.mimeType?.toLowerCase()) {
+      'image/jpeg' || 'image/jpg' => 'jpg',
+      'image/png' => 'png',
+      'image/webp' => 'webp',
+      'image/gif' => 'gif',
+      'image/heic' => 'heic',
+      'image/heif' => 'heif',
+      _ => '',
+    };
+  }
+
+  static String _extensionFromHeader(List<int> bytes) {
+    if (bytes.length >= 3 &&
+        bytes[0] == 0xFF &&
+        bytes[1] == 0xD8 &&
+        bytes[2] == 0xFF) {
+      return 'jpg';
+    }
+    if (bytes.length >= 8 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47) {
+      return 'png';
+    }
+    if (bytes.length >= 12 &&
+        String.fromCharCodes(bytes.sublist(0, 4)) == 'RIFF' &&
+        String.fromCharCodes(bytes.sublist(8, 12)) == 'WEBP') {
+      return 'webp';
+    }
+    if (bytes.length >= 6 &&
+        String.fromCharCodes(bytes.sublist(0, 3)) == 'GIF') {
+      return 'gif';
+    }
+    return '';
   }
 
   static String formatMiB(int bytes) =>

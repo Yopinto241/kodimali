@@ -4,8 +4,13 @@ import '../../core/data/customer_public_repository.dart';
 import '../../core/localization/customer_localization.dart';
 
 class EventsMarketplaceScreen extends StatefulWidget {
-  const EventsMarketplaceScreen({super.key, required this.repository});
+  const EventsMarketplaceScreen({
+    super.key,
+    required this.repository,
+    this.savedLocationId,
+  });
   final CustomerPublicRepository repository;
+  final String? savedLocationId;
 
   @override
   State<EventsMarketplaceScreen> createState() =>
@@ -36,8 +41,10 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
           IconButton(
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) =>
-                    _EventAdvisorScreen(repository: widget.repository),
+                builder: (_) => _EventAdvisorScreen(
+                  repository: widget.repository,
+                  savedLocationId: widget.savedLocationId,
+                ),
               ),
             ),
             icon: const Icon(Icons.auto_awesome_outlined),
@@ -258,94 +265,127 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
     final budget = TextEditingController();
     DateTime start = DateTime.now().add(const Duration(days: 7));
     DateTime end = start.add(const Duration(hours: 5));
-    final save = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text(sw ? 'Panga tukio' : 'Plan an event'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                DropdownButtonFormField<String>(
-                  initialValue: typeId,
-                  items: types
-                      .map(
-                        (type) => DropdownMenuItem(
-                          value: type['id'].toString(),
-                          child: Text(
-                            (sw ? type['name_sw'] : type['name_en']).toString(),
-                          ),
+    final save = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        fullscreenDialog: true,
+        builder: (plannerContext) => StatefulBuilder(
+          builder: (context, setPlannerState) => Scaffold(
+            appBar: AppBar(title: Text(sw ? 'Panga tukio' : 'Plan an event')),
+            body: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Text(
+                      sw
+                          ? 'Weka taarifa za tukio lako kwa utaratibu. Unaweza kuchagua vifaa na huduma baada ya kuhifadhi.'
+                          : 'Add your event details clearly. You can choose equipment and services after saving.',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                    const SizedBox(height: 20),
+                    DropdownButtonFormField<String>(
+                      initialValue: typeId,
+                      items: types
+                          .map(
+                            (type) => DropdownMenuItem(
+                              value: type['id'].toString(),
+                              child: Text(
+                                (sw ? type['name_sw'] : type['name_en'])
+                                    .toString(),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) typeId = value;
+                      },
+                    ),
+                    TextField(
+                      controller: title,
+                      decoration: InputDecoration(
+                        labelText: sw ? 'Jina la tukio' : 'Event name',
+                      ),
+                    ),
+                    if (widget.savedLocationId == null)
+                      TextField(
+                        controller: location,
+                        decoration: InputDecoration(
+                          labelText: sw ? 'Eneo la tukio' : 'Event location',
                         ),
                       )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) typeId = value;
-                  },
-                ),
-                TextField(
-                  controller: title,
-                  decoration: InputDecoration(
-                    labelText: sw ? 'Jina la tukio' : 'Event name',
-                  ),
-                ),
-                TextField(
-                  controller: location,
-                  decoration: InputDecoration(
-                    labelText: sw ? 'Eneo la tukio' : 'Event location',
-                  ),
-                ),
-                TextField(
-                  controller: attendance,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: sw ? 'Idadi ya wageni' : 'Attendance',
-                  ),
-                ),
-                TextField(
-                  controller: budget,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: sw ? 'Bajeti (TZS)' : 'Budget (TZS)',
-                  ),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(sw ? 'Mwanzo' : 'Starts'),
-                  subtitle: Text(start.toString()),
-                  onTap: () async {
-                    final value = await showDatePicker(
-                      context: context,
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 1095)),
-                      initialDate: start,
-                    );
-                    if (value != null) {
-                      setDialogState(() {
-                        start = DateTime(
-                          value.year,
-                          value.month,
-                          value.day,
-                          10,
+                    else
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.location_on_outlined),
+                        title: Text(
+                          sw ? 'Eneo ulilohifadhi' : 'Saved location',
+                        ),
+                        subtitle: Text(
+                          sw
+                              ? 'Tutatumia eneo ulilochagua kwenye programu.'
+                              : 'We will use the location selected in the app.',
+                        ),
+                      ),
+                    TextField(
+                      controller: attendance,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: sw ? 'Idadi ya wageni' : 'Attendance',
+                      ),
+                    ),
+                    TextField(
+                      controller: budget,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: sw ? 'Bajeti (TZS)' : 'Budget (TZS)',
+                      ),
+                    ),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(sw ? 'Mwanzo' : 'Starts'),
+                      subtitle: Text(start.toString()),
+                      onTap: () async {
+                        final value = await showDatePicker(
+                          context: context,
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 1095),
+                          ),
+                          initialDate: start,
                         );
-                        end = start.add(const Duration(hours: 5));
-                      });
-                    }
-                  },
+                        if (value != null) {
+                          setPlannerState(() {
+                            start = DateTime(
+                              value.year,
+                              value.month,
+                              value.day,
+                              10,
+                            );
+                            end = start.add(const Duration(hours: 5));
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 28),
+                    FilledButton.icon(
+                      onPressed: () => Navigator.pop(plannerContext, true),
+                      icon: const Icon(Icons.arrow_forward_rounded),
+                      label: Text(
+                        sw
+                            ? 'Hifadhi na uchague huduma'
+                            : 'Save and choose services',
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(plannerContext, false),
+                      child: Text(sw ? 'Ghairi' : 'Cancel'),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text(sw ? 'Ghairi' : 'Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: Text(sw ? 'Hifadhi' : 'Save'),
-            ),
-          ],
         ),
       ),
     );
@@ -361,7 +401,8 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
         eventTypeId: typeId,
         startsAt: start,
         endsAt: end,
-        locationDetails: location.text,
+        locationId: widget.savedLocationId,
+        locationDetails: widget.savedLocationId == null ? location.text : null,
         attendance: int.parse(attendance.text),
         budgetTzs: double.tryParse(budget.text),
         title: title.text,
@@ -865,8 +906,9 @@ class _IndividualBookingsHistoryScreen extends StatelessWidget {
 }
 
 class _EventAdvisorScreen extends StatefulWidget {
-  const _EventAdvisorScreen({required this.repository});
+  const _EventAdvisorScreen({required this.repository, this.savedLocationId});
   final CustomerPublicRepository repository;
+  final String? savedLocationId;
   @override
   State<_EventAdvisorScreen> createState() => _EventAdvisorScreenState();
 }
@@ -945,12 +987,24 @@ class _EventAdvisorScreenState extends State<_EventAdvisorScreen> {
                     .toList(),
                 onChanged: (value) => setState(() => templateId = value),
               ),
-              TextField(
-                controller: location,
-                decoration: InputDecoration(
-                  labelText: sw ? 'Eneo' : 'Location',
+              if (widget.savedLocationId == null)
+                TextField(
+                  controller: location,
+                  decoration: InputDecoration(
+                    labelText: sw ? 'Eneo' : 'Location',
+                  ),
+                )
+              else
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.location_on_outlined),
+                  title: Text(sw ? 'Eneo ulilohifadhi' : 'Saved location'),
+                  subtitle: Text(
+                    sw
+                        ? 'Mapendekezo yatatumia eneo ulilochagua.'
+                        : 'Recommendations will use your selected location.',
+                  ),
                 ),
-              ),
               TextField(
                 controller: guests,
                 keyboardType: TextInputType.number,
@@ -1080,7 +1134,7 @@ class _EventAdvisorScreenState extends State<_EventAdvisorScreen> {
   Future<void> _run(List<JsonMap> templates) async {
     if (templateId == null ||
         int.tryParse(guests.text) == null ||
-        location.text.trim().isEmpty) {
+        widget.savedLocationId == null && location.text.trim().isEmpty) {
       return;
     }
     setState(() => busy = true);
@@ -1092,7 +1146,8 @@ class _EventAdvisorScreenState extends State<_EventAdvisorScreen> {
         eventTypeId: template['event_type_id']?.toString() ?? '',
         startsAt: date,
         endsAt: date.add(const Duration(hours: 6)),
-        locationDetails: location.text,
+        locationId: widget.savedLocationId,
+        locationDetails: widget.savedLocationId == null ? location.text : null,
         attendance: int.parse(guests.text),
         budgetTzs: double.tryParse(budget.text),
         title: 'Event Advisor plan',

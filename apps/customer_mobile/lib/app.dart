@@ -505,8 +505,9 @@ class _CustomerRootState extends State<CustomerRoot> {
       if (notification.direction == ScrollDirection.reverse) {
         _navigationRevealTimer?.cancel();
         if (_navigationVisible) setState(() => _navigationVisible = false);
-      } else {
-        _scheduleNavigationReveal();
+      } else if (notification.direction == ScrollDirection.forward) {
+        _navigationRevealTimer?.cancel();
+        if (!_navigationVisible) setState(() => _navigationVisible = true);
       }
     } else if (notification is ScrollEndNotification) {
       _scheduleNavigationReveal();
@@ -708,8 +709,10 @@ class _CustomerRootState extends State<CustomerRoot> {
     if (category['slug'] == 'events') {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) =>
-              EventsMarketplaceScreen(repository: widget.repository),
+          builder: (_) => EventsMarketplaceScreen(
+            repository: widget.repository,
+            savedLocationId: _areaId ?? _wardId ?? _districtId ?? _regionId,
+          ),
         ),
       );
       return;
@@ -856,17 +859,7 @@ class _CustomerRootState extends State<CustomerRoot> {
       EventsMarketplaceScreen(
         key: const PageStorageKey<String>('customer_events'),
         repository: widget.repository,
-      ),
-      PublicSearchScreen(
-        key: const PageStorageKey<String>("customer_search"),
-        repository: widget.repository,
-        refreshTick: _refreshTick,
-        regionId: _regionId,
-        districtId: _districtId,
-        wardId: _wardId,
-        areaId: _areaId,
-        latitude: _latitude,
-        longitude: _longitude,
+        savedLocationId: _areaId ?? _wardId ?? _districtId ?? _regionId,
       ),
       CustomerAccountScreen(
         key: const PageStorageKey<String>('customer_account'),
@@ -1010,10 +1003,6 @@ class _CustomerRootState extends State<CustomerRoot> {
                     icon: const Icon(Icons.celebration_outlined),
                     selectedIcon: const Icon(Icons.celebration_rounded),
                     label: context.tr("nav.events"),
-                  ),
-                  NavigationDestination(
-                    icon: const Icon(Icons.search_outlined),
-                    label: context.tr("nav.search"),
                   ),
                   NavigationDestination(
                     icon: const Icon(Icons.person_outline_rounded),
@@ -1479,6 +1468,8 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
     final List<Map<String, dynamic>> orderedCategories =
         List<Map<String, dynamic>>.from(data.categories)
           ..sort((Map<String, dynamic> a, Map<String, dynamic> b) {
+            if (a["slug"] == "events" && b["slug"] != "events") return -1;
+            if (b["slug"] == "events" && a["slug"] != "events") return 1;
             final int left = (a["display_order"] as num?)?.toInt() ?? 999;
             final int right = (b["display_order"] as num?)?.toInt() ?? 999;
             if (left != right) {
@@ -1503,6 +1494,15 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
         .toList();
 
     void openCategory(Map<String, dynamic> category) {
+      if (category['slug'] == 'events') {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) =>
+                EventsMarketplaceScreen(repository: widget.repository),
+          ),
+        );
+        return;
+      }
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => CategoryListingsScreen(

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/localization/manage_localization.dart';
-import '../../events/presentation/events_provider_workspace_screen.dart';
 
 class OwnerWorkspaceScreen extends StatefulWidget {
   const OwnerWorkspaceScreen({super.key});
@@ -148,15 +147,6 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const EventsProviderWorkspaceScreen(),
-              ),
-            ),
-            icon: const Icon(Icons.celebration_outlined),
-            tooltip: context.isSwahili ? 'Sherehe na Matukio' : 'Events',
-          ),
           TextButton(
             onPressed: () => Navigator.pop(c, false),
             child: Text(context.isSwahili ? 'Ghairi' : 'Cancel'),

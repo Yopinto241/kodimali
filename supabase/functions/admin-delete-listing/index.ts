@@ -117,8 +117,19 @@ Deno.serve(async (request) => {
       .from("listing-media")
       .remove(storagePaths);
     if (storageError) {
-      return json({ error: storageError.message }, 500);
+      console.warn("Listing media cleanup will be retried separately", storageError);
     }
+  }
+
+  // Event plans may link a rental listing with an intentionally restrictive
+  // foreign key. Permanent admin deletion removes that optional link first;
+  // the event plan itself and its audit history remain intact.
+  const { error: eventLinkDeleteError } = await serviceClient
+    .from("event_plan_rental_assets")
+    .delete()
+    .eq("listing_id", listingId);
+  if (eventLinkDeleteError && eventLinkDeleteError.code !== "42P01") {
+    return json({ error: eventLinkDeleteError.message }, 500);
   }
 
   const { error: mediaDeleteError } = await serviceClient

@@ -20,6 +20,7 @@ class AppProfile {
     this.agentVerifiedAt,
     this.agentAccountStatus,
     this.agentVerificationStatus,
+    this.agentPrimaryCategorySlug,
   });
 
   final String id;
@@ -40,6 +41,9 @@ class AppProfile {
   final DateTime? agentVerifiedAt;
   final String? agentAccountStatus;
   final String? agentVerificationStatus;
+  final String? agentPrimaryCategorySlug;
+
+  bool get isEventsAgent => agentPrimaryCategorySlug == 'events';
 
   AppRole get highestRole {
     if (roles.contains(AppRole.admin)) {

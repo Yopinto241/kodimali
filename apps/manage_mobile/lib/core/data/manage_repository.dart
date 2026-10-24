@@ -454,6 +454,18 @@ class ManageRepository {
         .map(_parseRole)
         .toList();
     final JsonMap? agent = await _myAgentStatus();
+    String? primaryCategorySlug;
+    final String? agentId = agent?["id"] as String?;
+    if (agentId != null) {
+      final JsonMap? assignment = await _client
+          .from('agent_service_categories')
+          .select('asset_categories(slug)')
+          .eq('agent_id', agentId)
+          .eq('is_primary', true)
+          .maybeSingle();
+      primaryCategorySlug = (assignment?['asset_categories'] as Map?)?['slug']
+          ?.toString();
+    }
 
     return AppProfile(
       id: (profile?["id"] as String?) ?? userId,
@@ -480,6 +492,7 @@ class ManageRepository {
       ),
       agentAccountStatus: agent?["account_status"] as String?,
       agentVerificationStatus: agent?["verification_status"] as String?,
+      agentPrimaryCategorySlug: primaryCategorySlug,
     );
   }
 

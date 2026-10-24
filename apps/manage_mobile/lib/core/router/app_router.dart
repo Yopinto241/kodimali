@@ -12,6 +12,7 @@ import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/presentation/owner_register_screen.dart';
 import '../../features/auth/presentation/splash_screen.dart';
 import '../../features/owner/presentation/owner_workspace_screen.dart';
+import '../../features/events/presentation/events_provider_workspace_screen.dart';
 import '../../features/shared/presentation/workspace_switcher_screen.dart';
 import '../state/app_controller.dart';
 
@@ -42,7 +43,11 @@ GoRouter createAppRouter(AppController controller) {
       final String target = switch (role) {
         AppRole.admin => "/admin",
         AppRole.agent =>
-          controller.isAgentAccessBlocked ? "/agent-account-status" : "/agent",
+          controller.isAgentAccessBlocked
+              ? "/agent-account-status"
+              : controller.isEventsAgent
+              ? "/events-provider"
+              : "/agent",
         AppRole.owner => "/owner",
         _ => "/access-denied",
       };
@@ -58,6 +63,11 @@ GoRouter createAppRouter(AppController controller) {
       }
       if (location.startsWith("/agent") && role == AppRole.agent) {
         return controller.isAgentAccessBlocked ? "/agent-account-status" : null;
+      }
+      if (location == "/events-provider" &&
+          role == AppRole.agent &&
+          controller.isEventsAgent) {
+        return null;
       }
       if (location.startsWith("/owner") && role == AppRole.owner) {
         return null;
@@ -116,6 +126,10 @@ GoRouter createAppRouter(AppController controller) {
       GoRoute(
         path: "/agent",
         builder: (context, state) => const AgentShellScreen(),
+      ),
+      GoRoute(
+        path: "/events-provider",
+        builder: (context, state) => const EventsProviderWorkspaceScreen(),
       ),
       GoRoute(
         path: "/listing-chat/:conversationId",
