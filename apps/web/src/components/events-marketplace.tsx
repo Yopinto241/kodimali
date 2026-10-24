@@ -151,11 +151,11 @@ export function EventsMarketplace() {
   }
 
   return (
-    <div className="space-y-12 pb-16">
-      <section className="owner-hero relative overflow-hidden rounded-[32px] p-7 text-white sm:p-12">
+    <div className="events-page space-y-10 pb-16 sm:space-y-14">
+      <section className="events-hero owner-hero relative overflow-hidden rounded-[28px] p-6 text-white sm:p-10">
         <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-brand-amber/20 blur-3xl" />
         <p className="eyebrow !text-brand-amber">KODIMALI Events</p>
-        <h1 className="mt-4 max-w-4xl font-heading text-4xl font-semibold sm:text-6xl">
+        <h1 className="mt-3 max-w-3xl font-heading text-4xl font-semibold sm:text-5xl">
           {sw
             ? "Panga sherehe yako, sehemu moja."
             : "Plan your event in one place."}
@@ -171,25 +171,25 @@ export function EventsMarketplace() {
       </section>
 
       <nav
-        className="surface-card flex flex-wrap gap-2 p-3"
+        className="events-anchor-nav flex gap-2 overflow-x-auto p-2"
         aria-label={sw ? "Urambazaji wa Events" : "Events navigation"}
       >
-        <a className="btn btn-outline" href="#individual-marketplace">
+        <a className="events-anchor-link" href="#individual-marketplace">
           {sw ? "Vifaa" : "Explore Equipment"}
         </a>
-        <a className="btn btn-outline" href="#individual-marketplace">
+        <a className="events-anchor-link" href="#individual-marketplace">
           {sw ? "Wataalamu" : "Find Professionals"}
         </a>
-        <a className="btn btn-outline" href="#advisor">
+        <a className="events-anchor-link" href="#advisor">
           {sw ? "Mshauri wa Tukio" : "Event Advisor"}
         </a>
-        <a className="btn btn-outline" href="#plan-event">
+        <a className="events-anchor-link" href="#plan-event">
           {sw ? "Jenga Event" : "Build an Event"}
         </a>
-        <Link className="btn btn-outline" href="/account#event-plans">
+        <Link className="events-anchor-link" href="/account#event-plans">
           {sw ? "Events Zangu" : "My Events"}
         </Link>
-        <Link className="btn btn-outline" href="/account#event-plans">
+        <Link className="events-anchor-link" href="/account#event-plans">
           {sw ? "Booking Zangu" : "My Bookings"}
         </Link>
       </nav>
@@ -199,7 +199,7 @@ export function EventsMarketplace() {
       <EventAdvisor eventTypes={types} />
 
       <RevealOnScroll>
-        <section>
+        <section className="events-section">
           <p className="eyebrow">{sw ? "Aina ya tukio" : "Occasion"}</p>
           <h2 className="mt-3 font-heading text-3xl font-semibold">
             {sw ? "Unaandaa tukio gani?" : "What are you organizing?"}
@@ -228,8 +228,8 @@ export function EventsMarketplace() {
         </section>
       </RevealOnScroll>
 
-      <section className="grid gap-8 lg:grid-cols-2">
-        <div>
+      <section className="grid gap-5 lg:grid-cols-2">
+        <div className="surface-card p-5 sm:p-7">
           <p className="eyebrow">{sw ? "Vifaa" : "Equipment"}</p>
           <h2 className="mt-3 font-heading text-3xl font-semibold">
             {sw
@@ -259,7 +259,7 @@ export function EventsMarketplace() {
             )}
           </div>
         </div>
-        <div>
+        <div className="surface-card p-5 sm:p-7">
           <p className="eyebrow">{sw ? "Wataalamu" : "Professionals"}</p>
           <h2 className="mt-3 font-heading text-3xl font-semibold">
             {sw
@@ -292,7 +292,10 @@ export function EventsMarketplace() {
       </section>
 
       <RevealOnScroll>
-        <section id="plan-event" className="surface-card p-6 sm:p-8">
+        <section
+          id="plan-event"
+          className="events-form-card surface-card p-5 sm:p-8"
+        >
           <p className="eyebrow">{sw ? "Mpango wa tukio" : "Event plan"}</p>
           <h2 className="mt-3 font-heading text-3xl font-semibold">
             {sw ? "Tuanzie kwenye maelezo muhimu" : "Start with the essentials"}

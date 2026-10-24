@@ -102,7 +102,7 @@ export function EventsPublicCatalog() {
     void load(true);
   }
   return (
-    <section id="individual-marketplace">
+    <section id="individual-marketplace" className="events-section">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow">
@@ -133,111 +133,138 @@ export function EventsPublicCatalog() {
         </button>
       </div>
       <form
-        className="soft-panel mt-5 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4"
+        className="event-filter-panel mt-5 grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4 sm:p-5"
         onSubmit={submit}
       >
-        <input
-          className="field-input"
-          placeholder={
-            sw ? "Tafuta jina au maelezo" : "Search name or description"
-          }
-          value={filters.search}
-          onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-        />
-        {mode === "equipment" ? (
-          <select
+        <label className="grid gap-2 text-sm font-semibold lg:col-span-2">
+          <span>{sw ? "Unatafuta nini?" : "What are you looking for?"}</span>
+          <input
             className="field-input"
-            value={filters.category}
-            onChange={(e) =>
-              setFilters({ ...filters, category: e.target.value })
+            placeholder={
+              sw ? "Tafuta jina au maelezo" : "Search name or description"
             }
-          >
-            <option value="">{sw ? "Vifaa vyote" : "All equipment"}</option>
-            {categories.map((row) => (
-              <option value={String(row.id)} key={String(row.id)}>
-                {String(sw ? row.name_sw : row.name_en)}
-              </option>
-            ))}
-          </select>
+            value={filters.search}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+          />
+        </label>
+        {mode === "equipment" ? (
+          <label className="grid gap-2 text-sm font-semibold lg:col-span-2">
+            <span>{sw ? "Aina ya kifaa" : "Equipment category"}</span>
+            <select
+              className="field-input"
+              value={filters.category}
+              onChange={(e) =>
+                setFilters({ ...filters, category: e.target.value })
+              }
+            >
+              <option value="">{sw ? "Vifaa vyote" : "All equipment"}</option>
+              {categories.map((row) => (
+                <option value={String(row.id)} key={String(row.id)}>
+                  {String(sw ? row.name_sw : row.name_en)}
+                </option>
+              ))}
+            </select>
+          </label>
         ) : (
-          <select
-            className="field-input"
-            value={filters.kind}
-            onChange={(e) => setFilters({ ...filters, kind: e.target.value })}
-          >
-            <option value="">
-              {sw ? "Wataalamu wote" : "All professionals"}
-            </option>
-            {[
-              "mc_host",
-              "dj",
-              "photographer",
-              "videographer",
-              "planner",
-              "decorator",
-              "caterer",
-              "performer",
-              "transport_delivery",
-            ].map((kind) => (
-              <option value={kind} key={kind}>
-                {kind.replaceAll("_", " ")}
+          <label className="grid gap-2 text-sm font-semibold lg:col-span-2">
+            <span>{sw ? "Aina ya mtaalamu" : "Professional type"}</span>
+            <select
+              className="field-input"
+              value={filters.kind}
+              onChange={(e) => setFilters({ ...filters, kind: e.target.value })}
+            >
+              <option value="">
+                {sw ? "Wataalamu wote" : "All professionals"}
               </option>
-            ))}
-          </select>
+              {[
+                "mc_host",
+                "dj",
+                "photographer",
+                "videographer",
+                "planner",
+                "decorator",
+                "caterer",
+                "performer",
+                "transport_delivery",
+              ].map((kind) => (
+                <option value={kind} key={kind}>
+                  {kind.replaceAll("_", " ")}
+                </option>
+              ))}
+            </select>
+          </label>
         )}
-        <div className="sm:col-span-2 lg:col-span-4">
+        <fieldset className="event-filter-group sm:col-span-2 lg:col-span-4">
+          <legend>{sw ? "Chagua eneo" : "Choose location"}</legend>
           <EventLocationFields
             value={filters.location}
             onChange={(location) =>
               setFilters((current) => ({ ...current, location }))
             }
           />
-        </div>
-        <input
-          className="field-input"
-          type="datetime-local"
-          value={filters.start}
-          onChange={(e) => setFilters({ ...filters, start: e.target.value })}
-        />
-        <input
-          className="field-input"
-          type="datetime-local"
-          value={filters.end}
-          onChange={(e) => setFilters({ ...filters, end: e.target.value })}
-        />
-        <input
-          className="field-input"
-          type="number"
-          min="0"
-          placeholder={sw ? "Bei ya chini" : "Minimum price"}
-          value={filters.min}
-          onChange={(e) => setFilters({ ...filters, min: e.target.value })}
-        />
-        <input
-          className="field-input"
-          type="number"
-          min="0"
-          placeholder={sw ? "Bei ya juu" : "Maximum price"}
-          value={filters.max}
-          onChange={(e) => setFilters({ ...filters, max: e.target.value })}
-        />
-        <select
-          className="field-input"
-          value={filters.sort}
-          onChange={(e) => setFilters({ ...filters, sort: e.target.value })}
-        >
-          <option value="recommended">
-            {sw ? "Zilizopendekezwa" : "Recommended"}
-          </option>
-          <option value="newest">{sw ? "Mpya" : "Newest"}</option>
-          <option value="price_low">
-            {sw ? "Bei ndogo kwanza" : "Lowest price"}
-          </option>
-          <option value="price_high">
-            {sw ? "Bei kubwa kwanza" : "Highest price"}
-          </option>
-        </select>
-        <button className="btn btn-success">{sw ? "Tafuta" : "Search"}</button>
+        </fieldset>
+        <label className="grid gap-2 text-sm font-semibold">
+          <span>{sw ? "Mwanzo" : "Start"}</span>
+          <input
+            className="field-input"
+            type="datetime-local"
+            value={filters.start}
+            onChange={(e) => setFilters({ ...filters, start: e.target.value })}
+          />
+        </label>
+        <label className="grid gap-2 text-sm font-semibold">
+          <span>{sw ? "Mwisho" : "End"}</span>
+          <input
+            className="field-input"
+            type="datetime-local"
+            value={filters.end}
+            onChange={(e) => setFilters({ ...filters, end: e.target.value })}
+          />
+        </label>
+        <label className="grid gap-2 text-sm font-semibold">
+          <span>{sw ? "Bei ya chini" : "Minimum price"}</span>
+          <input
+            className="field-input"
+            type="number"
+            min="0"
+            placeholder={sw ? "Bei ya chini" : "Minimum price"}
+            value={filters.min}
+            onChange={(e) => setFilters({ ...filters, min: e.target.value })}
+          />
+        </label>
+        <label className="grid gap-2 text-sm font-semibold">
+          <span>{sw ? "Bei ya juu" : "Maximum price"}</span>
+          <input
+            className="field-input"
+            type="number"
+            min="0"
+            placeholder={sw ? "Bei ya juu" : "Maximum price"}
+            value={filters.max}
+            onChange={(e) => setFilters({ ...filters, max: e.target.value })}
+          />
+        </label>
+        <label className="grid gap-2 text-sm font-semibold sm:col-span-1 lg:col-span-2">
+          <span>{sw ? "Panga matokeo" : "Sort results"}</span>
+          <select
+            className="field-input"
+            value={filters.sort}
+            onChange={(e) => setFilters({ ...filters, sort: e.target.value })}
+          >
+            <option value="recommended">
+              {sw ? "Zilizopendekezwa" : "Recommended"}
+            </option>
+            <option value="newest">{sw ? "Mpya" : "Newest"}</option>
+            <option value="price_low">
+              {sw ? "Bei ndogo kwanza" : "Lowest price"}
+            </option>
+            <option value="price_high">
+              {sw ? "Bei kubwa kwanza" : "Highest price"}
+            </option>
+          </select>
+        </label>
+        <button className="btn btn-success self-end sm:col-span-1 lg:col-span-2">
+          {sw ? "Tafuta" : "Search"}
+        </button>
       </form>
       {loading ? (
         <p className="mt-6 text-muted">{sw ? "Inapakia…" : "Loading…"}</p>

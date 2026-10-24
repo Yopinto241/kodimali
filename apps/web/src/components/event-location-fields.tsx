@@ -97,7 +97,7 @@ export function EventLocationFields({
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="event-location-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {inputName ? (
         <input type="hidden" name={inputName} value={value} />
       ) : null}

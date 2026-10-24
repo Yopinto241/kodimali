@@ -96,9 +96,9 @@ export function EventAdvisor({ eventTypes }: { eventTypes: Row[] }) {
     );
   }
   return (
-    <section id="advisor" className="surface-card p-6 sm:p-8">
-      <div className="grid gap-8 lg:grid-cols-[.8fr_1.2fr]">
-        <div>
+    <section id="advisor" className="events-form-card surface-card p-5 sm:p-8">
+      <div className="grid gap-7 lg:grid-cols-[.72fr_1.28fr]">
+        <div className="events-form-intro">
           <p className="eyebrow">{sw ? "Mshauri wa Tukio" : "Event Advisor"}</p>
           <h2 className="mt-3 font-heading text-3xl font-semibold">
             {sw ? "Unahitaji msaada kupanga?" : "Need help planning?"}
