@@ -50,42 +50,33 @@ Deno.serve(async (request) => {
     return json({ error: "listingId and status are required" }, 400);
   }
 
-  const isRemoved = status !== "active" || removedReason != null;
-  const { data: listing, error: updateError } = await serviceClient
-    .from("listings")
-    .update({
-      approval_status: "approved",
-      status,
-      availability_status: availabilityStatus ?? (removedReason === "rented" ? "rented" : "available"),
-      published_at: status === "active" ? new Date().toISOString() : null,
-      removed_from_market_at: isRemoved ? new Date().toISOString() : null,
-      removed_reason: isRemoved ? (removedReason ?? "admin_removed") : null,
-    })
-    .eq("id", listingId)
-    .select("id, agent_id")
-    .single();
+  // Execute with the verified caller JWT so the database function can enforce
+  // admin identity through auth.uid(); table writes remain SECURITY DEFINER.
+  const { data: result, error: updateError } = await userClient.rpc(
+    "admin_set_listing_marketplace_status",
+    {
+      p_listing_id: listingId,
+      p_status: status,
+      p_availability_status: availabilityStatus ?? (removedReason === "rented" ? "rented" : "available"),
+      p_removed_reason: removedReason ?? null,
+      p_moderation_note: moderationNote ?? null,
+    },
+  );
 
-  if (updateError || !listing) {
+  if (updateError || !result) {
     return json({ error: updateError?.message ?? "Listing not found" }, 404);
   }
 
-  await serviceClient.from("audit_logs").insert({
-    actor_id: user.id,
-    action: "update_listing_marketplace_status",
-    target_table: "listings",
-    target_id: listingId,
-    metadata: {
-      status,
-      availabilityStatus: availabilityStatus ?? null,
-      removedReason: removedReason ?? null,
-      moderationNote: moderationNote ?? null,
-    },
-  });
+  const { data: listing } = await serviceClient
+    .from("listings")
+    .select("id, agent_id")
+    .eq("id", listingId)
+    .single();
 
   const { data: agent } = await serviceClient
     .from("agents")
     .select("profile_id")
-    .eq("id", listing.agent_id)
+    .eq("id", listing?.agent_id ?? "")
     .single();
 
   if (agent?.profile_id) {
@@ -102,5 +93,5 @@ Deno.serve(async (request) => {
     });
   }
 
-  return json({ success: true, listingId, status });
+  return json(result);
 });

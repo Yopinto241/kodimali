@@ -3039,21 +3039,18 @@ class ManageRepository {
     required String status,
     String? removedReason,
   }) async {
-    final JsonMap updates = <String, dynamic>{
-      "status": status,
-      "removed_reason": removedReason,
-      "removed_from_market_at": status == "active"
-          ? null
-          : DateTime.now().toUtc().toIso8601String(),
-    };
-    if (status == "active") {
-      updates["published_at"] = DateTime.now().toUtc().toIso8601String();
-      updates["availability_status"] = "available";
-    }
-    if (removedReason == "rented") {
-      updates["availability_status"] = "rented";
-    }
-    await _client.from("listings").update(updates).eq("id", listingId);
+    await _client.rpc(
+      "admin_set_listing_marketplace_status",
+      params: <String, dynamic>{
+        "p_listing_id": listingId,
+        "p_status": status,
+        "p_availability_status": removedReason == "rented"
+            ? "rented"
+            : "available",
+        "p_removed_reason": removedReason,
+        "p_moderation_note": null,
+      },
+    );
   }
 
   Future<List<JsonMap>> fetchLocationsForAdmin() async {
