@@ -2,15 +2,22 @@ import 'package:flutter/material.dart';
 
 import '../../core/data/customer_public_repository.dart';
 import '../../core/localization/customer_localization.dart';
+import 'event_location_picker.dart';
 
 class EventsMarketplaceScreen extends StatefulWidget {
   const EventsMarketplaceScreen({
     super.key,
     required this.repository,
-    this.savedLocationId,
+    this.initialRegionId,
+    this.initialDistrictId,
+    this.initialWardId,
+    this.initialAreaId,
   });
   final CustomerPublicRepository repository;
-  final String? savedLocationId;
+  final String? initialRegionId;
+  final String? initialDistrictId;
+  final String? initialWardId;
+  final String? initialAreaId;
 
   @override
   State<EventsMarketplaceScreen> createState() =>
@@ -43,7 +50,10 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
               MaterialPageRoute<void>(
                 builder: (_) => _EventAdvisorScreen(
                   repository: widget.repository,
-                  savedLocationId: widget.savedLocationId,
+                  initialRegionId: widget.initialRegionId,
+                  initialDistrictId: widget.initialDistrictId,
+                  initialWardId: widget.initialWardId,
+                  initialAreaId: widget.initialAreaId,
                 ),
               ),
             ),
@@ -263,6 +273,7 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
     final location = TextEditingController();
     final attendance = TextEditingController();
     final budget = TextEditingController();
+    EventLocationSelection? selectedLocation;
     DateTime start = DateTime.now().add(const Duration(days: 7));
     DateTime end = start.add(const Duration(hours: 5));
     final save = await Navigator.of(context).push<bool>(
@@ -307,26 +318,49 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
                         labelText: sw ? 'Jina la tukio' : 'Event name',
                       ),
                     ),
-                    if (widget.savedLocationId == null)
-                      TextField(
-                        controller: location,
-                        decoration: InputDecoration(
-                          labelText: sw ? 'Eneo la tukio' : 'Event location',
-                        ),
-                      )
-                    else
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
+                    Card(
+                      child: ListTile(
                         leading: const Icon(Icons.location_on_outlined),
                         title: Text(
-                          sw ? 'Eneo ulilohifadhi' : 'Saved location',
+                          selectedLocation?.label ??
+                              (sw
+                                  ? 'Chagua eneo la tukio'
+                                  : 'Choose event location'),
                         ),
                         subtitle: Text(
                           sw
-                              ? 'Tutatumia eneo ulilochagua kwenye programu.'
-                              : 'We will use the location selected in the app.',
+                              ? 'Mkoa, wilaya, kata na eneo'
+                              : 'Region, district, ward and area',
                         ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () async {
+                          final value = await Navigator.of(context)
+                              .push<EventLocationSelection>(
+                                MaterialPageRoute(
+                                  builder: (_) => EventLocationPicker(
+                                    repository: widget.repository,
+                                    swahili: sw,
+                                    initialRegionId:
+                                        selectedLocation?.regionId ??
+                                        widget.initialRegionId,
+                                    initialDistrictId:
+                                        selectedLocation?.districtId ??
+                                        widget.initialDistrictId,
+                                    initialWardId:
+                                        selectedLocation?.wardId ??
+                                        widget.initialWardId,
+                                    initialAreaId:
+                                        selectedLocation?.areaId ??
+                                        widget.initialAreaId,
+                                  ),
+                                ),
+                              );
+                          if (value != null) {
+                            setPlannerState(() => selectedLocation = value);
+                          }
+                        },
                       ),
+                    ),
                     TextField(
                       controller: attendance,
                       keyboardType: TextInputType.number,
@@ -396,13 +430,29 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
       budget.dispose();
       return;
     }
+    if (selectedLocation?.locationId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            sw
+                ? 'Chagua eneo la tukio kwanza.'
+                : 'Choose the event location first.',
+          ),
+        ),
+      );
+      title.dispose();
+      location.dispose();
+      attendance.dispose();
+      budget.dispose();
+      return;
+    }
     try {
       final result = await widget.repository.createEventPlan(
         eventTypeId: typeId,
         startsAt: start,
         endsAt: end,
-        locationId: widget.savedLocationId,
-        locationDetails: widget.savedLocationId == null ? location.text : null,
+        locationId: selectedLocation!.locationId,
+        locationDetails: null,
         attendance: int.parse(attendance.text),
         budgetTzs: double.tryParse(budget.text),
         title: title.text,
@@ -906,9 +956,18 @@ class _IndividualBookingsHistoryScreen extends StatelessWidget {
 }
 
 class _EventAdvisorScreen extends StatefulWidget {
-  const _EventAdvisorScreen({required this.repository, this.savedLocationId});
+  const _EventAdvisorScreen({
+    required this.repository,
+    this.initialRegionId,
+    this.initialDistrictId,
+    this.initialWardId,
+    this.initialAreaId,
+  });
   final CustomerPublicRepository repository;
-  final String? savedLocationId;
+  final String? initialRegionId,
+      initialDistrictId,
+      initialWardId,
+      initialAreaId;
   @override
   State<_EventAdvisorScreen> createState() => _EventAdvisorScreenState();
 }
@@ -925,6 +984,7 @@ class _EventAdvisorScreenState extends State<_EventAdvisorScreen> {
   DateTime date = DateTime.now().add(const Duration(days: 30));
   bool busy = false;
   List<JsonMap> recommendations = <JsonMap>[];
+  EventLocationSelection? selectedLocation;
   @override
   void initState() {
     super.initState();
@@ -987,24 +1047,45 @@ class _EventAdvisorScreenState extends State<_EventAdvisorScreen> {
                     .toList(),
                 onChanged: (value) => setState(() => templateId = value),
               ),
-              if (widget.savedLocationId == null)
-                TextField(
-                  controller: location,
-                  decoration: InputDecoration(
-                    labelText: sw ? 'Eneo' : 'Location',
-                  ),
-                )
-              else
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
+              Card(
+                child: ListTile(
                   leading: const Icon(Icons.location_on_outlined),
-                  title: Text(sw ? 'Eneo ulilohifadhi' : 'Saved location'),
+                  title: Text(
+                    selectedLocation?.label ??
+                        (sw ? 'Chagua eneo la tukio' : 'Choose event location'),
+                  ),
                   subtitle: Text(
                     sw
-                        ? 'Mapendekezo yatatumia eneo ulilochagua.'
-                        : 'Recommendations will use your selected location.',
+                        ? 'Mkoa, wilaya, kata na eneo'
+                        : 'Region, district, ward and area',
                   ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    final value = await Navigator.of(context)
+                        .push<EventLocationSelection>(
+                          MaterialPageRoute(
+                            builder: (_) => EventLocationPicker(
+                              repository: widget.repository,
+                              swahili: sw,
+                              initialRegionId:
+                                  selectedLocation?.regionId ??
+                                  widget.initialRegionId,
+                              initialDistrictId:
+                                  selectedLocation?.districtId ??
+                                  widget.initialDistrictId,
+                              initialWardId:
+                                  selectedLocation?.wardId ??
+                                  widget.initialWardId,
+                              initialAreaId:
+                                  selectedLocation?.areaId ??
+                                  widget.initialAreaId,
+                            ),
+                          ),
+                        );
+                    if (value != null) setState(() => selectedLocation = value);
+                  },
                 ),
+              ),
               TextField(
                 controller: guests,
                 keyboardType: TextInputType.number,
@@ -1134,7 +1215,7 @@ class _EventAdvisorScreenState extends State<_EventAdvisorScreen> {
   Future<void> _run(List<JsonMap> templates) async {
     if (templateId == null ||
         int.tryParse(guests.text) == null ||
-        widget.savedLocationId == null && location.text.trim().isEmpty) {
+        selectedLocation?.locationId == null) {
       return;
     }
     setState(() => busy = true);
@@ -1146,8 +1227,8 @@ class _EventAdvisorScreenState extends State<_EventAdvisorScreen> {
         eventTypeId: template['event_type_id']?.toString() ?? '',
         startsAt: date,
         endsAt: date.add(const Duration(hours: 6)),
-        locationId: widget.savedLocationId,
-        locationDetails: widget.savedLocationId == null ? location.text : null,
+        locationId: selectedLocation!.locationId,
+        locationDetails: null,
         attendance: int.parse(guests.text),
         budgetTzs: double.tryParse(budget.text),
         title: 'Event Advisor plan',

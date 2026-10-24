@@ -30,14 +30,14 @@ class ListingImageCompressor {
         minWidth: pass.width,
         minHeight: pass.width,
         quality: pass.quality,
-        format: CompressFormat.webp,
+        format: CompressFormat.jpeg,
         autoCorrectionAngle: true,
         keepExif: false,
       );
       if (bytes.isEmpty) continue;
       if (smallest == null || bytes.length < smallest.length) smallest = bytes;
       if (bytes.length <= targetBytes) {
-        return _asWebp(source, bytes);
+        return _asJpeg(source, bytes);
       }
     }
 
@@ -46,7 +46,7 @@ class ListingImageCompressor {
         'This image could not be prepared. Choose another image.',
       );
     }
-    return _asWebp(source, smallest);
+    return _asJpeg(source, smallest);
   }
 
   Future<List<XFile>> compressAll(List<XFile> sources) async {
@@ -57,14 +57,14 @@ class ListingImageCompressor {
     return output;
   }
 
-  XFile _asWebp(XFile source, Uint8List bytes) {
+  XFile _asJpeg(XFile source, Uint8List bytes) {
     final dot = source.name.lastIndexOf('.');
     final originalBase = dot > 0 ? source.name.substring(0, dot) : source.name;
     final base = originalBase.trim().isEmpty ? 'listing-image' : originalBase;
     return XFile.fromData(
       bytes,
-      name: '${base.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '-')}.webp',
-      mimeType: 'image/webp',
+      name: '${base.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '-')}.jpg',
+      mimeType: 'image/jpeg',
     );
   }
 }

@@ -711,7 +711,10 @@ class _CustomerRootState extends State<CustomerRoot> {
         MaterialPageRoute<void>(
           builder: (_) => EventsMarketplaceScreen(
             repository: widget.repository,
-            savedLocationId: _areaId ?? _wardId ?? _districtId ?? _regionId,
+            initialRegionId: _regionId,
+            initialDistrictId: _districtId,
+            initialWardId: _wardId,
+            initialAreaId: _areaId,
           ),
         ),
       );
@@ -859,7 +862,10 @@ class _CustomerRootState extends State<CustomerRoot> {
       EventsMarketplaceScreen(
         key: const PageStorageKey<String>('customer_events'),
         repository: widget.repository,
-        savedLocationId: _areaId ?? _wardId ?? _districtId ?? _regionId,
+        initialRegionId: _regionId,
+        initialDistrictId: _districtId,
+        initialWardId: _wardId,
+        initialAreaId: _areaId,
       ),
       CustomerAccountScreen(
         key: const PageStorageKey<String>('customer_account'),
