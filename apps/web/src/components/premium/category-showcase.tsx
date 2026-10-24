@@ -19,7 +19,7 @@ export function CategoryShowcase({ categories, feed }: { categories: Category[];
     event.currentTarget.style.setProperty("--card-x", `${event.clientX - bounds.left}px`);
     event.currentTarget.style.setProperty("--card-y", `${event.clientY - bounds.top}px`);
   };
-  return <section className="pb-10 pt-2 sm:pb-14 sm:pt-3">
+  return <section className="pb-4 pt-2 sm:pb-6 sm:pt-3">
     <RevealOnScroll><div className="flex items-end justify-between gap-4"><h2 className="premium-title">{sw ? "Unatafuta nini?" : "What are you looking for?"}</h2><Link href="/listings" className="text-sm font-bold text-brand-teal">{sw ? "Angalia rentals zote" : "View all rentals"} →</Link></div></RevealOnScroll>
     <div className="category-compact-grid mt-6">{visible.map((category, index) => {
       const media = feed.find((item) => item.category_slug === category.slug && item.cover_url);

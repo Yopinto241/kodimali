@@ -36,12 +36,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
     <PageShell className="flex flex-col pb-20 !pt-2 sm:!pt-3 md:!pt-4">
       <CategoryShowcase categories={categories} feed={feed} />
 
+      <CategoryListingRails categories={categories} listings={feed} />
+
       <RevealOnScroll><section className="py-4"><LocationBanner visibleByDefault regions={regions.map((item: { id: string; name: string }) => ({ id: item.id, name: item.name }))} /></section></RevealOnScroll>
 
       <PromotionStrip promotions={promotions as never} />
       <GoogleAdSlot slot="home" clientId={process.env.ADSENSE_CLIENT_ID ?? ""} slotId={process.env.ADSENSE_SLOT_HOME ?? ""} />
-
-      <CategoryListingRails categories={categories} listings={feed} />
 
       <ReferralStorySection />
 
