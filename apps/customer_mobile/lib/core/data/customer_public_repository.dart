@@ -353,7 +353,12 @@ class CustomerPublicRepository {
         longitude: longitude,
         sessionSeed: sessionSeed,
       );
-      if (page == 0) {
+      if (page == 0 &&
+          regionId == null &&
+          districtId == null &&
+          wardId == null &&
+          areaId == null &&
+          (latitude == null || longitude == null)) {
         try {
           final List<JsonMap> ranked =
               (await _client.rpc(
@@ -642,6 +647,30 @@ class CustomerPublicRepository {
       throw _friendlyError(
         error,
         fallbackMessage: "We could not load locations right now.",
+      );
+    }
+  }
+
+  Future<JsonMap> resolveLocationHierarchy({
+    required double latitude,
+    required double longitude,
+  }) async {
+    try {
+      final List<JsonMap> rows = (await _client.rpc(
+        "resolve_location_hierarchy",
+        params: <String, dynamic>{
+          "p_latitude": latitude,
+          "p_longitude": longitude,
+        },
+      )).cast<JsonMap>();
+      if (rows.isEmpty || rows.first["region_id"] == null) {
+        throw StateError("No supported location was found near this device.");
+      }
+      return rows.first;
+    } catch (error) {
+      throw _friendlyError(
+        error,
+        fallbackMessage: "We could not match your GPS position to an area.",
       );
     }
   }

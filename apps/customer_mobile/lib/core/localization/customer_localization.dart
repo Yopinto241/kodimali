@@ -77,6 +77,8 @@ _localizedStrings = <String, Map<String, String>>{
         "Use your phone location automatically after permission is granted.",
     "location.manualHelp":
         "Select the correct region, district, ward, or area yourself.",
+    "location.gpsResolveFailed":
+        "We could not match your GPS position to an area. Choose an area manually.",
     "exit.title": "Exit KODIMALI?",
     "exit.body": "Are you sure you want to close the app?",
     "exit.stay": "Stay",
@@ -376,6 +378,8 @@ _localizedStrings = <String, Map<String, String>>{
         "KODIMALI itafute mali za kukodisha zilizo karibu kwa njia gani?",
     "location.gpsHelp": "Tumia eneo la simu kiotomatiki baada ya kuruhusu.",
     "location.manualHelp": "Chagua mwenyewe mkoa, wilaya, kata au eneo sahihi.",
+    "location.gpsResolveFailed":
+        "Hatukuweza kuoanisha GPS na eneo lako. Chagua eneo mwenyewe.",
     "exit.title": "Ufunge KODIMALI?",
     "exit.body": "Una uhakika unataka kufunga programu?",
     "exit.stay": "Baki",

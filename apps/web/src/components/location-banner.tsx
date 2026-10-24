@@ -5,6 +5,7 @@ import { useEffect, useState, useTransition } from "react";
 
 import { StatusPill } from "@/components/status-pill";
 import { useLanguage } from "@/components/language-provider";
+import { getBrowserSupabase } from "@/lib/supabase-browser";
 
 type LocationOption = { id: string; name: string };
 
@@ -33,6 +34,8 @@ export function LocationBanner({
   const [districts, setDistricts] = useState<LocationOption[]>([]);
   const [wards, setWards] = useState<LocationOption[]>([]);
   const [areas, setAreas] = useState<LocationOption[]>([]);
+  const [locationMessage, setLocationMessage] = useState("");
+  const [isLocating, setIsLocating] = useState(false);
 
   useEffect(() => {
     if (persistent) return;
@@ -60,28 +63,46 @@ export function LocationBanner({
 
   async function useGps() {
     if (!navigator.geolocation) {
+      setLocationMessage(sw ? "Kifaa hiki hakiwezi kutambua eneo." : "This device cannot detect its location.");
       return;
     }
-    navigator.geolocation.getCurrentPosition((position) => {
+    setIsLocating(true);
+    setLocationMessage(sw ? "Tunatafuta eneo ulipo..." : "Finding your location...");
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      const { data, error } = await getBrowserSupabase().rpc("resolve_location_hierarchy", {
+        p_latitude: latitude,
+        p_longitude: longitude,
+      } as never);
+      const resolved = Array.isArray(data) ? data[0] as Record<string, string | null> : null;
+      if (error || !resolved?.region_id) {
+        setIsLocating(false);
+        setLocationMessage(sw ? "Hatukuweza kuoanisha GPS na eneo. Chagua eneo mwenyewe." : "We could not match GPS to an area. Please choose it manually.");
+        return;
+      }
       const baseUrl = buildBaseUrl();
       window.localStorage.setItem(
         "customer_location_banner_hidden_until",
         String(Date.now() + 3 * 24 * 60 * 60 * 1000),
       );
-      window.localStorage.removeItem("customer_region_id");
-      window.localStorage.removeItem("customer_district_id");
-      window.localStorage.removeItem("customer_ward_id");
-      window.localStorage.removeItem("customer_area_id");
-      window.localStorage.setItem("customer_latitude", String(position.coords.latitude));
-      window.localStorage.setItem("customer_longitude", String(position.coords.longitude));
-      baseUrl.searchParams.delete("regionId");
-      baseUrl.searchParams.delete("districtId");
-      baseUrl.searchParams.delete("wardId");
-      baseUrl.searchParams.delete("areaId");
-      baseUrl.searchParams.set("lat", String(position.coords.latitude));
-      baseUrl.searchParams.set("lng", String(position.coords.longitude));
+      for (const [key, value] of [["region", resolved.region_id], ["district", resolved.district_id], ["ward", resolved.ward_id], ["area", resolved.area_id]]) {
+        const storageKey = `customer_${key}_id`;
+        const queryKey = `${key}Id`;
+        if (value) { window.localStorage.setItem(storageKey, value); baseUrl.searchParams.set(queryKey, value); }
+        else { window.localStorage.removeItem(storageKey); baseUrl.searchParams.delete(queryKey); }
+      }
+      window.localStorage.setItem("customer_latitude", String(latitude));
+      window.localStorage.setItem("customer_longitude", String(longitude));
+      baseUrl.searchParams.set("lat", String(latitude));
+      baseUrl.searchParams.set("lng", String(longitude));
+      setIsLocating(false);
+      setLocationMessage("");
       navigateTo(baseUrl);
-    });
+    }, () => {
+      setIsLocating(false);
+      setLocationMessage(sw ? "Ruhusu GPS, au chagua eneo mwenyewe." : "Allow location access, or choose an area manually.");
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
   }
 
   async function loadDistricts(nextRegionId: string) {
@@ -198,10 +219,10 @@ export function LocationBanner({
         <button
           type="button"
           onClick={useGps}
-          disabled={isNavigating}
+          disabled={isNavigating || isLocating}
           className="btn btn-primary"
         >
-          {sw ? "Tumia eneo nilipo" : "Use my location"}
+          {isLocating ? (sw ? "Inatafuta..." : "Locating...") : (sw ? "Tumia eneo nilipo" : "Use my location")}
         </button>
         <button
           type="button"
@@ -222,6 +243,7 @@ export function LocationBanner({
           </button>
         ) : null}
       </div>
+      {locationMessage ? <p className="mt-3 text-sm font-semibold text-brand-ink" role="status">{locationMessage}</p> : null}
       {manualOpen ? (
         <div className="soft-panel mt-5 grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
           <label className="grid gap-2">

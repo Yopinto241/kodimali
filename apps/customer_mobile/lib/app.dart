@@ -533,24 +533,48 @@ class _CustomerRootState extends State<CustomerRoot> {
         permission == LocationPermission.deniedForever) {
       return;
     }
-    final Position position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
-    );
-    await _savePreference(
-      latitude: position.latitude,
-      longitude: position.longitude,
-      clearManualLocation: true,
-    );
-    setState(() {
-      _regionId = null;
-      _districtId = null;
-      _wardId = null;
-      _areaId = null;
-      _latitude = position.latitude;
-      _longitude = position.longitude;
-      _bannerHidden = true;
-    });
-    _prewarmTabData();
+    try {
+      final Position position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+      final Map<String, dynamic> resolved = await widget.repository
+          .resolveLocationHierarchy(
+            latitude: position.latitude,
+            longitude: position.longitude,
+          );
+      final String? regionId = resolved['region_id']?.toString();
+      final String? districtId = resolved['district_id']?.toString();
+      final String? wardId = resolved['ward_id']?.toString();
+      final String? areaId = resolved['area_id']?.toString();
+      await _savePreference(
+        regionId: regionId,
+        districtId: districtId,
+        wardId: wardId,
+        areaId: areaId,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        clearManualLocation: true,
+      );
+      if (!mounted) return;
+      setState(() {
+        _regionId = regionId;
+        _districtId = districtId;
+        _wardId = wardId;
+        _areaId = areaId;
+        _latitude = position.latitude;
+        _longitude = position.longitude;
+        _bannerHidden = true;
+      });
+      _prewarmTabData();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('location.gpsResolveFailed'))),
+      );
+    }
   }
 
   Future<void> _chooseLocation() async {
