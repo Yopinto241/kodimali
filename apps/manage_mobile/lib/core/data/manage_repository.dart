@@ -3651,7 +3651,10 @@ class ManageRepository {
     for (int index = 0; index < preparedImages.length; index += 1) {
       _throwIfCancelled(uploadController);
       final XFile image = preparedImages[index];
-      final String extension = ListingMediaValidator.extensionOf(image.name);
+      // ListingImageCompressor always returns JPEG bytes. Do not infer the
+      // upload MIME from XFile.name: camera-backed XFiles can lose their
+      // synthetic filename on Android release builds.
+      const String extension = "jpg";
       final String path =
           "$userId/$listingId/image-$uploadNonce-${index + 1}.$extension";
       reportItem("Uploading image ${index + 1} of ${preparedImages.length}...");
@@ -3661,9 +3664,9 @@ class ManageRepository {
             .uploadBinary(
               path,
               await image.readAsBytes(),
-              fileOptions: FileOptions(
+              fileOptions: const FileOptions(
                 upsert: false,
-                contentType: _contentTypeForImageExtension(extension),
+                contentType: "image/jpeg",
               ),
               retryController: uploadController?.retryController,
             );

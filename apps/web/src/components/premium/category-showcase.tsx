@@ -13,7 +13,7 @@ export function CategoryShowcase({ categories, feed }: { categories: Category[];
   const eventCategory = categories.find((item) => item.slug === "events");
   const visible = [...(eventCategory ? [eventCategory] : [{ id: "events", slug: "events", name: "Ceremonies & Events" }]), ...categories.filter((item) => item.slug !== "events")].slice(0, 8);
   const label = (category: Category) => sw ? ({ events: "Sherehe na Matukio", house: "Nyumba", apartment: "Fleti", car: "Magari", motorcycle: "Pikipiki", office: "Ofisi", "meeting-hall": "Kumbi za mikutano", "ceremony-hall": "Kumbi za sherehe", equipment: "Vifaa", farms: "Mashamba", "other-asset": "Mali nyingine" }[category.slug] ?? category.name) : category.name;
-  return <section className="premium-section">
+  return <section className="pb-10 pt-2 sm:pb-14 sm:pt-3">
     <RevealOnScroll><p className="premium-kicker">{sw ? "Sehemu kuu" : "Main destinations"}</p><div className="mt-3 flex items-end justify-between gap-4"><h2 className="premium-title">{sw ? "Unatafuta nini?" : "What are you looking for?"}</h2><Link href="/listings" className="text-sm font-bold text-brand-teal">{sw ? "Angalia rentals zote" : "View all rentals"} →</Link></div></RevealOnScroll>
     <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{visible.map((category, index) => {
       const media = feed.find((item) => item.category_slug === category.slug && item.cover_url);

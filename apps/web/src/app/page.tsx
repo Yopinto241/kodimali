@@ -33,7 +33,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
 
   return <>
     <CinematicHero categories={categories} />
-    <PageShell className="flex flex-col pb-20">
+    <PageShell className="flex flex-col pb-20 !pt-2 sm:!pt-3 md:!pt-4">
       <CategoryShowcase categories={categories} feed={feed} />
 
       <RevealOnScroll><section className="py-4"><LocationBanner visibleByDefault regions={regions.map((item: { id: string; name: string }) => ({ id: item.id, name: item.name }))} /></section></RevealOnScroll>
