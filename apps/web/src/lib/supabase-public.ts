@@ -22,8 +22,8 @@ const cacheTtl = {
   categories: 60 * 60,
   locations: 60 * 60,
   promotions: 5 * 60,
-  homeFeed: 2 * 60,
-  listings: 2 * 60,
+  homeFeed: 15,
+  listings: 15,
   listingDetail: 15,
 } as const;
 
@@ -245,7 +245,7 @@ export async function fetchPublicHomeFeed(params: {
   };
 
   return cacheQuery(
-    "public-home-feed",
+    "public-home-feed-v2",
     serializeCacheInput(normalizedParams),
     cacheTtl.homeFeed,
     ["public-home-feed", "public-listings"],
@@ -426,7 +426,7 @@ export async function fetchPublicListings(params: {
   };
 
   return cacheQuery(
-    "public-listings",
+    "public-listings-v2",
     serializeCacheInput(normalizedParams),
     cacheTtl.listings,
     ["public-listings"],

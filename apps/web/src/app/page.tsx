@@ -10,7 +10,7 @@ import { VerificationCard } from "@/components/verification-card";
 import { PromotionStrip } from "@/components/promotion-strip";
 import { fetchCategories, fetchCountryId, fetchLocations, fetchPromotions, fetchPublicHomeFeed } from "@/lib/supabase-public";
 
-export const revalidate = 120;
+export const revalidate = 15;
 
 export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams;

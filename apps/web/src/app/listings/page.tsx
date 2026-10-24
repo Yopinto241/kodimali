@@ -14,7 +14,7 @@ import {
   fetchActiveFeaturedListingIds,
 } from "@/lib/supabase-public";
 
-export const revalidate = 120;
+export const revalidate = 15;
 
 const pageSize = 20;
 
