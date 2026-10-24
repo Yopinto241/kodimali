@@ -125,7 +125,7 @@ p {
 .nav-search input { width: 110px; padding: 0 .25rem 0 1rem; outline: none; font-size: .875rem; }
 .nav-search button { height: 100%; padding: 0 .8rem; color: var(--navy); font-size: 1.2rem; }
 
-.cinematic-hero { position: relative; isolation: isolate; overflow: hidden; min-height: min(760px,82vh); background: var(--navy); }
+.cinematic-hero { position: relative; isolation: isolate; overflow: hidden; min-height: min(520px,66vh); background: var(--navy); }
 .cinematic-slide { opacity: 0; transform: scale(1.045); transition: opacity 900ms ease, transform 5600ms ease-out; }
 .cinematic-slide.is-active { opacity: 1; transform: scale(1); }
 .cinematic-overlay { position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(8,24,37,.94) 0%, rgba(11,31,45,.78) 38%, rgba(16,36,56,.24) 70%, rgba(16,36,56,.12) 100%), linear-gradient(0deg, rgba(8,24,37,.28), transparent 50%); }
@@ -166,7 +166,7 @@ p {
 @keyframes orbit-pulse { 50% { transform: scale(1.5); opacity: .55; } }
 @keyframes referral-float { 50% { transform: translateY(-9px); } }
 @media (max-width: 900px) { .referral-journey { grid-template-columns: 1fr; gap: 1rem; }.referral-step:not(:last-child)::after{left:18px;right:auto;top:36px;width:1px;height:calc(100% + 1rem);background:linear-gradient(#d6a75b,rgba(214,167,91,.18))}.referral-orbit{display:none} }
-@media (max-width: 640px) { .cinematic-hero { min-height: 760px; } .cinematic-overlay { background: linear-gradient(0deg,rgba(8,24,37,.96),rgba(8,24,37,.34)); } .cinematic-slide { object-position: 66% center; } .hero-tab { padding-inline: .7rem; } }
+@media (max-width: 640px) { .cinematic-hero { min-height: 580px; } .cinematic-overlay { background: linear-gradient(0deg,rgba(8,24,37,.96),rgba(8,24,37,.34)); } .hero-tab { padding-inline: .7rem; } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; } .reveal { opacity: 1; transform: none; } }
 
 a {

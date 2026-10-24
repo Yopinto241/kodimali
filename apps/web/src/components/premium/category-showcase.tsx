@@ -1,5 +1,4 @@
 "use client";
-
 import Link from "next/link";
 import { DirectMediaImage } from "@/components/direct-media-image";
 import { RevealOnScroll } from "@/components/motion/reveal-on-scroll";
@@ -12,21 +11,14 @@ export function CategoryShowcase({ categories, feed }: { categories: Category[];
   const { language } = useLanguage();
   const sw = language === "sw";
   const eventCategory = categories.find((item) => item.slug === "events");
-  const visible = [
-    ...(eventCategory ? [eventCategory] : [{ id: "events", slug: "events", name: "Ceremonies & Events" }]),
-    ...categories.filter((item) => item.slug !== "events"),
-  ].slice(0, 8);
-  const label = (category: Category) => sw ? ({
-    events: "Sherehe na Matukio", house: "Nyumba", apartment: "Fleti", car: "Magari", office: "Ofisi",
-    "meeting-hall": "Kumbi za mikutano", "ceremony-hall": "Kumbi za sherehe",
-  }[category.slug] ?? category.name) : category.name;
-
+  const visible = [...(eventCategory ? [eventCategory] : [{ id: "events", slug: "events", name: "Ceremonies & Events" }]), ...categories.filter((item) => item.slug !== "events")].slice(0, 8);
+  const label = (category: Category) => sw ? ({ events: "Sherehe na Matukio", house: "Nyumba", apartment: "Fleti", car: "Magari", office: "Ofisi", "meeting-hall": "Kumbi za mikutano", "ceremony-hall": "Kumbi za sherehe" }[category.slug] ?? category.name) : category.name;
   return <section className="premium-section">
     <RevealOnScroll><p className="premium-kicker">{sw ? "Sehemu kuu" : "Main destinations"}</p><div className="mt-3 flex items-end justify-between gap-4"><h2 className="premium-title">{sw ? "Unatafuta nini?" : "What are you looking for?"}</h2><Link href="/listings" className="text-sm font-bold text-brand-teal">{sw ? "Angalia rentals zote" : "View all rentals"} →</Link></div></RevealOnScroll>
     <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{visible.map((category, index) => {
       const media = feed.find((item) => item.category_slug === category.slug && item.cover_url);
       const isEvents = category.slug === "events";
-      return <RevealOnScroll delay={Math.min(index * 55, 220)} key={category.id}><Link href={isEvents ? "/events" : `/category/${category.slug}`} className={`category-card group ${isEvents ? "ring-2 ring-brand-amber/70" : ""}`}><div className="relative aspect-[4/3] overflow-hidden bg-brand-card-soft">{media?.cover_url ? <DirectMediaImage src={media.cover_url} alt="" sizes="(min-width:1024px) 25vw, 50vw" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /> : isEvents ? <DirectMediaImage src="/hero-ceremony-hall.png" alt="" sizes="(min-width:1024px) 25vw, 50vw" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /> : <div className="category-fallback h-full" />}<div className="absolute inset-0 bg-gradient-to-t from-[#102438]/90 via-[#102438]/10 to-transparent" />{isEvents ? <span className="absolute left-4 top-4 rounded-full bg-brand-amber px-3 py-1 text-xs font-extrabold text-brand-navy">{sw ? "PANGA EVENT" : "PLAN AN EVENT"}</span> : null}<div className="absolute bottom-4 left-4 right-4"><h3 className="font-heading text-xl font-semibold text-white">{label(category)}</h3>{isEvents ? <p className="mt-1 text-sm text-white/80">{sw ? "Vifaa, wataalamu na Event Advisor" : "Equipment, professionals and Event Advisor"}</p> : null}</div></div></Link></RevealOnScroll>;
+      return <RevealOnScroll delay={Math.min(index * 55, 220)} key={category.id}><Link href={isEvents ? "/events" : `/category/${category.slug}`} className={`category-card group ${isEvents ? "ring-2 ring-brand-amber/70" : ""}`}><div className="relative aspect-[4/3] overflow-hidden bg-brand-card-soft">{media?.cover_url ? <DirectMediaImage src={media.cover_url} alt="" sizes="(min-width:1024px) 25vw, 50vw" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /> : isEvents ? <DirectMediaImage src="/mapambo.jpg" alt="" sizes="(min-width:1024px) 25vw, 50vw" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /> : <div className="category-fallback h-full" />}<div className="absolute inset-0 bg-gradient-to-t from-[#102438]/90 via-[#102438]/10 to-transparent" />{isEvents ? <span className="absolute left-4 top-4 rounded-full bg-brand-amber px-3 py-1 text-xs font-extrabold text-brand-navy">{sw ? "PANGA EVENT" : "PLAN AN EVENT"}</span> : null}<div className="absolute bottom-4 left-4 right-4"><h3 className="font-heading text-xl font-semibold text-white">{label(category)}</h3>{isEvents ? <p className="mt-1 text-sm text-white/80">{sw ? "Vifaa, wataalamu na Event Advisor" : "Equipment, professionals and Event Advisor"}</p> : null}</div></div></Link></RevealOnScroll>;
     })}</div>
   </section>;
 }

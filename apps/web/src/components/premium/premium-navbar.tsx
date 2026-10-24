@@ -36,9 +36,9 @@ export function PremiumNavbar({ categories }: { categories: Category[] }) {
 
   return (
     <header className={`premium-nav ${scrolled ? "is-scrolled" : ""}`}>
-      <div className="app-shell flex h-20 items-center justify-between gap-4">
+      <div className="app-shell flex h-16 items-center justify-between gap-4">
         <Link href="/" className="flex items-center gap-3" aria-label="KODIMALI mwanzo">
-          <span className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-sm"><Image src="/icon.png" alt="" width={38} height={38} priority /></span>
+          <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm"><Image src="/icon.png" alt="" width={32} height={32} priority /></span>
           <span className="font-heading text-lg font-extrabold tracking-[0.16em] text-brand-navy">KODIMALI</span>
         </Link>
 
