@@ -5,6 +5,7 @@ import Image from "next/image";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
 import { useLanguage } from "@/components/language-provider";
+import { EventLocationFields } from "@/components/event-location-fields";
 
 type Row = Record<string, unknown>;
 const pageSize = 12;
@@ -16,7 +17,6 @@ export function EventsPublicCatalog() {
   const [mode, setMode] = useState<"equipment" | "service">("equipment");
   const [rows, setRows] = useState<Row[]>([]);
   const [categories, setCategories] = useState<Row[]>([]);
-  const [locations, setLocations] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     search: "",
@@ -85,11 +85,13 @@ export function EventsPublicCatalog() {
   );
   useEffect(() => {
     void Promise.all([
-      supabase.from("event_equipment_categories").select("id,name_sw,name_en").eq("is_active", true).order("display_order"),
-      supabase.from("locations").select("id,name,location_type,parent_id").eq("is_active", true).order("location_type").order("name"),
-    ]).then(([categoryResult, locationResult]) => {
+      supabase
+        .from("event_equipment_categories")
+        .select("id,name_sw,name_en")
+        .eq("is_active", true)
+        .order("display_order"),
+    ]).then(([categoryResult]) => {
       setCategories((categoryResult.data ?? []) as Row[]);
-      setLocations((locationResult.data ?? []) as Row[]);
     });
   }, [supabase]);
   useEffect(() => {
@@ -183,14 +185,14 @@ export function EventsPublicCatalog() {
             ))}
           </select>
         )}
-        <select
-          className="field-input"
-          value={filters.location}
-          onChange={(e) => setFilters({ ...filters, location: e.target.value })}
-        >
-          <option value="">{sw ? "Maeneo yote" : "All locations"}</option>
-          {locations.map((location) => <option value={String(location.id)} key={String(location.id)}>{String(location.name)} · {String(location.location_type).replaceAll("_", " ")}</option>)}
-        </select>
+        <div className="sm:col-span-2 lg:col-span-4">
+          <EventLocationFields
+            value={filters.location}
+            onChange={(location) =>
+              setFilters((current) => ({ ...current, location }))
+            }
+          />
+        </div>
         <input
           className="field-input"
           type="datetime-local"
@@ -255,7 +257,10 @@ export function EventsPublicCatalog() {
               }
               key={String(row.id ?? row.offering_id)}
             >
-              <CatalogMedia media={row.media_paths ?? row.portfolio_media} title={String(row.name ?? row.title)} />
+              <CatalogMedia
+                media={row.media_paths ?? row.portfolio_media}
+                title={String(row.name ?? row.title)}
+              />
               <p className="text-xs font-bold uppercase tracking-wider text-brand-teal">
                 {mode === "equipment"
                   ? String(sw ? row.category_name_sw : row.category_name_en)
@@ -303,15 +308,33 @@ export function EventsPublicCatalog() {
 
 function CatalogMedia({ media, title }: { media: unknown; title: string }) {
   const supabase = getBrowserSupabase();
-  const path = Array.isArray(media) && typeof media[0] === "string" ? media[0] : "";
+  const path =
+    Array.isArray(media) && typeof media[0] === "string" ? media[0] : "";
   const [src, setSrc] = useState(path.startsWith("http") ? path : "");
   useEffect(() => {
     let active = true;
     if (!path || path.startsWith("http")) return;
-    void supabase.storage.from("listing-media").createSignedUrl(path, 3600).then(({ data }) => {
-      if (active) setSrc(data?.signedUrl ?? "");
-    });
-    return () => { active = false; };
+    void supabase.storage
+      .from("listing-media")
+      .createSignedUrl(path, 3600)
+      .then(({ data }) => {
+        if (active) setSrc(data?.signedUrl ?? "");
+      });
+    return () => {
+      active = false;
+    };
   }, [path, supabase]);
-  return <div className="relative mb-4 aspect-[4/3] overflow-hidden rounded-2xl bg-[linear-gradient(145deg,#dfece5,#b9d8d0)]">{src ? <Image src={src} alt={title} fill sizes="(max-width: 640px) 100vw, 33vw" className="object-cover transition duration-700 group-hover:scale-[1.03]" /> : null}</div>;
+  return (
+    <div className="relative mb-4 aspect-[4/3] overflow-hidden rounded-2xl bg-[linear-gradient(145deg,#dfece5,#b9d8d0)]">
+      {src ? (
+        <Image
+          src={src}
+          alt={title}
+          fill
+          sizes="(max-width: 640px) 100vw, 33vw"
+          className="object-cover transition duration-700 group-hover:scale-[1.03]"
+        />
+      ) : null}
+    </div>
+  );
 }
