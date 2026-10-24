@@ -10,9 +10,9 @@ type Slide = { src: string; slug: string; position: string; sw: Copy; en: Copy }
 const slide = (src: string, slug: string, sw: Copy, en: Copy, position = "center"): Slide => ({ src, slug, sw, en, position });
 const slides = [
   slide("/hero-house-real.jpg", "house", { label: "Nyumba", title: "Pata nyumba inayokufaa.", body: "Chagua eneo na bajeti, kisha anza kuona mali sasa." }, { label: "Houses", title: "Find a home that fits.", body: "Choose a location and budget, then start browsing now." }),
-  slide("/hero-house-real.jpg", "apartment", { label: "Fleti", title: "Pata fleti nzuri.", body: "Chagua eneo, muda wa kukaa na bajeti yako." }, { label: "Apartments", title: "Find a comfortable apartment.", body: "Choose your location, stay length and budget." }, "center 60%"),
+  slide("/hero-house-real.jpg", "apartment", { label: "Apartment", title: "Pata apartment nzuri.", body: "Chagua eneo, muda wa kukaa na bajeti yako." }, { label: "Apartment", title: "Find a comfortable apartment.", body: "Choose your location, stay length and budget." }, "center 60%"),
   slide("/hero-car-edited.jpg", "car", { label: "Magari", title: "Unahitaji gari?", body: "Tafuta usafiri unaofaa safari na bajeti yako." }, { label: "Cars", title: "Need a car?", body: "Find transport that suits your journey and budget." }),
-  slide("/hero-motorcycle-edited.jpg", "motorcycle", { label: "Pikipiki", title: "Tafuta pikipiki.", body: "Chagua pikipiki inayofaa matumizi yako." }, { label: "Motorcycles", title: "Find a motorcycle.", body: "Choose a motorcycle that suits your needs." }),
+  slide("/hero-motorcycle-edited-v2.jpg", "motorcycle", { label: "Pikipiki", title: "Tafuta pikipiki.", body: "Chagua pikipiki inayofaa matumizi yako." }, { label: "Motorcycles", title: "Find a motorcycle.", body: "Choose a motorcycle that suits your needs." }),
   slide("/hero-office-edited.jpg", "office", { label: "Ofisi", title: "Tafuta nafasi ya biashara.", body: "Chagua eneo na ukubwa wa ofisi unaohitaji." }, { label: "Offices", title: "Find your business space.", body: "Choose the location and office size you need." }),
   slide("/hero-hall-edited.jpg", "meeting-hall", { label: "Ukumbi wa mikutano", title: "Pata ukumbi wa mkutano.", body: "Linganisha nafasi kwa eneo, uwezo na bei." }, { label: "Meeting halls", title: "Find a meeting venue.", body: "Compare spaces by location, capacity and price." }),
   slide("/hero-hall-edited.jpg", "ceremony-hall", { label: "Ukumbi wa sherehe", title: "Pata ukumbi wa sherehe.", body: "Chagua nafasi inayowatosha wageni wako." }, { label: "Ceremony halls", title: "Find a ceremony venue.", body: "Choose a space that fits your guests." }, "center 55%"),
@@ -35,7 +35,7 @@ export function CinematicHero({ categories }: { categories: Category[] }) {
   }, [paused]);
   const activeSlide = slides[active];
   const copy = activeSlide[language];
-  const localizedCategory = (category: Category) => language === "sw" ? ({ house: "Nyumba", apartment: "Fleti", car: "Magari", motorcycle: "Pikipiki", office: "Ofisi", "meeting-hall": "Kumbi za mikutano", "ceremony-hall": "Kumbi za sherehe", equipment: "Vifaa", farms: "Mashamba", "other-asset": "Mali nyingine", events: "Matukio" }[category.slug] ?? category.name) : category.name;
+  const localizedCategory = (category: Category) => language === "sw" ? ({ house: "Nyumba", apartment: "Apartment", car: "Magari", motorcycle: "Pikipiki", office: "Ofisi", "meeting-hall": "Kumbi za mikutano", "ceremony-hall": "Kumbi za sherehe", equipment: "Vifaa", farms: "Mashamba", "other-asset": "Mali nyingine", events: "Matukio" }[category.slug] ?? category.name) : category.name;
   const href = activeSlide.slug === "events" ? "/events" : `/category/${activeSlide.slug}`;
   return <section className="cinematic-hero" aria-roledescription="carousel">
     <div className="absolute inset-0 -z-20">{slides.map((item, index) => <Image key={item.slug} src={item.src} alt="" fill priority={index === 0} sizes="100vw" style={{ objectPosition: item.position }} className={`cinematic-slide object-cover ${index === active ? "is-active" : ""}`} />)}</div>

@@ -13,7 +13,7 @@ export function CategoryShowcase({ categories, feed }: { categories: Category[];
   const sw = language === "sw";
   const eventCategory = categories.find((item) => item.slug === "events");
   const visible = [...(eventCategory ? [eventCategory] : [{ id: "events", slug: "events", name: "Ceremonies & Events" }]), ...categories.filter((item) => item.slug !== "events")].slice(0, 8);
-  const label = (category: Category) => sw ? ({ events: "Sherehe na Matukio", house: "Nyumba", apartment: "Fleti", car: "Magari", motorcycle: "Pikipiki", office: "Ofisi", "meeting-hall": "Kumbi za mikutano", "ceremony-hall": "Kumbi za sherehe", equipment: "Vifaa", farms: "Mashamba", "other-asset": "Mali nyingine" }[category.slug] ?? category.name) : category.name;
+  const label = (category: Category) => sw ? ({ events: "Sherehe na Matukio", house: "Nyumba", apartment: "Apartment", car: "Magari", motorcycle: "Pikipiki", office: "Ofisi", "meeting-hall": "Kumbi za mikutano", "ceremony-hall": "Kumbi za sherehe", equipment: "Vifaa", farms: "Mashamba", "other-asset": "Mali nyingine" }[category.slug] ?? category.name) : category.name;
   const moveCardLight = (event: PointerEvent<HTMLAnchorElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     event.currentTarget.style.setProperty("--card-x", `${event.clientX - bounds.left}px`);

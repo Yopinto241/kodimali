@@ -412,7 +412,7 @@ _localizedStrings = <String, Map<String, String>>{
         "Nyumba za familia na upangishaji wa muda mrefu.",
     "popular.apartments.title": "Apartment",
     "popular.apartments.subtitle":
-        "Fleti na nyumba za kukaa kwa muda mfupi zenye huduma mbalimbali.",
+        "Apartment na nyumba za kukaa kwa muda mfupi zenye huduma mbalimbali.",
     "popular.cars.title": "Magari",
     "popular.cars.subtitle":
         "Magari ya kukodisha yanayopatikana kwa maombi ya haraka.",
@@ -534,7 +534,7 @@ _localizedStrings = <String, Map<String, String>>{
     "farm.crops": "Mazao bora",
     "farm.size": "Ukubwa wa ardhi",
     "apartment.servicesTitle": "Huduma zinazopatikana",
-    "apartment.bookingTitle": "Weka nafasi katika fleti hii",
+    "apartment.bookingTitle": "Weka nafasi katika apartment hii",
     "apartment.bookingBody":
         "Chagua tarehe za kukaa, weka barua pepe yako na uchague huduma unazotaka wakala athibitishe.",
     "apartment.service.wifi": "WiFi",
