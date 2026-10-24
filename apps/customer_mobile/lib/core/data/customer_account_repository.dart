@@ -9,6 +9,86 @@ class CustomerAccountRepository {
 
   final SupabaseClient _client;
 
+  Future<List<CustomerJson>> fetchMyRentalAgreements() async {
+    _requireUser();
+    final dynamic rows = await _client.from('rental_agreements').select('*, rental_assets(display_name)').order('created_at', ascending: false);
+    return (rows as List).cast<CustomerJson>();
+  }
+
+  Future<void> acceptTenantInvitation(String token) async {
+    _requireUser();
+    await _client.rpc('accept_tenant_invitation', params: <String,dynamic>{'p_token': token.trim()});
+  }
+
+  Future<void> acceptRentalAgreement(String agreementId) async {
+    _requireUser();
+    await _client.rpc('accept_rental_agreement', params: <String,dynamic>{'p_agreement_id': agreementId});
+  }
+
+  Future<void> submitMoveOutNotice({required String agreementId, required DateTime date, String? reason}) async {
+    _requireUser();
+    await _client.rpc('submit_move_out_notice', params: <String,dynamic>{'p_agreement_id': agreementId,'p_intended_move_out_on': date.toIso8601String().substring(0,10),'p_reason': reason?.trim()});
+  }
+
+  Future<CustomerJson> submitRentalInformation({
+    required String category,
+    required String locationDescription,
+    required String description,
+    required String informationSource,
+    double? approximateRent,
+    DateTime? availableFrom,
+    String? ownerName,
+    String? ownerPhone,
+    bool ownerContactAuthorized = false,
+  }) async {
+    _requireUser();
+    final dynamic response = await _client.rpc(
+      'submit_rental_information',
+      params: <String, dynamic>{
+        'p_category': category,
+        'p_location_id': null,
+        'p_location_description': locationDescription.trim(),
+        'p_description': description.trim(),
+        'p_approximate_rent': approximateRent,
+        'p_price_period': approximateRent == null ? null : 'month',
+        'p_available_from': availableFrom?.toUtc().toIso8601String(),
+        'p_information_source': informationSource.trim(),
+        'p_category_details': <String, dynamic>{},
+        'p_photo_paths': <dynamic>[],
+        'p_photo_permission_confirmed': false,
+        'p_owner_name': ownerName?.trim(),
+        'p_owner_phone': ownerPhone?.trim(),
+        'p_owner_contact_authorized': ownerContactAuthorized,
+      },
+    );
+    final CustomerJson? row = _firstMap(response);
+    if (row == null) throw StateError('Taarifa haikuweza kuhifadhiwa.');
+    return row;
+  }
+
+  Future<List<CustomerJson>> fetchMyRentalInformation() async {
+    final User user = _requireUser();
+    return (await _client
+            .from('rental_information_submissions')
+            .select(
+              'id,reference,category,location_description,description,status,eligibility_status,approximate_rent,submitted_at',
+            )
+            .eq('contributor_id', user.id)
+            .order('submitted_at', ascending: false))
+        .cast<CustomerJson>();
+  }
+
+  Future<List<CustomerJson>> fetchMyReferralRewards() async {
+    _requireUser();
+    return (await _client
+            .from('referral_rewards')
+            .select(
+              'id,reward_amount_tzs,status,created_at,referral_agreements!inner(submission_id)',
+            )
+            .order('created_at', ascending: false))
+        .cast<CustomerJson>();
+  }
+
   User? get currentUser => _client.auth.currentUser;
 
   bool get isSignedIn => currentUser != null;

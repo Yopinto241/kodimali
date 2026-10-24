@@ -3,6 +3,7 @@ import 'package:flutter_design_system/flutter_design_system.dart';
 
 import '../../../core/widgets/app_scope.dart';
 import '../../../core/models/app_profile.dart';
+import '../../../core/localization/manage_localization.dart';
 
 class ManageWorkspaceDestination {
   const ManageWorkspaceDestination({
@@ -44,13 +45,14 @@ class ManageWorkspaceScaffold extends StatelessWidget {
     if (!useSidebar) {
       return Scaffold(
         appBar: AppBar(
-          title: Text(title),
+          title: Text(context.tr(title)),
           actions: <Widget>[
+            const ManageLanguageButton(),
             Padding(
               padding: const EdgeInsets.only(right: KodimaliSpacing.md),
               child: Center(
                 child: KodimaliStatusBadge(
-                  label: profile?.highestRole.displayLabel ?? "WORKSPACE",
+                  label: profile?.highestRole.displayLabel ?? context.tr("WORKSPACE"),
                   tone: KodimaliStatusTone.info,
                 ),
               ),
@@ -61,7 +63,7 @@ class ManageWorkspaceScaffold extends StatelessWidget {
           child: SafeArea(
             child: _WorkspaceMenu(
               title: "KODIMALI",
-              subtitle: profile?.fullName ?? "Manage App",
+              subtitle: profile?.fullName ?? context.tr("Manage App"),
               currentIndex: currentIndex,
               destinations: destinations,
               onSelect: (int index) {
@@ -85,7 +87,7 @@ class ManageWorkspaceScaffold extends StatelessWidget {
               color: Theme.of(context).colorScheme.surface,
               child: _WorkspaceMenu(
                 title: "KODIMALI",
-                subtitle: profile?.fullName ?? "Manage App",
+                subtitle: profile?.fullName ?? context.tr("Manage App"),
                 currentIndex: currentIndex,
                 destinations: destinations,
                 onSelect: onSelect,
@@ -125,33 +127,35 @@ class ManageWorkspaceScaffold extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              const KodimaliStatusBadge(
-                                label: "Focused workspace",
+                              KodimaliStatusBadge(
+                                label: context.tr("Focused workspace"),
                                 tone: KodimaliStatusTone.info,
                               ),
                               const SizedBox(height: KodimaliSpacing.sm),
                               Text(
-                                title,
+                                context.tr(title),
                                 style: Theme.of(
                                   context,
                                 ).textTheme.headlineSmall,
                               ),
                               const SizedBox(height: KodimaliSpacing.xs),
                               Text(
-                                "Focused workspace for listings, requests, approvals, and account activity.",
+                                context.tr("Focused workspace for listings, requests, approvals, and account activity."),
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
                             ],
                           ),
                         ),
                         const SizedBox(width: KodimaliSpacing.md),
+                        const ManageLanguageButton(),
+                        const SizedBox(width: KodimaliSpacing.sm),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: <Widget>[
                             KodimaliStatusBadge(
                               label:
                                   profile?.highestRole.displayLabel ??
-                                  "WORKSPACE",
+                                  context.tr("WORKSPACE"),
                               tone: KodimaliStatusTone.active,
                             ),
                             if (profile != null) ...<Widget>[
@@ -238,8 +242,8 @@ class _WorkspaceMenu extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                const KodimaliStatusBadge(
-                  label: "Primary navigation",
+                KodimaliStatusBadge(
+                  label: context.tr("Primary navigation"),
                   tone: KodimaliStatusTone.active,
                 ),
                 const SizedBox(height: KodimaliSpacing.sm),
@@ -303,7 +307,7 @@ class _WorkspaceMenu extends StatelessWidget {
                         ),
                       ),
                       title: Text(
-                        item.label,
+                        context.tr(item.label),
                         style: theme.textTheme.titleMedium?.copyWith(
                           color: selected
                               ? KodimaliColors.navy

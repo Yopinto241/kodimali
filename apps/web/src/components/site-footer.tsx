@@ -1,21 +1,18 @@
+"use client";
+
 import Link from "next/link";
+import { useLanguage } from "@/components/language-provider";
 
 const quickLinks = [
-  { href: "/", label: "Home" },
-  { href: "/listings", label: "All listings" },
-  { href: "/category/apartment", label: "Apartments" },
-  { href: "/category/house", label: "Houses" },
-  { href: "/category/car", label: "Cars" },
-  { href: "/manage", label: "Manage app" },
-  { href: "/compare", label: "Compare listings" },
-  { href: "/map", label: "Nearby map search" },
-  { href: "/advertise", label: "Advertise with KODIMALI" },
-  { href: "/download", label: "Download apps" },
-  { href: "/safety", label: "Safety" },
-  { href: "/privacy", label: "Privacy" },
-  { href: "/terms", label: "Terms" },
-  { href: "/delete-account", label: "Delete account" },
-];
+  { href: "/", label: "footer.home" }, { href: "/listings", label: "footer.all" },
+  { href: "/events", label: "nav.events" },
+  { href: "/category/apartment", label: "footer.apartments" }, { href: "/category/house", label: "footer.houses" },
+  { href: "/category/car", label: "footer.cars" }, { href: "/compare", label: "footer.compare" },
+  { href: "/map", label: "footer.map" }, { href: "/advertise", label: "footer.advertise" },
+  { href: "/download", label: "footer.download" }, { href: "/safety", label: "footer.safety" },
+  { href: "/privacy", label: "footer.privacy" }, { href: "/terms", label: "footer.terms" },
+  { href: "/delete-account", label: "footer.delete" },
+] as const;
 
 const supportLinks = [
   { href: "tel:0628621737", label: "Call us", value: "0628621737" },
@@ -29,6 +26,7 @@ const supportLinks = [
 ];
 
 export function SiteFooter() {
+  const { t } = useLanguage();
   return (
     <footer className="mt-16">
       <div className="app-shell pb-8">
@@ -39,37 +37,42 @@ export function SiteFooter() {
                 Kodimali
               </p>
               <h2 className="mt-3 max-w-xl font-heading text-3xl font-semibold text-white sm:text-4xl">
-                Fast property discovery with trusted agent contact.
+                {t("footer.tagline")}
               </h2>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-white/74">
-                Browse listings, compare locations and prices, then unlock the
-                right agent contact only when you are ready to move forward.
+                {t("footer.body")}
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link href="/listings" className="btn btn-success">
-                  Browse listings
+                  {t("footer.browse")}
                 </Link>
                 <Link
                   href="/account"
                   className="inline-flex min-h-[44px] items-center justify-center rounded-full border border-white/18 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/16"
                 >
-                  How payment works
+                  {t("footer.payment")}
+                </Link>
+                <Link
+                  href="/manage"
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-brand-amber px-5 py-2 text-sm font-bold text-brand-navy transition hover:brightness-105"
+                >
+                  {t("footer.manage")}
                 </Link>
               </div>
             </div>
 
-            <div className="rounded-[22px] border border-white/10 bg-white/8 p-5">
-              <p className="text-sm font-bold uppercase tracking-[0.2em] text-white/72">
-                Quick links
+            <div className="rounded-[22px] border border-brand-green/35 bg-black/15 p-5 shadow-inner">
+              <p className="inline-flex rounded-full bg-brand-green px-3 py-1.5 text-sm font-extrabold uppercase tracking-[0.16em] text-white">
+                {t("footer.links")}
               </p>
-              <div className="mt-4 grid gap-3">
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
                 {quickLinks.map((link) => (
                   <Link
                     key={link.href}
                     href={link.href}
-                    className="text-sm font-semibold text-white transition hover:text-brand-green"
+                    className="footer-quick-link"
                   >
-                    {link.label}
+                    {t(link.label)}
                   </Link>
                 ))}
               </div>
@@ -77,7 +80,7 @@ export function SiteFooter() {
 
             <div className="rounded-[22px] border border-white/10 bg-white/8 p-5">
               <p className="text-sm font-bold uppercase tracking-[0.2em] text-white/72">
-                Support
+                {t("footer.support")}
               </p>
               <div className="mt-4 grid gap-3">
                 {supportLinks.map((link) => (

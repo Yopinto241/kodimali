@@ -5,8 +5,8 @@ class CustomerMediaCacheManager extends CacheManager {
     : super(
         Config(
           _cacheKey,
-          stalePeriod: const Duration(hours: 12),
-          maxNrOfCacheObjects: 80,
+          stalePeriod: const Duration(days: 7),
+          maxNrOfCacheObjects: 250,
         ),
       );
 

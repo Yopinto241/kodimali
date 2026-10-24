@@ -1,0 +1,4 @@
+-- Remote migration history placeholder.
+-- This version was applied directly to the linked project before its SQL was
+-- committed to this repository. It is intentionally a no-op and must not be
+-- used as evidence that a fresh local database reproduces that remote change.

@@ -46,29 +46,27 @@ export function AgentContactCard({
   listingId: string;
   agentSummary?: AgentSummary | null;
 }) {
-  const initialSession =
-    typeof window === "undefined"
-      ? null
-      : (() => {
-          const raw = window.localStorage.getItem(storageKey(listingId));
-          if (!raw) {
-            return null;
-          }
-          try {
-            return JSON.parse(raw) as PaymentSession;
-          } catch {
-            window.localStorage.removeItem(storageKey(listingId));
-            return null;
-          }
-        })();
   const [customerName, setCustomerName] = useState("");
   const [customerPhoneNumber, setCustomerPhoneNumber] = useState("");
-  const [session, setSession] = useState<PaymentSession | null>(initialSession);
-  const [message, setMessage] = useState<string | null>(
-    typeof initialSession?.message === "string" ? initialSession.message : null,
-  );
+  const [session, setSession] = useState<PaymentSession | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [checking, setChecking] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const raw = window.localStorage.getItem(storageKey(listingId));
+      if (!raw) return;
+      try {
+        const saved = JSON.parse(raw) as PaymentSession;
+        setSession(saved);
+        setMessage(typeof saved.message === "string" ? saved.message : null);
+      } catch {
+        window.localStorage.removeItem(storageKey(listingId));
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [listingId]);
 
   const unlockedPhone = useMemo(
     () => (agentSummary?.phone_number ?? session?.phone_number ?? "").trim(),
@@ -278,7 +276,7 @@ export function AgentContactCard({
       ) : (
         <div className="mt-5 grid gap-4">
           <p className="section-copy text-sm">
-            Pay once through ClickPesa to reveal this agent phone number directly on
+            Pay once through the available mobile-money provider to reveal this agent phone number directly on
             this device.
           </p>
           <label className="grid gap-2">

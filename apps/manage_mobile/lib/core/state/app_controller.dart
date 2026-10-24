@@ -18,6 +18,7 @@ class AppController extends ChangeNotifier {
   bool _loading = false;
   Session? _session;
   AppProfile? _profile;
+  AppRole? _selectedRole;
   String? _message;
 
   bool get initialized => _initialized;
@@ -28,7 +29,10 @@ class AppController extends ChangeNotifier {
   String? get message => _message;
   bool get isSignedIn => currentUser != null;
   bool get isCustomerOnly => _profile?.isCustomerOnly ?? false;
-  AppRole? get highestRole => _profile?.highestRole;
+  AppRole? get highestRole => _selectedRole ?? _profile?.highestRole;
+  List<AppRole> get workspaceRoles => (_profile?.roles ?? const <AppRole>[])
+      .where((role) => role != AppRole.customer)
+      .toList();
   String? get agentAccountStatus => _profile?.agentAccountStatus;
   bool get isAgentAccessBlocked =>
       highestRole == AppRole.agent && agentAccountStatus != "active";
@@ -68,6 +72,9 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     try {
       _profile = await _repository.fetchProfile(user.id);
+      if (_selectedRole != null && !_profile!.roles.contains(_selectedRole)) {
+        _selectedRole = null;
+      }
       _message = null;
     } catch (error) {
       _message = userFacingError(error);
@@ -157,7 +164,14 @@ class AppController extends ChangeNotifier {
   Future<void> signOut() async {
     await _repository.signOut();
     _profile = null;
+    _selectedRole = null;
     _message = null;
+    notifyListeners();
+  }
+
+  void selectWorkspace(AppRole role) {
+    if (!workspaceRoles.contains(role)) return;
+    _selectedRole = role;
     notifyListeners();
   }
 

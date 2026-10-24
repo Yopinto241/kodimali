@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/utils/user_facing_error.dart';
 import '../../../core/widgets/app_scope.dart';
+import '../../../core/localization/manage_localization.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -63,6 +64,11 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
+                  const Align(
+                    alignment: Alignment.centerRight,
+                    child: ManageLanguageButton(),
+                  ),
+                  const SizedBox(height: KodimaliSpacing.sm),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(KodimaliSpacing.lg),
@@ -81,13 +87,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        const KodimaliStatusBadge(
-                          label: "Secure access",
+                        KodimaliStatusBadge(
+                          label: context.isSwahili
+                              ? "Ufikiaji salama"
+                              : "Secure access",
                           tone: KodimaliStatusTone.active,
                         ),
                         const SizedBox(height: KodimaliSpacing.sm),
                         Text(
-                          "Karibu tena",
+                          context.isSwahili ? "Karibu tena" : "Welcome back",
                           style: theme.textTheme.headlineSmall?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.w800,
@@ -95,7 +103,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: KodimaliSpacing.xs),
                         Text(
-                          "Ingia kwenye KODIMALI Manage App ya agent au admin.",
+                          context.isSwahili
+                              ? "Ingia kwenye KODIMALI Manage App ya wakala, mmiliki au admin."
+                              : "Sign in to the KODIMALI Manage App as an agent, owner, or administrator.",
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: Colors.white.withValues(alpha: 0.9),
                           ),
@@ -113,20 +123,27 @@ class _LoginScreenState extends State<LoginScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
                             Text(
-                              "Tumia username, namba ya simu, au barua pepe pamoja na nenosiri lako. Baada ya kuingia, mfumo utafungua workspace sahihi kwa role yako.",
+                              context.isSwahili
+                                  ? "Tumia jina la mtumiaji, namba ya simu au barua pepe pamoja na nenosiri lako. Mfumo utafungua sehemu sahihi ya kazi."
+                                  : "Use your username, phone number, or email with your password. The correct workspace will open automatically.",
                               style: theme.textTheme.bodyMedium,
                             ),
                             const SizedBox(height: KodimaliSpacing.lg),
                             TextFormField(
                               controller: _identifierController,
-                              decoration: const InputDecoration(
-                                labelText: "Username, simu, au barua pepe",
-                                helperText:
-                                    "Unaweza kuingia kwa username, phone, au email.",
+                              decoration: InputDecoration(
+                                labelText: context.isSwahili
+                                    ? "Jina la mtumiaji, simu au barua pepe"
+                                    : "Username, phone, or email",
+                                helperText: context.isSwahili
+                                    ? "Tumia njia yoyote kati ya hizo."
+                                    : "Use any one of these identifiers.",
                               ),
                               validator: (String? value) {
                                 if (value == null || value.trim().isEmpty) {
-                                  return "Weka username, simu, au email.";
+                                  return context.isSwahili
+                                      ? "Weka jina la mtumiaji, simu au barua pepe."
+                                      : "Enter your username, phone, or email.";
                                 }
                                 return null;
                               },
@@ -135,13 +152,19 @@ class _LoginScreenState extends State<LoginScreen> {
                             TextFormField(
                               controller: _passwordController,
                               obscureText: true,
-                              decoration: const InputDecoration(
-                                labelText: "Nenosiri",
-                                helperText: "Angalau herufi 6.",
+                              decoration: InputDecoration(
+                                labelText: context.isSwahili
+                                    ? "Nenosiri"
+                                    : "Password",
+                                helperText: context.isSwahili
+                                    ? "Angalau herufi 6."
+                                    : "At least 6 characters.",
                               ),
                               validator: (String? value) {
                                 if (value == null || value.length < 6) {
-                                  return "Nenosiri liwe angalau herufi 6.";
+                                  return context.isSwahili
+                                      ? "Nenosiri liwe angalau herufi 6."
+                                      : "Password must have at least 6 characters.";
                                 }
                                 return null;
                               },
@@ -151,7 +174,11 @@ class _LoginScreenState extends State<LoginScreen> {
                               alignment: Alignment.centerRight,
                               child: TextButton(
                                 onPressed: () => context.go("/forgot-password"),
-                                child: const Text("Umesahau nenosiri?"),
+                                child: Text(
+                                  context.isSwahili
+                                      ? "Umesahau nenosiri?"
+                                      : "Forgot password?",
+                                ),
                               ),
                             ),
                             const SizedBox(height: KodimaliSpacing.sm),
@@ -160,7 +187,27 @@ class _LoginScreenState extends State<LoginScreen> {
                               child: FilledButton(
                                 onPressed: _submitting ? null : _submit,
                                 child: Text(
-                                  _submitting ? "Inaingia..." : "Ingia",
+                                  _submitting
+                                      ? (context.isSwahili
+                                            ? "Inaingia..."
+                                            : "Signing in...")
+                                      : (context.isSwahili
+                                            ? "Ingia"
+                                            : "Sign in"),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: KodimaliSpacing.sm),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton(
+                                onPressed: _submitting
+                                    ? null
+                                    : () => context.go('/register-owner'),
+                                child: Text(
+                                  context.isSwahili
+                                      ? 'Jisajili kama mmiliki au meneja'
+                                      : 'Register as an owner or manager',
                                 ),
                               ),
                             ),
@@ -171,7 +218,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                 onPressed: _submitting
                                     ? null
                                     : () => context.go("/register-agent"),
-                                child: const Text("Jisajili kama agent"),
+                                child: Text(
+                                  context.isSwahili
+                                      ? "Jisajili kama wakala"
+                                      : "Register as an agent",
+                                ),
                               ),
                             ),
                           ],

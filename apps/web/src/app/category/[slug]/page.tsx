@@ -2,12 +2,15 @@ import Link from "next/link";
 
 import { BackNavButton } from "@/components/back-nav-button";
 import { GoogleAdSlot } from "@/components/google-ad-slot";
+import { LocationBanner } from "@/components/location-banner";
 import { PageHero } from "@/components/page-hero";
 import { PageShell } from "@/components/page-shell";
 import { PromotionStrip } from "@/components/promotion-strip";
 import { PublicListingGrid } from "@/components/public-listing-grid";
 import {
   fetchCategories,
+  fetchCountryId,
+  fetchLocations,
   fetchPromotions,
   fetchPublicListings,
 } from "@/lib/supabase-public";
@@ -64,7 +67,8 @@ export default async function CategoryPage({
   const areaId = typeof query.areaId === "string" ? query.areaId : undefined;
   const latitude = typeof query.lat === "string" ? Number(query.lat) : undefined;
   const longitude = typeof query.lng === "string" ? Number(query.lng) : undefined;
-  const [categories, listings, promotions] = await Promise.all([
+  const countryId = await fetchCountryId();
+  const [categories, listings, promotions, regions] = await Promise.all([
     fetchCategories(),
     fetchPublicListings({
       categorySlug: slug,
@@ -79,6 +83,9 @@ export default async function CategoryPage({
       sessionSeed: slug,
     }),
     fetchPromotions({ surface: "website", placement: "category_page", limit: 1 }),
+    countryId
+      ? fetchLocations({ locationType: "region", parentId: countryId })
+      : Promise.resolve([]),
   ]);
   const category = categories.find((item: { slug: string }) => item.slug === slug);
 
@@ -102,6 +109,16 @@ export default async function CategoryPage({
       />
 
       <PromotionStrip promotions={promotions as never} />
+      <section className="mb-8">
+        <LocationBanner
+          visibleByDefault
+          persistent
+          regions={regions.map((item: { id: string; name: string }) => ({
+            id: item.id,
+            name: item.name,
+          }))}
+        />
+      </section>
       <PublicListingGrid
         listings={listings as Array<{ listing_id: string }>}
         adSlot="category"
@@ -109,18 +126,16 @@ export default async function CategoryPage({
         slotId={adsenseCategorySlot}
       />
       <section className="mt-8 flex flex-wrap items-center justify-between gap-3">
-        <p className="section-copy text-sm">
-          Page {currentPage} ya category hii imepunguzwa kwa batch ndogo ili ifunguke kwa haraka.
-        </p>
+        <p className="section-copy text-sm">Ukurasa {currentPage}</p>
         <div className="flex flex-wrap gap-3">
           {currentPage > 1 ? (
             <Link href={buildPageHref(slug, query, currentPage - 1)} className="btn btn-outline">
-              Page iliyopita
+              Iliyopita
             </Link>
           ) : null}
           {listings.length === pageSize ? (
             <Link href={buildPageHref(slug, query, currentPage + 1)} className="btn btn-primary">
-              Page inayofuata
+              Inayofuata
             </Link>
           ) : null}
         </div>

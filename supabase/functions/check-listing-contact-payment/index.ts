@@ -8,6 +8,10 @@ import {
   queryPaymentStatus,
   readClickPesaConfig,
 } from "../_shared/clickpesa.ts";
+import {
+  checkSonicPesaOrder,
+  SonicPesaRequestError,
+} from "../_shared/sonicpesa.ts";
 
 function friendlyMessage(status: string, paymentMessage: string | null): string {
   switch (status) {
@@ -166,20 +170,31 @@ Deno.serve(async (request) => {
     }
 
     if (mappedStatus !== "paid") {
-      const config = contactPaymentConfig();
-      const clickPesaToken = await fetchClickPesaToken(config);
-      const statusPayload = await queryPaymentStatus(
-        config,
-        clickPesaToken,
-        payment.order_reference as string,
-      );
-      providerPayload = statusPayload
-        ? statusPayload as unknown as Record<string, unknown>
-        : null;
-      mappedStatus = mapClickPesaStatus(statusPayload?.status);
-      paymentMessage = statusPayload?.message ?? paymentMessage;
-      paymentReference = statusPayload?.paymentReference ?? paymentReference;
-      providerPaymentId = statusPayload?.id ?? providerPaymentId;
+      let providerChannel: string | null = null;
+      if (providerPaymentId?.startsWith("sp_")) {
+        const sonicStatus = await checkSonicPesaOrder(providerPaymentId);
+        providerPayload = sonicStatus.payload;
+        mappedStatus = sonicStatus.status;
+        paymentReference = sonicStatus.transactionId ?? paymentReference;
+        providerPaymentId = sonicStatus.orderId;
+        providerChannel = sonicStatus.channel;
+      } else {
+        const config = contactPaymentConfig();
+        const clickPesaToken = await fetchClickPesaToken(config);
+        const statusPayload = await queryPaymentStatus(
+          config,
+          clickPesaToken,
+          payment.order_reference as string,
+        );
+        providerPayload = statusPayload
+          ? statusPayload as unknown as Record<string, unknown>
+          : null;
+        mappedStatus = mapClickPesaStatus(statusPayload?.status);
+        paymentMessage = statusPayload?.message ?? paymentMessage;
+        paymentReference = statusPayload?.paymentReference ?? paymentReference;
+        providerPaymentId = statusPayload?.id ?? providerPaymentId;
+        providerChannel = statusPayload?.channel ?? null;
+      }
 
       const paidNow = mappedStatus === "paid" ? new Date() : null;
       await supabase
@@ -188,7 +203,7 @@ Deno.serve(async (request) => {
           payment_status: mappedStatus,
           provider_payment_id: providerPaymentId,
           provider_payment_reference: paymentReference,
-          provider_channel: statusPayload?.channel ?? null,
+          provider_channel: providerChannel,
           status_message: paymentMessage,
           provider_response: providerPayload ?? {},
           paid_at: paidNow?.toISOString() ?? null,
@@ -244,8 +259,12 @@ Deno.serve(async (request) => {
         new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     });
   } catch (error) {
-    const status = error instanceof ClickPesaRequestError ? error.status : 500;
-    const message = error instanceof ClickPesaRequestError
+    const status = error instanceof ClickPesaRequestError ||
+        error instanceof SonicPesaRequestError
+      ? error.status
+      : 500;
+    const message = error instanceof ClickPesaRequestError ||
+        error instanceof SonicPesaRequestError
       ? error.message
       : error instanceof Error && error.message.trim().length > 0
       ? error.message

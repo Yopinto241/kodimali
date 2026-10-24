@@ -1,0 +1,1 @@
+-- Remote migration history placeholder; see 20260801120000.

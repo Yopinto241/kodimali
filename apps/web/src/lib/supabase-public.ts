@@ -402,6 +402,10 @@ export async function fetchPublicListings(params: {
   latitude?: number;
   longitude?: number;
   sessionSeed?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  pricePeriod?: string;
+  sort?: "recommended" | "newest" | "price_low" | "price_high";
 }) {
   const normalizedParams = {
     categorySlug: params.categorySlug ?? null,
@@ -415,6 +419,10 @@ export async function fetchPublicListings(params: {
     latitude: params.latitude ?? null,
     longitude: params.longitude ?? null,
     sessionSeed: params.sessionSeed ?? null,
+    minPrice: params.minPrice ?? null,
+    maxPrice: params.maxPrice ?? null,
+    pricePeriod: params.pricePeriod ?? null,
+    sort: params.sort ?? "recommended",
   };
 
   return cacheQuery(

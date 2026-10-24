@@ -6,6 +6,7 @@ import { BackNavButton } from "@/components/back-nav-button";
 import { GuestRequestForm } from "@/components/guest-request-form";
 import { GoogleAdSlot } from "@/components/google-ad-slot";
 import { ListingMediaGallery } from "@/components/listing-media-gallery";
+import { ListingChatCard } from "@/components/listing-chat-card";
 import { ListingShareButton } from "@/components/listing-share-button";
 import { ListingActions, ListingViewRecorder } from "@/components/listing-actions";
 import { PageShell } from "@/components/page-shell";
@@ -267,6 +268,7 @@ export default async function ListingPage({
             listingId={id}
             agentSummary={listing.agent_summary as never}
           />
+          <ListingChatCard listingId={id} />
           <GuestRequestForm
             listingId={id}
             listingTitle={listing.title}

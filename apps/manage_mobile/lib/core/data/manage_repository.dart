@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_models/shared_models.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../media/listing_image_compressor.dart';
 import '../media/listing_media_validator.dart';
 import '../models/app_profile.dart';
 import '../models/upload_task.dart';
@@ -30,6 +31,48 @@ class ManageRepository {
   DateTime? _agentLocationHierarchyCachedAt;
 
   User? get currentUser => _client.auth.currentUser;
+
+  Future<List<JsonMap>> fetchInformationSubmissions() async {
+    return (await _client
+            .from('rental_information_submissions')
+            .select(
+              'id,reference,category,location_description,description,approximate_rent,available_from,information_source,status,eligibility_status,next_follow_up_at,submitted_at,assigned_agent_id,possible_duplicate_of',
+            )
+            .order('submitted_at', ascending: false)
+            .limit(200))
+        .cast<JsonMap>();
+  }
+
+  Future<void> updateInformationSubmission({
+    required String id,
+    required String status,
+    DateTime? nextFollowUpAt,
+  }) async {
+    await _client
+        .from('rental_information_submissions')
+        .update(<String, dynamic>{
+          'status': status,
+          'next_follow_up_at': nextFollowUpAt?.toUtc().toIso8601String(),
+        })
+        .eq('id', id);
+  }
+
+  Future<void> addInformationFollowUp({
+    required String submissionId,
+    required String kind,
+    required String summary,
+    DateTime? dueAt,
+  }) async {
+    final String? userId = currentUserId;
+    if (userId == null) throw StateError('Sign in is required.');
+    await _client.from('information_follow_ups').insert(<String, dynamic>{
+      'submission_id': submissionId,
+      'kind': kind,
+      'summary': summary.trim(),
+      'due_at': dueAt?.toUtc().toIso8601String(),
+      'created_by': userId,
+    });
+  }
 
   bool _cacheFresh(DateTime? cachedAt) {
     if (cachedAt == null) {
@@ -3569,15 +3612,17 @@ class ManageRepository {
     UploadProgressCallback? onProgress,
     List<String>? uploadedPaths,
   }) async {
-    await ListingMediaValidator.validateImages(images);
-    if (coverImageIndex < 0 || coverImageIndex >= images.length) {
+    final List<XFile> preparedImages = await const ListingImageCompressor()
+        .compressAll(images);
+    await ListingMediaValidator.validateImages(preparedImages);
+    if (coverImageIndex < 0 || coverImageIndex >= preparedImages.length) {
       throw StateError("Choose a valid cover image before publishing.");
     }
     if (video != null) {
       await ListingMediaValidator.validateCompressedVideo(video);
     }
 
-    final int totalItems = images.length + (video == null ? 0 : 1);
+    final int totalItems = preparedImages.length + (video == null ? 0 : 1);
     final int uploadNonce = DateTime.now().microsecondsSinceEpoch;
     int completedItems = 0;
 
@@ -3590,13 +3635,13 @@ class ManageRepository {
       );
     }
 
-    for (int index = 0; index < images.length; index += 1) {
+    for (int index = 0; index < preparedImages.length; index += 1) {
       _throwIfCancelled(uploadController);
-      final XFile image = images[index];
+      final XFile image = preparedImages[index];
       final String extension = ListingMediaValidator.extensionOf(image.name);
       final String path =
           "$userId/$listingId/image-$uploadNonce-${index + 1}.$extension";
-      reportItem("Uploading image ${index + 1} of ${images.length}...");
+      reportItem("Uploading image ${index + 1} of ${preparedImages.length}...");
       try {
         await _client.storage
             .from("listing-media")
@@ -3678,7 +3723,7 @@ class ManageRepository {
           "listing_id": listingId,
           "media_type": "video",
           "storage_path": path,
-          "display_order": videoIsCover ? 0 : images.length,
+          "display_order": videoIsCover ? 0 : preparedImages.length,
           "is_cover": videoIsCover,
         });
       } catch (error, stackTrace) {
@@ -3704,6 +3749,7 @@ class ManageRepository {
   AppRole _parseRole(String rawRole) => switch (rawRole) {
     "admin" => AppRole.admin,
     "agent" => AppRole.agent,
+    "owner" => AppRole.owner,
     _ => AppRole.customer,
   };
 

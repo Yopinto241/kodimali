@@ -96,7 +96,7 @@ export default async function ListingsPage({
     fetchActiveFeaturedListingIds(),
   ]);
   const featured = new Map(featuredRows.map((row) => [row.listing_id, row.placement]));
-  let feed: Array<Record<string, unknown> & { listing_id: string }> = (rawFeed as Array<Record<string, unknown> & { listing_id: string }>).map((row) => ({ ...row, featured: featured.has(row.listing_id), featured_placement: featured.get(row.listing_id) }));
+  const feed: Array<Record<string, unknown> & { listing_id: string }> = (rawFeed as Array<Record<string, unknown> & { listing_id: string }>).map((row) => ({ ...row, featured: featured.has(row.listing_id), featured_placement: featured.get(row.listing_id) }));
   const totalCount = Number(rawFeed[0]?.total_count ?? feed.length);
 
   return (
@@ -150,18 +150,16 @@ export default async function ListingsPage({
         slotId={adsenseHomeSlot}
       />
       <section className="mt-8 flex flex-wrap items-center justify-between gap-3">
-        <p className="section-copy text-sm">
-          Unapata batch ndogo ya listings kwa kila page ili tovuti ifunguke haraka.
-        </p>
+        <p className="section-copy text-sm">Ukurasa {currentPage}</p>
         <div className="flex flex-wrap gap-3">
           {currentPage > 1 ? (
             <Link href={buildPageHref(params, currentPage - 1)} className="btn btn-outline">
-              Page iliyopita
+              Iliyopita
             </Link>
           ) : null}
           {feed.length === pageSize ? (
             <Link href={buildPageHref(params, currentPage + 1)} className="btn btn-primary">
-              Page inayofuata
+              Inayofuata
             </Link>
           ) : null}
         </div>

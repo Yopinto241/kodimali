@@ -26,6 +26,7 @@ import 'core/localization/customer_localization.dart';
 import 'core/media/customer_media_cache.dart';
 import 'features/account/customer_account_screens.dart';
 import 'features/chat/listing_chat_screens.dart';
+import 'features/events/events_marketplace_screen.dart';
 import 'core/notifications/push_notification_service.dart';
 
 final GlobalKey<NavigatorState> customerNavigatorKey =
@@ -77,20 +78,32 @@ Future<void> _offerListingChat(
   final String? action = await showDialog<String>(
     context: context,
     builder: (BuildContext context) => AlertDialog(
-      title: const Text('Chat with this agent?'),
+      title: Text(
+        context.isSwahili
+            ? 'Uzungumze na wakala huyu?'
+            : 'Chat with this agent?',
+      ),
       content: Text(
         paymentsEnabled
-            ? 'You can view all listing details first, or unlock this private chat for TSh 500. Access lasts 7 days.'
-            : 'You can view all listing details first, or open a free private chat with this agent. Access lasts 7 days.',
+            ? (context.isSwahili
+                  ? 'Unaweza kusoma maelezo yote ya mali kwanza, au kulipa TSh 500 kufungua mazungumzo ya faragha. Ruhusa itadumu siku 7.'
+                  : 'You can view all listing details first, or unlock this private chat for TSh 500. Access lasts 7 days.')
+            : (context.isSwahili
+                  ? 'Unaweza kusoma maelezo yote ya mali kwanza, au kufungua mazungumzo ya faragha bila malipo. Ruhusa itadumu siku 7.'
+                  : 'You can view all listing details first, or open a free private chat with this agent. Access lasts 7 days.'),
       ),
       actions: <Widget>[
         TextButton(
           onPressed: () => Navigator.pop(context, 'details'),
-          child: const Text('View details'),
+          child: Text(context.isSwahili ? 'Angalia maelezo' : 'View details'),
         ),
         FilledButton(
           onPressed: () => Navigator.pop(context, 'chat'),
-          child: Text(paymentsEnabled ? 'Pay to chat' : 'Open free chat'),
+          child: Text(
+            paymentsEnabled
+                ? (context.isSwahili ? 'Lipa kuzungumza' : 'Pay to chat')
+                : (context.isSwahili ? 'Fungua mazungumzo' : 'Open free chat'),
+          ),
         ),
       ],
     ),
@@ -226,7 +239,10 @@ class _CustomerAppState extends State<CustomerApp> {
         debugShowCheckedModeBanner: false,
         title: appName,
         theme: lightTheme.copyWith(
-          scaffoldBackgroundColor: const Color(0xFFEAF1F8),
+          splashFactory: InkSparkle.splashFactory,
+          splashColor: KodimaliColors.green.withValues(alpha: 0.22),
+          highlightColor: KodimaliColors.blueSurface.withValues(alpha: 0.10),
+          scaffoldBackgroundColor: KodimaliColors.background,
           cardTheme: lightTheme.cardTheme.copyWith(
             color: const Color(0xFFF7FAFD),
             shadowColor: KodimaliColors.navy.withValues(alpha: 0.16),
@@ -236,7 +252,11 @@ class _CustomerAppState extends State<CustomerApp> {
             foregroundColor: Colors.white,
           ),
         ),
-        darkTheme: KodimaliTheme.dark(),
+        darkTheme: KodimaliTheme.dark().copyWith(
+          splashFactory: InkSparkle.splashFactory,
+          splashColor: KodimaliColors.green.withValues(alpha: 0.20),
+          highlightColor: Colors.white.withValues(alpha: 0.06),
+        ),
         themeMode: _themeMode,
         locale: Locale(_languageCode),
         supportedLocales: const <Locale>[Locale("en"), Locale("sw")],
@@ -685,6 +705,15 @@ class _CustomerRootState extends State<CustomerRoot> {
   }
 
   void _openCategoryFromRoot(Map<String, dynamic> category) {
+    if (category['slug'] == 'events') {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              EventsMarketplaceScreen(repository: widget.repository),
+        ),
+      );
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => CategoryListingsScreen(
@@ -823,6 +852,10 @@ class _CustomerRootState extends State<CustomerRoot> {
         areaId: _areaId,
         latitude: _latitude,
         longitude: _longitude,
+      ),
+      EventsMarketplaceScreen(
+        key: const PageStorageKey<String>('customer_events'),
+        repository: widget.repository,
       ),
       PublicSearchScreen(
         key: const PageStorageKey<String>("customer_search"),
@@ -972,6 +1005,11 @@ class _CustomerRootState extends State<CustomerRoot> {
                   NavigationDestination(
                     icon: const Icon(Icons.directions_car_outlined),
                     label: context.tr("nav.cars"),
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.celebration_outlined),
+                    selectedIcon: const Icon(Icons.celebration_rounded),
+                    label: context.tr("nav.events"),
                   ),
                   NavigationDestination(
                     icon: const Icon(Icons.search_outlined),
@@ -4165,16 +4203,21 @@ class _NetworkMediaImage extends StatelessWidget {
       );
     }
 
+    final double devicePixels = MediaQuery.devicePixelRatioOf(context);
+    final int decodedWidth = (MediaQuery.sizeOf(context).width * devicePixels)
+        .round()
+        .clamp(720, 1600)
+        .toInt();
     return CachedNetworkImage(
       imageUrl: imageUrl!,
       cacheManager: CustomerMediaCacheManager.instance,
       cacheKey: cacheKey,
       fit: fit,
-      fadeInDuration: const Duration(milliseconds: 150),
+      memCacheWidth: decodedWidth,
+      maxWidthDiskCache: 1600,
+      fadeInDuration: const Duration(milliseconds: 120),
       placeholder: (BuildContext context, String _) => Container(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        alignment: Alignment.center,
-        child: const CircularProgressIndicator(strokeWidth: 2),
       ),
       errorWidget: (BuildContext context, String _, Object error) => Container(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,

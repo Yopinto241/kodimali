@@ -1,0 +1,18 @@
+begin;
+select plan(14);
+select has_table('public','event_templates','advisor templates exist');
+select has_table('public','event_advisor_recommendations','advisor output is persisted');
+select has_table('public','event_plan_rental_assets','canonical rental assets can join an event');
+select has_table('public','event_tasks','fulfilment tasks exist');
+select has_table('public','event_incidents','operational incidents exist');
+select has_column('public','event_plans','assigned_coordinator_id','plans support coordinator assignment');
+select has_column('public','event_plans','venue_status','advisor records venue status');
+select has_column('public','event_plans','weather_contingency','advisor records weather contingency');
+select col_is_fk('public','event_plan_rental_assets','asset_id','event venue and vehicle links use canonical rental assets');
+select col_is_fk('public','event_plan_rental_assets','booking_request_id','event asset links reuse rental bookings');
+select has_function('public','run_event_advisor',array['uuid','uuid','text','text','text','text'],'rules-based advisor RPC exists');
+select isnt_empty('select 1 from public.event_templates where is_approved','approved advisor templates are seeded');
+select is_empty('select 1 from public.event_payment_obligations where collection_enabled','event payment collection stays disabled');
+select has_trigger('auth','users','zz_handle_owner_self_registration','owner registration survives email confirmation');
+select * from finish();
+rollback;

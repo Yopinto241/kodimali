@@ -1,4 +1,4 @@
-enum AppRole { customer, agent, admin }
+enum AppRole { customer, owner, agent, admin }
 
 enum ListingCategory {
   house,

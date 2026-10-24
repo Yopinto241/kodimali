@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/cache/customer_activity_store.dart';
 import '../../core/data/customer_account_repository.dart';
+import 'customer_tenancy_screen.dart';
 import '../chat/listing_chat_screens.dart';
 import '../../core/data/customer_public_repository.dart';
 import '../../core/localization/customer_localization.dart';
@@ -286,6 +287,15 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
     );
   }
 
+  void _openInformation() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            CustomerInformationScreen(repository: widget.accountRepository),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
@@ -343,6 +353,18 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
               onSecondary: () => _openAuth(createAccount: true),
             ),
           if (_signedIn) ...<Widget>[
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => CustomerTenancyScreen(repository: widget.accountRepository))),
+              icon: const Icon(Icons.home_work_outlined),
+              label: Text(context.isSwahili ? 'Upangaji wangu' : 'My tenancy'),
+            ),
+            const SizedBox(height: KodimaliSpacing.sm),
+            const SizedBox(height: KodimaliSpacing.sm),
+            FilledButton.icon(
+              onPressed: _openInformation,
+              icon: const Icon(Icons.volunteer_activism_outlined),
+              label: const Text('Toa Taarifa na Upate Zawadi'),
+            ),
             const SizedBox(height: KodimaliSpacing.sm),
             FilledButton.icon(
               onPressed: () => Navigator.of(context).push(
@@ -419,6 +441,196 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
       ),
     );
   }
+}
+
+class CustomerInformationScreen extends StatefulWidget {
+  const CustomerInformationScreen({super.key, required this.repository});
+  final CustomerAccountRepository repository;
+  @override
+  State<CustomerInformationScreen> createState() =>
+      _CustomerInformationScreenState();
+}
+
+class _CustomerInformationScreenState extends State<CustomerInformationScreen> {
+  late Future<List<Map<String, dynamic>>> _future;
+  @override
+  void initState() {
+    super.initState();
+    _future = widget.repository.fetchMyRentalInformation();
+  }
+
+  void _reload() =>
+      setState(() => _future = widget.repository.fetchMyRentalInformation());
+
+  Future<void> _submit() async {
+    final location = TextEditingController();
+    final description = TextEditingController();
+    final source = TextEditingController();
+    final rent = TextEditingController();
+    String category = 'house';
+    final bool? save = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: const Text('Toa Taarifa'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                DropdownButtonFormField<String>(
+                  initialValue: category,
+                  decoration: const InputDecoration(labelText: 'Aina ya mali'),
+                  items:
+                      const <String>[
+                            'house',
+                            'apartment',
+                            'car',
+                            'motorcycle',
+                            'office',
+                            'meeting_hall',
+                            'ceremony_hall',
+                            'equipment',
+                            'farms',
+                            'other_asset',
+                          ]
+                          .map(
+                            (v) => DropdownMenuItem(
+                              value: v,
+                              child: Text(v.replaceAll('_', ' ')),
+                            ),
+                          )
+                          .toList(),
+                  onChanged: (v) => setDialog(() => category = v ?? category),
+                ),
+                TextField(
+                  controller: location,
+                  decoration: const InputDecoration(labelText: 'Eneo la mali'),
+                ),
+                TextField(
+                  controller: description,
+                  maxLines: 3,
+                  decoration: const InputDecoration(labelText: 'Maelezo'),
+                ),
+                TextField(
+                  controller: rent,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Kodi ya makadirio (TZS, si lazima)',
+                  ),
+                ),
+                TextField(
+                  controller: source,
+                  decoration: const InputDecoration(
+                    labelText: 'Chanzo cha taarifa',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Taarifa hii ni ya siri na haitachapishwa moja kwa moja. Usitume mawasiliano ya mmiliki bila ruhusa yake.',
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Ghairi'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Tuma'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (save == true) {
+      try {
+        await widget.repository.submitRentalInformation(
+          category: category,
+          locationDescription: location.text,
+          description: description.text,
+          informationSource: source.text,
+          approximateRent: double.tryParse(rent.text.replaceAll(',', '')),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Taarifa imepokelewa kwa usalama.')),
+          );
+          _reload();
+        }
+      } catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+        }
+      }
+    }
+    location.dispose();
+    description.dispose();
+    source.dispose();
+    rent.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Taarifa Zangu')),
+    floatingActionButton: FloatingActionButton.extended(
+      onPressed: _submit,
+      icon: const Icon(Icons.add),
+      label: const Text('Toa Taarifa'),
+    ),
+    body: RefreshIndicator(
+      onRefresh: () async => _reload(),
+      child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return ListView(
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(_accountError(snapshot.error!)),
+                ),
+              ],
+            );
+          }
+          final rows = snapshot.data ?? <Map<String, dynamic>>[];
+          if (rows.isEmpty) {
+            return ListView(
+              children: const <Widget>[
+                Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text('Bado hujatuma taarifa ya mali.'),
+                ),
+              ],
+            );
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+            itemCount: rows.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 10),
+            itemBuilder: (_, i) {
+              final row = rows[i];
+              return Card(
+                child: ListTile(
+                  title: Text('${row['reference']} · ${row['category']}'),
+                  subtitle: Text(
+                    '${row['location_description']}\nHali: ${row['status']} · Zawadi: ${row['eligibility_status']}',
+                  ),
+                  isThreeLine: true,
+                ),
+              );
+            },
+          );
+        },
+      ),
+    ),
+  );
 }
 
 class CustomerGrowthToolsScreen extends StatefulWidget {

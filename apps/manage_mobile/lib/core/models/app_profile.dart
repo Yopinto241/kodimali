@@ -48,11 +48,16 @@ class AppProfile {
     if (roles.contains(AppRole.agent)) {
       return AppRole.agent;
     }
+    if (roles.contains(AppRole.owner)) {
+      return AppRole.owner;
+    }
     return AppRole.customer;
   }
 
   bool get isCustomerOnly =>
-      !roles.contains(AppRole.admin) && !roles.contains(AppRole.agent);
+      !roles.contains(AppRole.admin) &&
+      !roles.contains(AppRole.agent) &&
+      !roles.contains(AppRole.owner);
 
   bool get isAgentActive =>
       agentAccountStatus == null || agentAccountStatus == "active";
@@ -62,6 +67,7 @@ extension AppRolePresentation on AppRole {
   String get displayLabel => switch (this) {
     AppRole.admin => "ADMIN",
     AppRole.agent => "AGENT",
+    AppRole.owner => "OWNER",
     AppRole.customer => "CUSTOMER",
   };
 }

@@ -1,0 +1,32 @@
+begin;
+select plan(26);
+
+select has_table('public','event_types','event occasions are separate taxonomy');
+select has_table('public','event_equipment_items','quantity equipment exists');
+select has_table('public','event_equipment_bundle_components','bundle components exist');
+select has_table('public','event_service_profiles','professional profiles exist');
+select has_table('public','event_service_offerings','professional offerings exist');
+select has_table('public','event_provider_unavailability','provider calendar blocks exist');
+select has_table('public','event_plans','master event plans exist');
+select has_table('public','event_plan_items','multi-provider plan items exist');
+select has_table('public','event_equipment_allocations','quantity allocations exist');
+select has_table('public','event_service_bookings','service schedule bookings exist');
+select has_table('public','event_quote_revisions','revisioned quotations exist');
+select has_table('public','event_quote_items','itemized quote lines exist');
+select has_table('public','event_payment_obligations','inactive financial obligations exist');
+select has_table('public','event_audit_log','event audit trail exists');
+select has_table('public','event_emergency_escalations','essential supplier escalation exists');
+select has_function('public','create_event_plan',array['uuid','timestamp with time zone','timestamp with time zone','uuid','text','integer','numeric','text'],'event plan RPC exists');
+select has_function('public','add_event_plan_item',array['uuid','text','uuid','uuid','integer','boolean','text'],'event item RPC exists');
+select has_function('public','confirm_event_equipment_item',array['uuid','integer'],'server quantity confirmation exists');
+select has_function('public','confirm_event_service_item',array['uuid','integer','integer'],'server schedule confirmation exists');
+select has_function('public','accept_event_quote',array['uuid'],'guarded quote acceptance exists');
+select has_table('public','event_agreements','final event agreements exist');
+select has_table('public','event_substitution_proposals','approved substitutions are recorded');
+select has_table('public','event_cancellations','provider and customer cancellations are recorded');
+select has_function('public','create_event_quote_revision',array['uuid','timestamp with time zone','jsonb','numeric'],'atomic itemized quote creation exists');
+select has_function('public','accept_event_agreement',array['uuid'],'customer agreement acceptance exists');
+select has_function('public','provider_cancel_event_item',array['uuid','text'],'provider cancellation and escalation exists');
+
+select * from finish();
+rollback;

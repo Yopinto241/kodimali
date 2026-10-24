@@ -1,33 +1,30 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import { StatusPill } from "@/components/status-pill";
+import { useLanguage } from "@/components/language-provider";
 
 type LocationOption = { id: string; name: string };
 
 export function LocationBanner({
   visibleByDefault,
   regions,
+  persistent = false,
 }: {
   visibleByDefault: boolean;
   regions: LocationOption[];
+  persistent?: boolean;
 }) {
   const router = useRouter();
+  const { language } = useLanguage();
+  const sw = language === "sw";
   const [isNavigating, startTransition] = useTransition();
-  const [visible, setVisible] = useState(() => {
-    if (typeof window === "undefined") {
-      return visibleByDefault;
-    }
-    const hiddenUntil = window.localStorage.getItem(
-      "customer_location_banner_hidden_until",
-    );
-    if (hiddenUntil && Number(hiddenUntil) > Date.now()) {
-      return false;
-    }
-    return visibleByDefault;
-  });
+  // The initial client render must exactly match the server output. Browser-only
+  // preferences are applied after hydration so localStorage cannot change the
+  // shape of the hydrated tree.
+  const [visible, setVisible] = useState(visibleByDefault);
   const [manualOpen, setManualOpen] = useState(false);
   const [regionId, setRegionId] = useState("");
   const [districtId, setDistrictId] = useState("");
@@ -36,6 +33,19 @@ export function LocationBanner({
   const [districts, setDistricts] = useState<LocationOption[]>([]);
   const [wards, setWards] = useState<LocationOption[]>([]);
   const [areas, setAreas] = useState<LocationOption[]>([]);
+
+  useEffect(() => {
+    if (persistent) return;
+    const timer = window.setTimeout(() => {
+      const hiddenUntil = window.localStorage.getItem(
+        "customer_location_banner_hidden_until",
+      );
+      if (hiddenUntil && Number(hiddenUntil) > Date.now()) {
+        setVisible(false);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [persistent]);
 
   function buildBaseUrl() {
     return new URL(window.location.href);
@@ -164,7 +174,7 @@ export function LocationBanner({
     navigateTo(baseUrl);
   }
 
-  if (!visible) {
+  if (!visible && !persistent) {
     return null;
   }
 
@@ -173,15 +183,14 @@ export function LocationBanner({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
           <div className="flex flex-wrap items-center gap-3">
-            <p className="eyebrow">Location setup</p>
-            <StatusPill label="Private area only" tone="info" />
+            <p className="eyebrow">{sw ? "Chagua eneo" : "Location setup"}</p>
+            <StatusPill label={sw ? "Eneo lako ni la faragha" : "Your precise location stays private"} tone="info" />
           </div>
           <h2 className="mt-3 font-heading text-2xl font-semibold text-brand-ink sm:text-3xl">
-            Unatafuta mali karibu na ulipo?
+            {sw ? "Unatafuta mali karibu na ulipo?" : "Looking for something near you?"}
           </h2>
           <p className="section-copy mt-3 text-base">
-            Chagua eneo lako ili tuanze na listings zinazofaa. KODIMALI inaonyesha
-            eneo la jumla tu, si address kamili ya mwenye mali.
+            {sw ? "Chagua eneo lako ili tukuonyeshe mali zinazopatikana karibu nawe. Tunaonyesha eneo la jumla tu; anwani kamili ya mali hubaki siri." : "Choose your area to see relevant properties nearby. KODIMALI shows only the general area; the property's exact address remains private."}
           </p>
         </div>
       </div>
@@ -192,7 +201,7 @@ export function LocationBanner({
           disabled={isNavigating}
           className="btn btn-primary"
         >
-          Tumia eneo langu
+          {sw ? "Tumia eneo nilipo" : "Use my location"}
         </button>
         <button
           type="button"
@@ -200,21 +209,23 @@ export function LocationBanner({
           disabled={isNavigating}
           className="btn btn-outline"
         >
-          Chagua eneo
+          {sw ? "Chagua eneo" : "Choose an area"}
         </button>
-        <button
-          type="button"
-          onClick={skipBanner}
-          disabled={isNavigating}
-          className="btn btn-ghost"
-        >
-          Ruka
-        </button>
+        {!persistent ? (
+          <button
+            type="button"
+            onClick={skipBanner}
+            disabled={isNavigating}
+            className="btn btn-ghost"
+          >
+            {sw ? "Ruka" : "Skip"}
+          </button>
+        ) : null}
       </div>
       {manualOpen ? (
         <div className="soft-panel mt-5 grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
           <label className="grid gap-2">
-            <span className="field-label text-sm">Region</span>
+            <span className="field-label text-sm">{sw ? "Mkoa" : "Region"}</span>
             <select
               value={regionId}
               onChange={async (event) => {
@@ -229,7 +240,7 @@ export function LocationBanner({
               }}
               className="field-input"
             >
-              <option value="">Chagua Region</option>
+              <option value="">{sw ? "Chagua mkoa" : "Choose a region"}</option>
               {regions.map((region) => (
                 <option key={region.id} value={region.id}>
                   {region.name}
@@ -238,7 +249,7 @@ export function LocationBanner({
             </select>
           </label>
           <label className="grid gap-2">
-            <span className="field-label text-sm">District</span>
+            <span className="field-label text-sm">{sw ? "Wilaya" : "District"}</span>
             <select
               value={districtId}
               onChange={async (event) => {
@@ -250,7 +261,7 @@ export function LocationBanner({
               }}
               className="field-input"
             >
-              <option value="">Chagua District</option>
+              <option value="">{sw ? "Chagua wilaya" : "Choose a district"}</option>
               {districts.map((district) => (
                 <option key={district.id} value={district.id}>
                   {district.name}
@@ -260,7 +271,7 @@ export function LocationBanner({
           </label>
           {wards.length > 0 ? (
             <label className="grid gap-2">
-              <span className="field-label text-sm">Ward</span>
+              <span className="field-label text-sm">{sw ? "Kata" : "Ward"}</span>
               <select
                 value={wardId}
                 onChange={async (event) => {
@@ -271,7 +282,7 @@ export function LocationBanner({
                 }}
                 className="field-input"
               >
-                <option value="">Ward si lazima</option>
+                <option value="">{sw ? "Kata (si lazima)" : "Ward (optional)"}</option>
                 {wards.map((ward) => (
                   <option key={ward.id} value={ward.id}>
                     {ward.name}
@@ -281,13 +292,13 @@ export function LocationBanner({
             </label>
           ) : null}
           <label className="grid gap-2">
-            <span className="field-label text-sm">Area</span>
+            <span className="field-label text-sm">{sw ? "Eneo" : "Area"}</span>
             <select
               value={areaId}
               onChange={(event) => setAreaId(event.target.value)}
               className="field-input"
             >
-              <option value="">Area si lazima</option>
+              <option value="">{sw ? "Eneo (si lazima)" : "Area (optional)"}</option>
               {areas.map((area) => (
                 <option key={area.id} value={area.id}>
                   {area.name}
@@ -302,7 +313,7 @@ export function LocationBanner({
               disabled={!regionId || !districtId || isNavigating}
               className="btn btn-success"
             >
-              {isNavigating ? "Inafungua..." : "Tumia eneo hili"}
+              {isNavigating ? (sw ? "Inafungua..." : "Loading...") : (sw ? "Tumia eneo hili" : "Use this area")}
             </button>
           </div>
         </div>

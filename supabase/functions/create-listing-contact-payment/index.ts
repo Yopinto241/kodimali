@@ -12,6 +12,11 @@ import {
   previewUssdPushRequest,
   readClickPesaConfig,
 } from "../_shared/clickpesa.ts";
+import {
+  createSonicPesaOrder,
+  SonicPesaRequestError,
+  useSonicPesa,
+} from "../_shared/sonicpesa.ts";
 
 const CONTACT_PRICE_STANDARD_TZS = 500;
 const CONTACT_PRICE_PREMIUM_TZS = 1000;
@@ -39,6 +44,9 @@ type RpcClient = {
 
 function friendlyErrorMessage(error: unknown): string {
   if (error instanceof ClickPesaRequestError) {
+    return error.message;
+  }
+  if (error instanceof SonicPesaRequestError) {
     return error.message;
   }
   if (error instanceof Error && error.message.trim().length > 0) {
@@ -235,8 +243,11 @@ Deno.serve(async (request) => {
     const categorySlug = typeof category["slug"] === "string"
       ? category["slug"] as string
       : "";
-    const config = contactPaymentConfig();
-    const amount = paymentAmountTzs(categorySlug);
+    const sonic = useSonicPesa();
+    const config = sonic ? null : contactPaymentConfig();
+    const amount = sonic
+      ? Math.max(paymentAmountTzs(categorySlug), readAmountEnv("SONICPESA_MIN_TZS", 1000))
+      : paymentAmountTzs(categorySlug);
     const orderReference = createOrderReference();
     const accessToken = crypto.randomUUID();
     const previewPayload: Record<string, unknown> = {
@@ -246,7 +257,7 @@ Deno.serve(async (request) => {
       phoneNumber: customerPhoneNumber,
       fetchSenderDetails: true,
     };
-    if (config.checksumKey) {
+    if (config?.checksumKey) {
       previewPayload.checksum = createChecksum(config.checksumKey, previewPayload);
     }
 
@@ -275,9 +286,43 @@ Deno.serve(async (request) => {
     }
 
     try {
-      const clickPesaToken = await fetchClickPesaToken(config);
+      if (sonic) {
+        const order = await createSonicPesaOrder({
+          phone: customerPhoneNumber,
+          amount,
+          email: customerEmail || undefined,
+          name: customerName,
+        });
+        await supabase
+          .from("listing_contact_payments")
+          .update({
+            provider_payment_id: order.orderId,
+            provider_channel: order.channel,
+            provider_response: order.payload,
+            payment_status: order.status,
+            status_message: order.status === "failed"
+              ? "The payment request could not be sent to this phone number."
+              : null,
+          })
+          .eq("id", paymentRow.id);
+        return json({
+          success: true,
+          paymentId: paymentRow.id,
+          accessToken,
+          orderReference,
+          amount,
+          currency: "TZS",
+          paymentMethod: order.channel,
+          paymentStatus: order.status,
+          provider: "sonicpesa",
+          message:
+            "SonicPesa payment request sent. Confirm it on your phone to unlock the agent number.",
+        });
+      }
+
+      const clickPesaToken = await fetchClickPesaToken(config!);
       const preview = await previewUssdPushRequest(
-        config,
+        config!,
         clickPesaToken,
         previewPayload,
       );
@@ -307,7 +352,7 @@ Deno.serve(async (request) => {
       }
 
       const initiated = await initiateUssdPushRequest(
-        config,
+        config!,
         clickPesaToken,
         initiatePayload,
       );
@@ -365,7 +410,10 @@ Deno.serve(async (request) => {
     }
   } catch (error) {
     const message = friendlyErrorMessage(error);
-    const status = error instanceof ClickPesaRequestError ? error.status : 500;
+    const status = error instanceof ClickPesaRequestError ||
+        error instanceof SonicPesaRequestError
+      ? error.status
+      : 500;
     return json({ error: message }, status);
   }
 });

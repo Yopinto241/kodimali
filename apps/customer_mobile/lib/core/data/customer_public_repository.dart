@@ -13,8 +13,10 @@ class CustomerPublicRepository {
 
   final SupabaseClient _client;
   static const String _agentPhotoBucket = "agent-profile-photos";
-  static const int _listingMediaSignedUrlSeconds = 3600;
-  static const int _promotionMediaSignedUrlSeconds = 3600;
+  // Long-lived URLs work with the disk cache instead of forcing repeated
+  // signing and downloads while a customer browses between screens.
+  static const int _listingMediaSignedUrlSeconds = 24 * 60 * 60;
+  static const int _promotionMediaSignedUrlSeconds = 24 * 60 * 60;
   static const Duration _categoryCacheTtl = Duration(minutes: 30);
   static const Duration _promotionCacheTtl = Duration(minutes: 1);
   static const Duration _feedCacheTtl = Duration(minutes: 2);
@@ -101,6 +103,203 @@ class CustomerPublicRepository {
         fallbackMessage: "We could not load categories right now.",
       );
     }
+  }
+
+  Future<JsonMap> fetchEventsMarketplace() async {
+    final results = await Future.wait<dynamic>(<Future<dynamic>>[
+      _client
+          .from('event_types')
+          .select('id,slug,name_sw,name_en,description_sw,description_en')
+          .eq('is_approved', true)
+          .order('display_order'),
+      _client
+          .from('event_equipment_items')
+          .select(
+            'id,name,description,total_quantity,price_amount_tzs,price_unit,event_equipment_categories(name_sw,name_en)',
+          )
+          .eq('verification_status', 'verified')
+          .eq('publication_status', 'published')
+          .eq('is_active', true)
+          .limit(30),
+      _client
+          .from('event_service_profiles')
+          .select(
+            'id,display_name,provider_kind,biography,experience_years,portfolio_media,event_service_offerings(id,title,description,pricing_mode,price_amount_tzs,duration_minutes,publication_status)',
+          )
+          .eq('verification_status', 'verified')
+          .eq('is_active', true)
+          .eq('event_service_offerings.publication_status', 'published')
+          .limit(30),
+    ]);
+    return <String, dynamic>{
+      'types': (results[0] as List).cast<JsonMap>(),
+      'equipment': (results[1] as List).cast<JsonMap>(),
+      'services': (results[2] as List).cast<JsonMap>(),
+    };
+  }
+
+  Future<JsonMap> fetchIndividualEventDetail({
+    required String kind,
+    required String id,
+  }) async {
+    if (kind == 'equipment') {
+      return (await _client
+              .from('event_equipment_items')
+              .select(
+                'id,name,description,specifications,public_location_label,total_quantity,price_amount_tzs,price_unit,setup_minutes,return_buffer_minutes,transport_configuration,return_procedure,security_deposit_tzs,damage_rules,cancellation_policy,media_paths,event_equipment_categories(name_sw,name_en)',
+              )
+              .eq('id', id)
+              .single())
+          .cast<String, dynamic>();
+    }
+    return (await _client
+            .from('event_service_offerings')
+            .select(
+              'id,title,description,pricing_mode,price_amount_tzs,duration_minutes,requirements,travel_configuration,included_equipment,cancellation_policy,event_service_profiles(id,display_name,provider_kind,biography,experience_years,service_requirements,portfolio_media)',
+            )
+            .eq('id', id)
+            .single())
+        .cast<String, dynamic>();
+  }
+
+  Future<JsonMap> createIndividualEventBooking({
+    required String kind,
+    required String id,
+    required DateTime startsAt,
+    required DateTime endsAt,
+    int? quantity,
+    String? message,
+  }) async =>
+      (await _client.rpc(
+                'create_individual_event_booking',
+                params: <String, dynamic>{
+                  'p_kind': kind,
+                  'p_equipment_id': kind == 'equipment' ? id : null,
+                  'p_offering_id': kind == 'service' ? id : null,
+                  'p_start_at': startsAt.toUtc().toIso8601String(),
+                  'p_end_at': endsAt.toUtc().toIso8601String(),
+                  'p_quantity': kind == 'equipment' ? quantity : null,
+                  'p_message': message?.trim(),
+                },
+              )
+              as Map)
+          .cast<String, dynamic>();
+
+  Future<List<JsonMap>> fetchMyIndividualEventBookings() async =>
+      (await _client
+              .from('event_individual_bookings')
+              .select(
+                'id,reference,booking_kind,requested_period,requested_quantity,quoted_amount_tzs,status,payment_status,provider_response,created_at,event_plan_items(event_equipment_items(name),event_service_offerings(title,event_service_profiles(display_name)))',
+              )
+              .order('created_at', ascending: false))
+          .cast<JsonMap>();
+
+  Future<JsonMap> createEventPlan({
+    required String eventTypeId,
+    required DateTime startsAt,
+    required DateTime endsAt,
+    required String locationDetails,
+    required int attendance,
+    double? budgetTzs,
+    String? title,
+  }) async {
+    final dynamic response = await _client.rpc(
+      'create_event_plan',
+      params: <String, dynamic>{
+        'p_event_type_id': eventTypeId,
+        'p_start_at': startsAt.toUtc().toIso8601String(),
+        'p_end_at': endsAt.toUtc().toIso8601String(),
+        'p_location_id': null,
+        'p_private_location_details': locationDetails.trim(),
+        'p_attendance': attendance,
+        'p_budget_tzs': budgetTzs,
+        'p_title': title?.trim(),
+      },
+    );
+    return (response as Map).cast<String, dynamic>();
+  }
+
+  Future<List<JsonMap>> fetchEventTemplates() async =>
+      (await _client
+              .from('event_templates')
+              .select(
+                'id,slug,name_sw,name_en,description_sw,description_en,setting,event_type_id',
+              )
+              .eq('is_approved', true)
+              .order('name_en'))
+          .cast<JsonMap>();
+
+  Future<List<JsonMap>> runEventAdvisor({
+    required String planId,
+    required String templateId,
+    required String setting,
+    required String venueStatus,
+    String? accessibility,
+    String? weatherContingency,
+  }) async =>
+      (await _client.rpc(
+                'run_event_advisor',
+                params: <String, dynamic>{
+                  'p_plan_id': planId,
+                  'p_template_id': templateId,
+                  'p_setting': setting,
+                  'p_venue_status': venueStatus,
+                  'p_accessibility': accessibility,
+                  'p_weather_contingency': weatherContingency,
+                },
+              )
+              as List)
+          .cast<JsonMap>();
+
+  Future<List<JsonMap>> fetchMyEventPlans() async =>
+      (await _client
+              .from('event_plans')
+              .select(
+                'id,reference,title,event_period,attendance,budget_tzs,status,created_at,event_types(name_sw,name_en),event_quote_revisions(id,revision,total_tzs,status,expires_at),event_agreements(id,version,terms,status,sent_at)',
+              )
+              .order('created_at'))
+          .cast<JsonMap>();
+
+  Future<void> acceptEventQuote(String quoteRevisionId) async {
+    await _client.rpc(
+      'accept_event_quote',
+      params: <String, dynamic>{'p_quote_revision_id': quoteRevisionId},
+    );
+  }
+
+  Future<void> addEventPlanItem({
+    required String planId,
+    required String kind,
+    String? equipmentId,
+    String? offeringId,
+    int? quantity,
+  }) async {
+    await _client.rpc(
+      'add_event_plan_item',
+      params: <String, dynamic>{
+        'p_plan_id': planId,
+        'p_item_kind': kind,
+        'p_equipment_id': equipmentId,
+        'p_offering_id': offeringId,
+        'p_quantity': quantity,
+        'p_required': true,
+        'p_requirements': null,
+      },
+    );
+  }
+
+  Future<void> requestEventQuote(String planId) async {
+    await _client.rpc(
+      'request_event_quote',
+      params: <String, dynamic>{'p_plan_id': planId},
+    );
+  }
+
+  Future<void> acceptEventAgreement(String agreementId) async {
+    await _client.rpc(
+      'accept_event_agreement',
+      params: <String, dynamic>{'p_agreement_id': agreementId},
+    );
   }
 
   Future<List<JsonMap>> fetchHomeFeed({

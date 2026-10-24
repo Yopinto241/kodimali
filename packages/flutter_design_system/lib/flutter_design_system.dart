@@ -1,24 +1,27 @@
 import 'package:flutter/material.dart';
 
 class KodimaliColors {
-  static const Color navy = Color(0xFF0B1F3A);
-  static const Color blueSurface = Color(0xFF122B4A);
-  static const Color blueSurfaceStrong = Color(0xFF17385F);
-  static const Color green = Color(0xFFA8D62A);
-  static const Color greenStrong = Color(0xFF91BF11);
-  static const Color lightGreen = Color(0xFFEAF4D2);
-  static const Color background = Color(0xFFF6F8FB);
-  static const Color backgroundRaised = Color(0xFFEDF2F8);
-  static const Color textDark = Color(0xFF132238);
-  static const Color mutedText = Color(0xFF64748B);
+  static const Color navy = Color(0xFF102438);
+  static const Color blueSurface = Color(0xFF17364B);
+  static const Color blueSurfaceStrong = Color(0xFF20465D);
+  static const Color green = Color(0xFF147D8C);
+  static const Color greenStrong = Color(0xFF0F6875);
+  static const Color lightGreen = Color(0xFFDFF1F2);
+  static const Color gold = Color(0xFFD6A75B);
+  static const Color background = Color(0xFFF3EADC);
+  static const Color backgroundRaised = Color(0xFFDCEBEA);
+  static const Color lightSurface = Color(0xFFE8F0EB);
+  static const Color lightSurfaceWarm = Color(0xFFF2DCC6);
+  static const Color textDark = Color(0xFF17323A);
+  static const Color mutedText = Color(0xFF5F6F70);
   static const Color warning = Color(0xFFE8A317);
   static const Color warningSoft = Color(0xFFFFF3D0);
   static const Color danger = Color(0xFFD94848);
   static const Color dangerSoft = Color(0xFFFCE7E7);
   static const Color info = Color(0xFF1F6EA9);
   static const Color infoSoft = Color(0xFFE6F2FB);
-  static const Color border = Color(0xFFDCE4ED);
-  static const Color borderStrong = Color(0xFFC6D1DE);
+  static const Color border = Color(0xFFC1D4CE);
+  static const Color borderStrong = Color(0xFF9DBBB4);
   static const Color white = Colors.white;
 
   static const Color darkBackground = Color(0xFF08162B);
@@ -42,6 +45,15 @@ class KodimaliSpacing {
   static const EdgeInsets screenPadding = EdgeInsets.fromLTRB(md, md, md, xl);
   static const EdgeInsets cardPadding = EdgeInsets.all(md);
   static const EdgeInsets cardPaddingLarge = EdgeInsets.all(20);
+}
+
+class KodimaliMotion {
+  static const Duration micro = Duration(milliseconds: 150);
+  static const Duration selection = Duration(milliseconds: 220);
+  static const Duration cardEntrance = Duration(milliseconds: 360);
+  static const Duration pageTransition = Duration(milliseconds: 420);
+  static const Curve entranceCurve = Curves.easeOutCubic;
+  static const Curve emphasizedCurve = Curves.easeOutBack;
 }
 
 class KodimaliRadii {
@@ -250,15 +262,15 @@ class KodimaliTheme {
           onError: Colors.white,
           errorContainer: KodimaliColors.dangerSoft,
           onErrorContainer: const Color(0xFFA73030),
-          surface: Colors.white,
+          surface: KodimaliColors.lightSurface,
           onSurface: KodimaliColors.textDark,
           onSurfaceVariant: KodimaliColors.mutedText,
           outline: KodimaliColors.borderStrong,
           outlineVariant: KodimaliColors.border,
-          surfaceContainerLowest: Colors.white,
-          surfaceContainerLow: const Color(0xFFFAFBFD),
-          surfaceContainer: const Color(0xFFF5F8FB),
-          surfaceContainerHigh: const Color(0xFFF0F4F9),
+          surfaceContainerLowest: KodimaliColors.lightSurfaceWarm,
+          surfaceContainerLow: const Color(0xFFE3EDE7),
+          surfaceContainer: const Color(0xFFDCE9E3),
+          surfaceContainerHigh: const Color(0xFFD4E4DE),
           surfaceContainerHighest: KodimaliColors.backgroundRaised,
           shadow: const Color(0x140B1F3A),
           scrim: Colors.black54,
@@ -436,7 +448,9 @@ class KodimaliTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark ? KodimaliColors.darkSurfaceSoft : Colors.white,
+        fillColor: isDark
+            ? KodimaliColors.darkSurfaceSoft
+            : KodimaliColors.lightSurfaceWarm,
         labelStyle: textTheme.bodyMedium?.copyWith(
           color: scheme.onSurfaceVariant,
         ),

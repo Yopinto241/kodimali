@@ -9,7 +9,10 @@ import '../../features/auth/presentation/agent_account_status_screen.dart';
 import '../../features/auth/presentation/forgot_password_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
+import '../../features/auth/presentation/owner_register_screen.dart';
 import '../../features/auth/presentation/splash_screen.dart';
+import '../../features/owner/presentation/owner_workspace_screen.dart';
+import '../../features/shared/presentation/workspace_switcher_screen.dart';
 import '../state/app_controller.dart';
 
 GoRouter createAppRouter(AppController controller) {
@@ -25,17 +28,22 @@ GoRouter createAppRouter(AppController controller) {
       final bool isAuthPath =
           location == "/login" ||
           location == "/forgot-password" ||
-          location == "/register-agent";
+          location == "/register-agent" ||
+          location == "/register-owner";
 
       if (!controller.isSignedIn) {
         return isAuthPath ? null : "/login";
       }
 
       final AppRole? role = controller.highestRole;
+      if (controller.workspaceRoles.length > 1 && location == "/splash") {
+        return "/workspaces";
+      }
       final String target = switch (role) {
         AppRole.admin => "/admin",
         AppRole.agent =>
           controller.isAgentAccessBlocked ? "/agent-account-status" : "/agent",
+        AppRole.owner => "/owner",
         _ => "/access-denied",
       };
 
@@ -51,6 +59,12 @@ GoRouter createAppRouter(AppController controller) {
       if (location.startsWith("/agent") && role == AppRole.agent) {
         return controller.isAgentAccessBlocked ? "/agent-account-status" : null;
       }
+      if (location.startsWith("/owner") && role == AppRole.owner) {
+        return null;
+      }
+      if (location == "/workspaces" && controller.workspaceRoles.length > 1) {
+        return null;
+      }
       if (location.startsWith("/listing-chat/") && role == AppRole.agent) {
         return controller.isAgentAccessBlocked ? "/agent-account-status" : null;
       }
@@ -59,12 +73,21 @@ GoRouter createAppRouter(AppController controller) {
       }
       if (location == "/access-denied" &&
           role != AppRole.admin &&
-          role != AppRole.agent) {
+          role != AppRole.agent &&
+          role != AppRole.owner) {
         return null;
       }
       return target;
     },
     routes: <RouteBase>[
+      GoRoute(
+        path: "/workspaces",
+        builder: (context, state) => const WorkspaceSwitcherScreen(),
+      ),
+      GoRoute(
+        path: "/owner",
+        builder: (context, state) => const OwnerWorkspaceScreen(),
+      ),
       GoRoute(
         path: "/splash",
         builder: (context, state) => const SplashScreen(),
@@ -73,6 +96,10 @@ GoRouter createAppRouter(AppController controller) {
       GoRoute(
         path: "/register-agent",
         builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: "/register-owner",
+        builder: (context, state) => const OwnerRegisterScreen(),
       ),
       GoRoute(
         path: "/forgot-password",

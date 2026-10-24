@@ -14,6 +14,8 @@ import 'promotions_tab.dart';
 import 'reports_tab.dart';
 import 'users_tab.dart';
 import 'admin_growth_operations_screen.dart';
+import 'information_administration_tab.dart';
+import '../../events/presentation/event_coordinator_screen.dart';
 
 class AdminShellScreen extends StatefulWidget {
   const AdminShellScreen({super.key});
@@ -48,9 +50,19 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     final List<ManageWorkspaceDestination> destinations =
         <ManageWorkspaceDestination>[
           const ManageWorkspaceDestination(
+            label: "Information Administration",
+            icon: Icons.fact_check_outlined,
+            screen: InformationAdministrationTab(),
+          ),
+          const ManageWorkspaceDestination(
             label: "Dashboard",
             icon: Icons.dashboard_outlined,
             screen: AdminDashboardTab(),
+          ),
+          const ManageWorkspaceDestination(
+            label: "Events Coordinator",
+            icon: Icons.celebration_outlined,
+            screen: EventCoordinatorScreen(),
           ),
           const ManageWorkspaceDestination(
             label: "Agents",
@@ -110,7 +122,9 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
         ];
     destinations.removeWhere(
       (destination) => switch (destination.label) {
+        'Information Administration' => !allowed('information.manage'),
         'Dashboard' => !allowed('dashboard.view'),
+        'Events Coordinator' => !allowed('events.manage'),
         'Agents' => !allowed('agents.manage'),
         'Users' => !allowed('users.view'),
         'Listings' => !allowed('listings.manage'),

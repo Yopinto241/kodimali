@@ -24,6 +24,7 @@ export function DirectMediaImage({
       height={1200}
       quality={72}
       priority={priority}
+      loading={priority ? "eager" : "lazy"}
       sizes={sizes}
     />
   );

@@ -10,7 +10,7 @@ import { AdminAccessPanel } from "@/components/admin-access-panel";
 
 type Row = Record<string, unknown>;
 type Role = "admin" | "agent";
-type Tab = "dashboard" | "business" | "admin-access" | "listings" | "add-listing" | "requests" | "categories" | "agents" | "users" | "locations" | "reports" | "promotions" | "notifications" | "profile";
+type Tab = "dashboard" | "business" | "admin-access" | "listings" | "add-listing" | "requests" | "categories" | "agents" | "owners" | "users" | "locations" | "reports" | "promotions" | "notifications" | "profile";
 
 const bookingStatuses = [
   "new", "checking_availability", "contacted", "viewing_scheduled",
@@ -37,9 +37,7 @@ export function ManagePortal() {
   const [extraRows, setExtraRows] = useState<Partial<Record<Tab, Row[]>>>({});
   const [counts, setCounts] = useState<Row>({});
   const [tabLoading, setTabLoading] = useState(false);
-  const [online, setOnline] = useState(() =>
-    typeof navigator === "undefined" ? true : navigator.onLine,
-  );
+  const [online, setOnline] = useState(true);
   const [hasMore, setHasMore] = useState<Partial<Record<Tab, boolean>>>({});
   const [editingListing, setEditingListing] = useState<Row | null>(null);
   const [editingCategory, setEditingCategory] = useState<Row | null>(null);
@@ -83,9 +81,13 @@ export function ManagePortal() {
       const nextRole: Role | null = roles.includes("admin")
         ? "admin"
         : roles.includes("agent") ? "agent" : null;
+      if (!nextRole && roles.includes("owner")) {
+        window.location.assign("/owner");
+        return;
+      }
       setRole(nextRole);
       if (!nextRole) {
-        setMessage("This account is not an administrator or agent account.");
+        setMessage("This account does not have approved Manage access.");
         setLoading(false);
         return;
       }
@@ -141,6 +143,10 @@ export function ManagePortal() {
       } else if (target === "agents") {
         result = await withRetry(() => supabase.from("agents").select(
           "id, profile_id, display_name, business_name, phone_number, contact_email, verification_status, account_status, created_at",
+        ).order("created_at", { ascending: false }).range(from, to));
+      } else if (target === "owners") {
+        result = await withRetry(() => supabase.from("owner_applications").select(
+          "id, applicant_id, owner_type, legal_name, phone_number, authorization_summary, status, review_notes, created_at",
         ).order("created_at", { ascending: false }).range(from, to));
       } else if (target === "users") {
         result = await withRetry(() => supabase.rpc("get_admin_customer_users", {
@@ -217,9 +223,11 @@ export function ManagePortal() {
 
   useEffect(() => {
     const updateConnection = () => setOnline(navigator.onLine);
+    const timer = window.setTimeout(updateConnection, 0);
     window.addEventListener("online", updateConnection);
     window.addEventListener("offline", updateConnection);
     return () => {
+      window.clearTimeout(timer);
       window.removeEventListener("online", updateConnection);
       window.removeEventListener("offline", updateConnection);
     };
@@ -255,6 +263,20 @@ export function ManagePortal() {
     }, `Listing changed to ${status}.`);
   }
 
+  async function deleteListingPermanently(listing: Row) {
+    const title = String(listing.title ?? "this listing");
+    const confirmation = window.prompt(`Permanently delete “${title}”? This removes its media and related activity and cannot be undone. Type DELETE to continue.`);
+    if (confirmation !== "DELETE") { setMessage("Permanent deletion cancelled."); return; }
+    await perform(async () => {
+      const { error } = await supabase.functions.invoke("admin-delete-listing", {
+        body: { listingId: listing.id, confirm_delete_with_inquiries: true },
+      });
+      if (error) throw error;
+      setListings((current) => current.filter((item) => item.id !== listing.id));
+      loadedTabs.current.delete("listings");
+    }, "Listing and related media were permanently deleted.");
+  }
+
   async function updateBooking(bookingId: string, status: string) {
     await perform(async () => {
       const rpcResult = await supabase.rpc("manage_update_booking_status", {
@@ -284,6 +306,14 @@ export function ManagePortal() {
       if (error) throw error;
       await refresh();
     }, activate ? "Agent approved and activated." : "Agent deactivated.");
+  }
+
+  async function reviewOwner(id: string, approve: boolean) {
+    await perform(async () => {
+      const result = await supabase.rpc("review_owner_application", { p_application_id: id, p_approve: approve, p_notes: null } as never);
+      if (result.error) throw result.error;
+      loadedTabs.current.delete("owners"); await loadTabData("owners");
+    }, approve ? "Owner verified and workspace enabled." : "Owner application rejected.");
   }
 
   async function updateReport(id: string, status: string) {
@@ -356,6 +386,7 @@ export function ManagePortal() {
     ...(role === "admin" ? [
       { id: "categories" as Tab, label: "Categories & fields" },
       { id: "agents" as Tab, label: "Agents" },
+      { id: "owners" as Tab, label: "Owners" },
       { id: "locations" as Tab, label: "Locations" },
       { id: "reports" as Tab, label: "Reports" },
       { id: "promotions" as Tab, label: "Promotions" },
@@ -380,10 +411,11 @@ export function ManagePortal() {
         {tab === "business" ? <BusinessOperations role={role} agentId={agentId} /> : null}
         {tab === "admin-access" && role === "admin" ? <AdminAccessPanel /> : null}
         {tabLoading ? <div className="mb-4 rounded-2xl bg-brand-info-soft p-4 font-semibold">Loading this workspace...</div> : null}
-        {tab === "listings" ? <Listings role={role} listings={listings} busy={busy} edit={setEditingListing} moderate={moderateListing} /> : null}
+        {tab === "listings" ? <Listings role={role} listings={listings} busy={busy} edit={setEditingListing} moderate={moderateListing} removePermanently={deleteListingPermanently} /> : null}
         {tab === "requests" ? <Requests bookings={bookings} busy={busy} update={updateBooking} /> : null}
         {tab === "categories" && role === "admin" ? <Categories categories={categories} edit={setEditingCategory} /> : null}
         {tab === "agents" && role === "admin" ? <Agents agents={agents} busy={busy} update={updateAgent} /> : null}
+        {tab === "owners" && role === "admin" ? <Owners rows={extraRows.owners ?? []} busy={busy} review={reviewOwner} /> : null}
         {tab === "users" && role === "admin" ? <Users users={users} /> : null}
         {tab === "locations" && role === "admin" ? <Locations rows={extraRows.locations ?? []} busy={busy} add={addLocation} remove={deleteLocation} /> : null}
         {tab === "reports" && role === "admin" ? <Reports rows={extraRows.reports ?? []} busy={busy} update={updateReport} /> : null}
@@ -427,15 +459,15 @@ function ManageLoading() {
 
 function ManageLogin(props: { email: string; password: string; busy: boolean; message: string | null; setEmail: (v: string) => void; setPassword: (v: string) => void; submit: (e: FormEvent<HTMLFormElement>) => void }) {
   return <main className="mx-auto grid min-h-[80vh] max-w-6xl items-center gap-10 px-4 py-12 lg:grid-cols-2">
-    <div><p className="eyebrow">Secure management access</p><h1 className="mt-3 font-heading text-5xl font-semibold text-brand-ink">Run KODIMALI from any browser.</h1>
-    <p className="mt-5 max-w-xl text-lg text-muted">Agents manage listings and customer requests. Administrators moderate the marketplace, agents, categories, and dynamic listing fields.</p></div>
+    <div><p className="eyebrow">KODIMALI Manage</p><h1 className="mt-3 font-heading text-5xl font-semibold text-brand-ink">One secure entrance for the business side.</h1>
+    <p className="mt-5 max-w-xl text-lg text-muted">Agents, hall owners, authorized managers and administrators use their approved KODIMALI credentials here. Your verified role opens the correct workspace automatically.</p><div className="mt-6 flex flex-wrap gap-3"><Link href="/manage/register/agent" className="btn btn-success">Register as agent</Link><Link href="/manage/register/agent?category=ceremony-hall" className="btn btn-outline">Register as hall agent</Link><Link href="/manage/register/owner" className="btn btn-outline">Register as owner</Link><Link href="/manage/register/owner?type=authorized_manager" className="btn btn-outline">Register as hall manager</Link></div><p className="mt-4 text-sm text-muted">Administrator accounts are created or approved internally.</p></div>
     <form className="surface-card grid gap-4 p-6 sm:p-8" onSubmit={props.submit}>
-      <h2 className="font-heading text-2xl font-semibold">Admin or agent sign in</h2>
+      <h2 className="font-heading text-2xl font-semibold">Manage sign in</h2>
       <label className="grid gap-2 font-semibold">Email<input className="rounded-2xl border border-brand-border bg-white px-4 py-3" type="email" value={props.email} onChange={(e) => props.setEmail(e.target.value)} required /></label>
       <label className="grid gap-2 font-semibold">Password<input className="rounded-2xl border border-brand-border bg-white px-4 py-3" type="password" minLength={6} value={props.password} onChange={(e) => props.setPassword(e.target.value)} required /></label>
       <button className="btn btn-success" disabled={props.busy}>{props.busy ? "Signing in..." : "Sign in"}</button>
       {props.message ? <p className="rounded-xl bg-brand-info-soft p-3 text-sm">{props.message}</p> : null}
-      <Link href="/" className="text-center text-sm font-semibold underline">Return to marketplace</Link>
+      <div className="grid gap-2 text-center text-sm font-semibold"><Link href="/" className="underline">Return to marketplace</Link><Link href="/login" className="underline">Customer login</Link></div>
     </form>
   </main>;
 }
@@ -451,12 +483,12 @@ function Dashboard({ role, counts }: { role: Role; counts: Row }) {
   <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map(([label, value]) => <article className="soft-panel p-5" key={String(label)}><p className="text-sm font-semibold text-muted">{label}</p><p className="mt-2 font-heading text-4xl font-semibold">{value}</p></article>)}</div></>;
 }
 
-function Listings({ role, listings, busy, edit, moderate }: { role: Role; listings: Row[]; busy: boolean; edit: (row: Row) => void; moderate: (id: string, status: "active" | "inactive") => void }) {
+function Listings({ role, listings, busy, edit, moderate, removePermanently }: { role: Role; listings: Row[]; busy: boolean; edit: (row: Row) => void; moderate: (id: string, status: "active" | "inactive") => void; removePermanently: (row: Row) => void }) {
   return <Panel title="Listings" subtitle={role === "admin" ? "Review and control marketplace visibility." : "Edit your public listing information and availability."}>
     <div className="grid gap-3">{listings.length === 0 ? <Empty text="No listings available." /> : listings.map((listing) => <article className="rounded-2xl border border-brand-border bg-white p-4" key={listing.id as string}>
       <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">{listing.title as string}</h3><p className="mt-1 text-sm text-muted">{categoryName(listing)} · {String(listing.public_location_label ?? "")}</p></div><Status value={String(listing.status)} /></div>
       <div className="mt-4 flex flex-wrap gap-2"><button className="btn btn-outline" onClick={() => edit(listing)}>Edit</button>
-      {role === "admin" ? <><button className="btn btn-success" disabled={busy} onClick={() => void moderate(listing.id as string, "active")}>Approve / activate</button><button className="btn btn-outline" disabled={busy} onClick={() => void moderate(listing.id as string, "inactive")}>Remove</button></> : null}</div>
+      {role === "admin" ? <><button className="btn btn-success" disabled={busy} onClick={() => void moderate(listing.id as string, "active")}>Approve / activate</button><button className="btn btn-outline" disabled={busy} onClick={() => void moderate(listing.id as string, "inactive")}>Remove</button><button className="rounded-full border border-red-300 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-100 disabled:opacity-50" disabled={busy} onClick={() => void removePermanently(listing)}>Delete permanently</button></> : null}</div>
     </article>)}</div>
   </Panel>;
 }
@@ -478,6 +510,10 @@ function Categories({ categories, edit }: { categories: Row[]; edit: (row: Row) 
 
 function Agents({ agents, busy, update }: { agents: Row[]; busy: boolean; update: (id: string, activate: boolean) => void }) {
   return <Panel title="Agents" subtitle="Verify, activate, and deactivate agent access."><div className="grid gap-3">{agents.map((agent) => <article className="rounded-2xl border border-brand-border bg-white p-4" key={agent.id as string}><div className="flex flex-wrap justify-between gap-3"><div><h3 className="font-semibold">{String(agent.display_name ?? agent.business_name ?? "Agent")}</h3><p className="text-sm text-muted">{String(agent.contact_email ?? agent.phone_number ?? "")}</p></div><Status value={`${agent.verification_status} · ${agent.account_status}`} /></div><div className="mt-4 flex gap-2"><button className="btn btn-success" disabled={busy} onClick={() => void update(agent.id as string, true)}>Approve & activate</button><button className="btn btn-outline" disabled={busy} onClick={() => void update(agent.id as string, false)}>Deactivate</button></div></article>)}</div></Panel>;
+}
+
+function Owners({ rows, busy, review }: { rows: Row[]; busy: boolean; review: (id: string, approve: boolean) => void }) {
+  return <Panel title="Owner applications" subtitle="Verify ownership or management authority before granting asset control."><div className="grid gap-3">{rows.length === 0 ? <Empty text="No owner applications." /> : rows.map((row) => <article className="soft-panel p-4" key={String(row.id)}><div className="flex flex-wrap justify-between gap-3"><div><h3 className="font-semibold">{String(row.legal_name)}</h3><p className="text-sm text-muted">{String(row.owner_type).replaceAll("_"," ")} · {String(row.phone_number)}</p><p className="mt-3 text-sm">{String(row.authorization_summary)}</p></div><Status value={String(row.status)} /></div>{["submitted","under_review"].includes(String(row.status)) ? <div className="mt-4 flex gap-2"><button className="btn btn-success" disabled={busy} onClick={() => void review(String(row.id),true)}>Verify owner</button><button className="btn btn-outline" disabled={busy} onClick={() => void review(String(row.id),false)}>Reject</button></div> : null}</article>)}</div></Panel>;
 }
 
 function Users({ users }: { users: Row[] }) {

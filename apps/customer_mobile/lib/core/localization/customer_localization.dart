@@ -27,7 +27,7 @@ class CustomerAppScope extends InheritedWidget {
 extension CustomerLocalizationX on BuildContext {
   CustomerAppScope? get _customerScope => CustomerAppScope.maybeOf(this);
 
-  String get languageCode => _customerScope?.languageCode ?? "en";
+  String get languageCode => _customerScope?.languageCode ?? "sw";
 
   bool get isSwahili => languageCode == "sw";
 
@@ -45,8 +45,8 @@ extension CustomerLocalizationX on BuildContext {
     Map<String, String> values = const <String, String>{},
   }) {
     final Map<String, String> selected =
-        _localizedStrings[languageCode] ?? _localizedStrings["en"]!;
-    String text = selected[key] ?? _localizedStrings["en"]![key] ?? key;
+        _localizedStrings[languageCode] ?? _localizedStrings["sw"]!;
+    String text = selected[key] ?? _localizedStrings["sw"]![key] ?? key;
     for (final MapEntry<String, String> entry in values.entries) {
       text = text.replaceAll("{${entry.key}}", entry.value);
     }
@@ -60,6 +60,7 @@ _localizedStrings = <String, Map<String, String>>{
     "lang.en": "English",
     "lang.sw": "Swahili",
     "nav.home": "Home",
+    "nav.events": "Events",
     "nav.apartments": "Apartments",
     "nav.houses": "Houses",
     "nav.cars": "Cars",
@@ -144,14 +145,14 @@ _localizedStrings = <String, Map<String, String>>{
     "agent.unlockCta": "Unlock phone number",
     "agent.unlockTitle": "Unlock agent phone",
     "agent.unlockBody":
-        "Pay once through ClickPesa to reveal this agent contact on this device.",
+        "Pay once through SonicPesa to reveal this agent contact on this device.",
     "agent.paymentName": "Full name",
     "agent.paymentPhone": "Phone number",
     "agent.paymentContinue": "Pay and unlock number",
     "agent.paymentCheck": "Check payment now",
     "agent.paymentAmount": "Amount: {amount} {currency}",
     "agent.paymentStarted":
-        "Payment request sent. Confirm it on your phone. This screen will unlock the number automatically once ClickPesa confirms payment.",
+        "Payment request sent. Confirm it on your phone. This screen will unlock the number automatically once SonicPesa confirms payment.",
     "agent.paymentMethod": "Payment method: {method}",
     "agent.paymentPromptTo":
         "Payment prompt sent to {phone}. Enter your mobile money PIN on that phone to finish.",
@@ -359,6 +360,7 @@ _localizedStrings = <String, Map<String, String>>{
     "lang.en": "Kiingereza",
     "lang.sw": "Kiswahili",
     "nav.home": "Nyumbani",
+    "nav.events": "Matukio",
     "nav.apartments": "Apartment",
     "nav.houses": "Nyumba",
     "nav.cars": "Magari",
@@ -371,11 +373,11 @@ _localizedStrings = <String, Map<String, String>>{
     "hero.chooseArea": "Chagua eneo",
     "location.choose": "Chagua mahali",
     "location.chooseMethod":
-        "KODIMALI itafute listings za karibu kwa njia gani?",
+        "KODIMALI itafute mali za kukodisha zilizo karibu kwa njia gani?",
     "location.gpsHelp": "Tumia eneo la simu kiotomatiki baada ya kuruhusu.",
     "location.manualHelp": "Chagua mwenyewe mkoa, wilaya, kata au eneo sahihi.",
     "exit.title": "Ufunge KODIMALI?",
-    "exit.body": "Una uhakika unataka kufunga app?",
+    "exit.body": "Una uhakika unataka kufunga programu?",
     "exit.stay": "Baki",
     "exit.confirm": "Funga",
     "hero.browseApartments": "Angalia apartment",
@@ -393,64 +395,64 @@ _localizedStrings = <String, Map<String, String>>{
     "feed.offices": "Ofisi na kumbi",
     "feed.other": "Matangazo mengine",
     "search.label": "Tafuta matangazo",
-    "search.empty": "Hakuna listings zilizopatikana.",
-    "search.emptyQuery": "Hakuna listings zilizolingana na \"{query}\".",
-    "search.searching": "Inatafuta listings...",
+    "search.empty": "Hakuna matangazo ya mali yaliyopatikana.",
+    "search.emptyQuery": "Hakuna tangazo la mali lililolingana na \"{query}\".",
+    "search.searching": "Inatafuta mali...",
     "search.searchingQuery": "Inatafuta \"{query}\"...",
-    "search.resultCount": "Listings {count} zimepatikana",
-    "search.resultCountQuery": "Listings {count} zimepatikana kwa \"{query}\"",
-    "search.suggestions": "Mapendekezo ya listings",
+    "search.resultCount": "Mali {count} zimepatikana",
+    "search.resultCountQuery": "Mali {count} zimepatikana kwa \"{query}\"",
+    "search.suggestions": "Mali zinazopendekezwa",
     "search.liveHint": "Matokeo yanabadilika unapoandika.",
     "search.suggestionsHint":
         "Gusa pendekezo au endelea kushuka kuona matokeo yote.",
-    "search.tryAnother": "Jaribu neno, category, au eneo jingine.",
+    "search.tryAnother": "Jaribu jina, aina ya mali au eneo jingine.",
     "search.clear": "Futa utafutaji",
     "popular.houses.title": "Nyumba",
     "popular.houses.subtitle":
         "Nyumba za familia na upangishaji wa muda mrefu.",
     "popular.apartments.title": "Apartment",
     "popular.apartments.subtitle":
-        "Apartment za kukaa, short stay, na serviced stays tayari kwa booking.",
+        "Fleti na nyumba za kukaa kwa muda mfupi zenye huduma mbalimbali.",
     "popular.cars.title": "Magari",
     "popular.cars.subtitle":
         "Magari ya kukodisha yanayopatikana kwa maombi ya haraka.",
-    "category.empty": "Hakuna listings kwenye category hii.",
-    "category.error": "Category hii haikupakia kwa sasa.",
-    "category.titleFallback": "Category",
-    "category.browseTitle": "Chunguza category hii",
+    "category.empty": "Hakuna matangazo katika aina hii ya mali.",
+    "category.error": "Aina hii ya mali haikuweza kufunguka kwa sasa.",
+    "category.titleFallback": "Aina ya mali",
+    "category.browseTitle": "Angalia mali za aina hii",
     "category.browseBody":
-        "Listings za umma, picha zilizo wazi, na kutuma ombi kwa haraka sehemu moja.",
-    "category.related": "Listings nyingine za umma",
+        "Matangazo ya mali, picha zilizo wazi na njia rahisi ya kutuma ombi, vyote sehemu moja.",
+    "category.related": "Mali nyingine zinazopatikana",
     "category.tryOthers":
-        "Bado hakuna listings hai kwenye category hii, lakini unaweza kuendelea kuona listings nyingine hapa chini.",
+        "Bado hakuna tangazo katika aina hii ya mali. Unaweza kuangalia mali nyingine hapa chini.",
     "listing.public": "Tangazo la umma lililothibitishwa",
-    "listing.open": "Fungua listing",
-    "listing.view": "View",
+    "listing.open": "Fungua tangazo",
+    "listing.view": "Angalia",
     "listing.expandCover": "Fungua picha",
     "listing.hint":
         "Tembea kwenye maelezo, fungua picha vizuri, na tuma ombi haraka ukiwa tayari.",
-    "listing.details": "Maelezo ya listing",
-    "listing.media": "Media",
+    "listing.details": "Maelezo ya mali",
+    "listing.media": "Picha na video",
     "listing.tapExpand": "Bonyeza kufungua",
     "listing.tapMediaHint":
         "Bonyeza picha kuiona vizuri. Video zinaanza kucheza zenyewe.",
     "listing.additionalDetails": "Maelezo",
     "listing.request": "Tuma Ombi",
-    "listing.notFound": "Listing haikupatikana",
+    "listing.notFound": "Tangazo la mali halikupatikana",
     "agent.title": "Maelezo ya wakala",
     "agent.phoneHidden":
         "Namba ya simu imefichwa. Lipa ili kuona mawasiliano ya wakala huyu.",
     "agent.unlockCta": "Fungua namba ya simu",
     "agent.unlockTitle": "Fungua simu ya wakala",
     "agent.unlockBody":
-        "Lipa mara moja kupitia ClickPesa ili kuona namba ya wakala huyu kwenye kifaa hiki.",
+        "Lipa mara moja kupitia SonicPesa ili kuona namba ya wakala huyu kwenye kifaa hiki.",
     "agent.paymentName": "Jina kamili",
     "agent.paymentPhone": "Namba ya simu",
     "agent.paymentContinue": "Lipa na fungua namba",
     "agent.paymentCheck": "Angalia hali ya malipo",
     "agent.paymentAmount": "Kiasi: {amount} {currency}",
     "agent.paymentStarted":
-        "Ombi la malipo limetumwa. Thibitisha kwenye simu yako. Skrini hii itafungua namba moja kwa moja ClickPesa ikishathibitisha malipo.",
+        "Ombi la malipo limetumwa. Thibitisha kwenye simu yako. Namba itafunguka moja kwa moja SonicPesa ikithibitisha malipo.",
     "agent.paymentMethod": "Njia ya malipo: {method}",
     "agent.paymentPromptTo":
         "Ombi la malipo limetumwa kwenda {phone}. Weka PIN ya huduma ya fedha ya simu kwenye simu hiyo kumalizia.",
@@ -462,19 +464,19 @@ _localizedStrings = <String, Map<String, String>>{
     "help.bubble": "Msaada",
     "help.introTitle": "Jinsi ya kutumia Kodimali",
     "help.introBody":
-        "Tumia Kodimali kuangalia listings za kupangisha, kuchagua eneo, kufungua maelezo ya listing, na kuwasiliana na wakala haraka unapokuwa tayari.",
+        "Tumia KODIMALI kuangalia mali za kukodisha, kuchagua eneo, kusoma maelezo na kuwasiliana na wakala unapokuwa tayari.",
     "help.paymentTitle": "Kwa nini malipo yanahitajika",
     "help.paymentBody":
-        "Watu wengi hutuma maombi kwa agent au dalali, hivyo ombi linaweza kuchukua muda kabla hawajajibu. Kulipia kufungua namba ya simu hukusaidia kumpigia wakala moja kwa moja unapohitaji majibu ya haraka.",
+        "Watu wengi hutuma maombi kwa mawakala, hivyo jibu linaweza kuchelewa. Kulipia kufungua namba hukuwezesha kumpigia wakala moja kwa moja unapohitaji msaada wa haraka.",
     "help.paymentHowTitle": "Jinsi malipo yanavyofanyika",
     "help.paymentHowBody":
-        "Fungua listing, bonyeza kufungua namba ya simu, weka taarifa zako, kisha thibitisha ombi la malipo ya simu litakalofika kwenye namba yako. ClickPesa ikishathibitisha malipo, namba itaonekana moja kwa moja ndani ya app.",
+        "Fungua tangazo la mali, chagua kufungua namba ya simu, weka taarifa zako, kisha thibitisha malipo yatakapotumwa kwenye simu yako. SonicPesa ikithibitisha malipo, namba itaonekana moja kwa moja ndani ya programu.",
     "help.platformTitle": "Mifumo inayotumika",
     "help.platformBody":
-        "Kwa sasa app inatumika kwenye Android. Msaada wa iOS unakuja hivi karibuni. Kwa sasa watumiaji wa iOS wanaweza kutumia tovuti ya Kodimali.",
+        "Kwa sasa programu inapatikana kwenye Android. Toleo la iOS linakuja hivi karibuni; kwa sasa watumiaji wa iPhone wanaweza kutumia tovuti ya KODIMALI.",
     "help.supportTitle": "Pata msaada zaidi",
     "help.supportBody":
-        "Wasiliana nasi kupitia WhatsApp au piga simu moja kwa moja kama unahitaji msaada wa kutumia app au kukamilisha malipo.",
+        "Wasiliana nasi kupitia WhatsApp au piga simu ikiwa unahitaji msaada wa kutumia programu au kukamilisha malipo.",
     "help.whatsappOne": "WhatsApp 0684684972",
     "help.callOne": "Piga 0684684972",
     "help.whatsappTwo": "WhatsApp 0628621737",
@@ -510,9 +512,9 @@ _localizedStrings = <String, Map<String, String>>{
     "request.dateError": "Chagua tarehe sahihi za kuingia na kutoka.",
     "request.successTitle": "Ombi lako limetumwa kwa wakala.",
     "request.successBody":
-        "Wakala atakujibu kwa email au simu kuthibitisha upatikanaji.",
-    "request.reference": "Reference: {reference}",
-    "request.backHome": "Rudi Home",
+        "Wakala atakujibu kwa barua pepe au simu ili kuthibitisha upatikanaji.",
+    "request.reference": "Namba ya kumbukumbu: {reference}",
+    "request.backHome": "Rudi nyumbani",
     "location.region": "Region",
     "location.district": "District",
     "location.ward": "Ward",
@@ -526,15 +528,15 @@ _localizedStrings = <String, Map<String, String>>{
     "location.failed": "Hatukuweza kupakia maeneo kwa sasa.",
     "media.autoplay": "Video ya kujiendesha",
     "media.tapToPlay": "Gusa kucheza video",
-    "media.loading": "Inapakia media...",
+    "media.loading": "Inapakia picha na video...",
     "farm.highlights": "Vipengele vya shamba",
     "farm.water": "Upatikanaji wa maji",
     "farm.crops": "Mazao bora",
     "farm.size": "Ukubwa wa ardhi",
     "apartment.servicesTitle": "Huduma zinazopatikana",
-    "apartment.bookingTitle": "Book apartment hii",
+    "apartment.bookingTitle": "Weka nafasi katika fleti hii",
     "apartment.bookingBody":
-        "Chagua tarehe za kukaa, acha email yako, na chagua huduma unazotaka wakala athibitishe.",
+        "Chagua tarehe za kukaa, weka barua pepe yako na uchague huduma unazotaka wakala athibitishe.",
     "apartment.service.wifi": "WiFi",
     "apartment.service.food": "Chakula",
     "apartment.service.transport": "Usafiri",
@@ -544,7 +546,7 @@ _localizedStrings = <String, Map<String, String>>{
     "account.customer": "Mteja wa KODIMALI",
     "account.optionalTitle": "Ingia unapohitaji huduma zaidi",
     "account.optionalBody":
-        "Kuangalia listings na kutuma ombi kama mgeni bado kunafanya kazi bila akaunti. Ingia kufuatilia maombi, kuzungumza na wakala wako, na kuhifadhi listings.",
+        "Unaweza kuangalia mali na kutuma ombi bila akaunti. Ingia ili kufuatilia maombi, kuzungumza na wakala na kuhifadhi mali unazopenda.",
     "account.signIn": "Ingia",
     "account.signOut": "Toka",
     "account.signedOut": "Umetoka kwenye akaunti.",
@@ -560,11 +562,11 @@ _localizedStrings = <String, Map<String, String>>{
     "account.createTitle": "Fungua akaunti yako ya mteja",
     "account.signInTitle": "Karibu tena",
     "account.guestStillWorks":
-        "Akaunti si lazima na haibadilishi kuangalia listings au kutuma ombi kama mgeni.",
+        "Huhitaji akaunti ili kuangalia mali au kutuma ombi kama mgeni.",
     "account.password": "Nenosiri",
     "account.passwordError": "Tumia angalau herufi 8.",
     "account.confirmEmail":
-        "Angalia email yako kuthibitisha akaunti, kisha ingia.",
+        "Angalia barua pepe yako, thibitisha akaunti, kisha uingie.",
     "account.haveAccount": "Una akaunti tayari? Ingia",
     "account.needAccount": "Ni mara ya kwanza? Fungua akaunti",
     "settings.title": "Mipangilio ya akaunti",
@@ -584,39 +586,39 @@ _localizedStrings = <String, Map<String, String>>{
     "password.change": "Badilisha nenosiri",
     "password.changed": "Nenosiri lako limebadilishwa.",
     "password.save": "Hifadhi nenosiri jipya",
-    "saved.title": "Listings ulizohifadhi",
-    "saved.empty": "Bonyeza moyo kwenye listing ili ibaki hapa.",
+    "saved.title": "Mali ulizohifadhi",
+    "saved.empty": "Bonyeza alama ya moyo kwenye tangazo ili kulihifadhi hapa.",
     "recent.title": "Ulizoangalia hivi karibuni",
-    "recent.empty": "Listings utakazofungua zitaonekana hapa.",
+    "recent.empty": "Mali utakazofungua zitaonekana hapa.",
     "recent.clear": "Futa",
-    "listing.save": "Hifadhi listing",
+    "listing.save": "Hifadhi tangazo",
     "listing.unsave": "Ondoa kwenye zilizohifadhiwa",
-    "listing.share": "Shiriki listing",
+    "listing.share": "Shiriki tangazo",
     "listing.sharedText": "Angalia mali hii KODIMALI: {title}",
     "requests.my": "Maombi yangu",
     "requests.emptyTitle": "Bado hakuna ombi lililounganishwa",
     "requests.emptyBody":
-        "Tuma ombi ukiwa umeingia, au unganisha ombi la zamani kwa reference yake.",
-    "requests.reference": "Reference",
+        "Tuma ombi ukiwa umeingia, au unganisha ombi la zamani kwa namba yake ya kumbukumbu.",
+    "requests.reference": "Namba ya kumbukumbu",
     "requests.agent": "Wakala",
     "requests.assignedAgent": "Wakala aliyepewa ombi",
     "requests.track": "Fuatilia ombi",
     "requests.progress": "Hatua za ombi",
-    "requests.openListing": "Fungua listing",
+    "requests.openListing": "Fungua tangazo",
     "requests.chatOnlyAssigned":
-        "Chat hii ya faragha inakuunganisha tu na wakala aliyepewa ombi hili.",
+        "Mazungumzo haya ya faragha yanakuunganisha na wakala aliyepewa ombi hili pekee.",
     "requests.claimTitle": "Unganisha ombi la zamani",
     "requests.claimHelp":
-        "Tumia reference uliyoonyeshwa baada ya kutuma ombi kama mgeni.",
+        "Tumia namba ya kumbukumbu uliyopewa baada ya kutuma ombi kama mgeni.",
     "requests.claimAction": "Unganisha ombi",
     "requests.claimed": "Ombi limeunganishwa na akaunti yako.",
     "requests.notFound": "Ombi hili halikupatikana.",
-    "chat.title": "Chat na wakala",
+    "chat.title": "Zungumza na wakala",
     "chat.emptyTitle": "Anza mazungumzo",
     "chat.emptyBody":
         "Uliza kuhusu upatikanaji, bei, au hatua inayofuata. Wakala aliyepewa ombi atapata ujumbe wako.",
     "chat.hint": "Andika ujumbe…",
-    "chat.unavailable": "Chat haipatikani kwa sasa. Jaribu tena.",
+    "chat.unavailable": "Mazungumzo hayapatikani kwa sasa. Jaribu tena.",
     "viewing.title": "Miadi ya kuona mali",
     "viewing.propose": "Pendekeza muda",
     "viewing.empty": "Bado hakuna muda wa kuona mali uliopendekezwa.",
@@ -633,11 +635,11 @@ _localizedStrings = <String, Map<String, String>>{
     "review.title": "Kagua upangishaji uliokamilika",
     "review.prompt": "Uzoefu wako wa kukodisha ulikuwaje?",
     "review.comment": "Maoni (si lazima)",
-    "review.submit": "Tuma review iliyothibitishwa",
+    "review.submit": "Tuma tathmini iliyothibitishwa",
     "review.ratingError": "Chagua nyota 1 hadi 5.",
     "review.completedOnly":
-        "Mteja mwenye ombi la KODIMALI lililokamilika pekee anaweza kutoa review.",
-    "review.thanks": "Asante kwa review yako",
+        "Mteja aliyekamilisha ombi kupitia KODIMALI pekee ndiye anayeweza kutuma tathmini.",
+    "review.thanks": "Asante kwa tathmini yako",
     "booking.status.new": "Ombi limetumwa",
     "booking.status.checking_availability": "Inaangalia upatikanaji",
     "booking.status.contacted": "Wakala amewasiliana nawe",
