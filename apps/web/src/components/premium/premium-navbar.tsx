@@ -45,7 +45,7 @@ export function PremiumNavbar({ categories }: { categories: Category[] }) {
         <nav className="hidden items-center gap-1 lg:flex" aria-label="Urambazaji mkuu">
           {links.map((item) => {
             const active = isActive(pathname, item.href);
-            return <Link className={`nav-link ${item.href === "/events" ? "!bg-brand-green-soft !text-brand-navy" : ""} ${active ? "is-active" : ""}`} href={item.href} key={item.href} aria-current={active ? "page" : undefined}>{t(item.label)}</Link>;
+            return <Link className={`nav-link ${active ? "is-active" : ""}`} href={item.href} key={item.href} aria-current={active ? "page" : undefined}>{t(item.label)}</Link>;
           })}
           <div className="group relative">
             <button className={`nav-link ${pathname.startsWith("/category/") ? "is-active" : ""}`} type="button">{t("nav.categories")}</button>

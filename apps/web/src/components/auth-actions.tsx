@@ -33,16 +33,16 @@ export function AuthActions({ mobile = false }: { mobile?: boolean }) {
   if (!user) {
     return (
       <div className={layout}>
-        <Link href="/login" className="btn btn-outline shrink-0">{t("auth.login")}</Link>
-        <Link href="/register" className="btn btn-success shrink-0">{t("auth.register")}</Link>
+        <Link href="/login" className="nav-control shrink-0 px-4">{t("auth.login")}</Link>
+        <Link href="/register" className="nav-control nav-control-primary shrink-0 px-4">{t("auth.register")}</Link>
       </div>
     );
   }
   return (
     <div className={layout}>
-      <Link href="/account" className="btn btn-success shrink-0">{t("auth.account")}</Link>
+      <Link href="/account" className="nav-control nav-control-primary shrink-0 px-4">{t("auth.account")}</Link>
       <button
-        className="btn btn-outline shrink-0"
+        className="nav-control shrink-0 px-4"
         type="button"
         onClick={() => void supabase.auth.signOut().then(() => window.location.assign("/"))}
       >
