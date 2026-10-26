@@ -3,7 +3,6 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 
 import { GoogleAdSlot } from "@/components/google-ad-slot";
-import { PageHero } from "@/components/page-hero";
 import { PageShell } from "@/components/page-shell";
 import { PromotionStrip } from "@/components/promotion-strip";
 import { PublicListingGrid } from "@/components/public-listing-grid";
@@ -121,74 +120,26 @@ export default async function ListingsPage({
 
   return (
     <PageShell className="pb-20">
-      <PageHero
-        eyebrow={sw ? "Soko la mali" : "Marketplace"}
-        title={
-          sw
-            ? "Chagua na ulinganishe mali kwa urahisi."
-            : "Browse and compare available listings."
-        }
-        description={
-          sw
-            ? "Pitia mali zinazopatikana, linganisha aina na bei, kisha fungua tangazo linalokufaa."
-            : "Browse available listings, compare categories and prices, then open the listing that suits you."
-        }
-        actions={
-          <BackNavButton
-            fallbackHref="/"
-            label={sw ? "Rudi nyumbani" : "Back to home"}
-          />
-        }
-        aside={
-          <div>
-            <p className="eyebrow">{sw ? "Muhtasari" : "Quick view"}</p>
-            <p className="mt-3 text-3xl font-heading font-semibold text-brand-ink">
-              {totalCount}
-            </p>
-            <p className="section-copy mt-2 text-sm">
-              {sw
-                ? `Ukurasa wa ${currentPage} wa matangazo.`
-                : `Marketplace listings page ${currentPage}.`}
-            </p>
-          </div>
-        }
-      />
-
-      <section className="mt-6 flex flex-wrap gap-3">
-        {categories.map(
-          (category: { id: string; slug: string; name: string }) => (
-            <Link
-              key={category.id}
-              href={`/category/${category.slug}`}
-              className="btn btn-outline"
-            >
-              {category.name}
-            </Link>
-          ),
-        )}
-      </section>
-
       <form
-        className="surface-card mt-6 grid gap-4 p-5 md:grid-cols-2 lg:grid-cols-4"
+        id="filters"
+        className="search-results-head"
         action="/listings"
       >
-        <label className="field-label">
-          {sw ? "Tafuta" : "Search"}
+        <div className="search-results-bar">
+          <BackNavButton fallbackHref="/" label={sw ? "Nyuma" : "Back"} />
+          <span aria-hidden="true">⌕</span>
           <input
-            className="field-input mt-2"
             name="q"
             defaultValue={searchText}
-            placeholder={
-              sw ? "Nyumba, apartment, ofisi..." : "House, apartment, office..."
-            }
+            placeholder={sw ? "Tafuta nyumba, gari, ofisi..." : "Search house, car, office..."}
           />
-        </label>
-        <label className="field-label">
-          {sw ? "Aina ya mali" : "Category"}
+          <button aria-label={sw ? "Tafuta" : "Search"}>→</button>
+        </div>
+        <div className="search-filter-chips">
           <select
-            className="field-input mt-2"
             name="category"
             defaultValue={categorySlug ?? ""}
+            aria-label={sw ? "Aina ya mali" : "Category"}
           >
             <option value="">{sw ? "Aina zote" : "All categories"}</option>
             {categories.map(
@@ -199,45 +150,25 @@ export default async function ListingsPage({
               ),
             )}
           </select>
-        </label>
-        <label className="field-label">
-          {sw ? "Bei ya chini" : "Minimum price"}
-          <input
-            className="field-input mt-2"
-            name="minPrice"
-            type="number"
-            min="0"
-            defaultValue={minPrice ?? ""}
-          />
-        </label>
-        <label className="field-label">
-          {sw ? "Bei ya juu" : "Maximum price"}
-          <input
-            className="field-input mt-2"
-            name="maxPrice"
-            type="number"
-            min="0"
-            defaultValue={maxPrice ?? ""}
-          />
-        </label>
-        <label className="field-label">
-          {sw ? "Kipindi cha bei" : "Price period"}
-          <select
-            className="field-input mt-2"
-            name="pricePeriod"
-            defaultValue={pricePeriod ?? ""}
-          >
-            <option value="">{sw ? "Kipindi chochote" : "Any period"}</option>
-            <option value="hour">{sw ? "Kwa saa" : "Per hour"}</option>
-            <option value="day">{sw ? "Kwa siku" : "Per day"}</option>
-            <option value="week">{sw ? "Kwa wiki" : "Per week"}</option>
-            <option value="month">{sw ? "Kwa mwezi" : "Per month"}</option>
-            <option value="year">{sw ? "Kwa mwaka" : "Per year"}</option>
-          </select>
-        </label>
-        <label className="field-label">
-          {sw ? "Panga kwa" : "Sort by"}
-          <select className="field-input mt-2" name="sort" defaultValue={sort}>
+          <span>⌖ {regionId || districtId || wardId || areaId ? (sw ? "Eneo limechaguliwa" : "Location selected") : (sw ? "Eneo lote" : "Any location")}</span>
+          <details>
+            <summary>{sw ? "Bei" : "Price"}⌄</summary>
+            <div className="search-price-popover">
+              <label>{sw ? "Bei ya chini" : "Minimum price"}<input name="minPrice" type="number" min="0" defaultValue={minPrice ?? ""} /></label>
+              <label>{sw ? "Bei ya juu" : "Maximum price"}<input name="maxPrice" type="number" min="0" defaultValue={maxPrice ?? ""} /></label>
+              <select name="pricePeriod" defaultValue={pricePeriod ?? ""} aria-label={sw ? "Kipindi cha bei" : "Price period"}>
+                <option value="">{sw ? "Kipindi chochote" : "Any period"}</option>
+                <option value="hour">{sw ? "Kwa saa" : "Per hour"}</option><option value="day">{sw ? "Kwa siku" : "Per day"}</option><option value="week">{sw ? "Kwa wiki" : "Per week"}</option><option value="month">{sw ? "Kwa mwezi" : "Per month"}</option><option value="year">{sw ? "Kwa mwaka" : "Per year"}</option>
+              </select>
+              <button>{sw ? "Tumia" : "Apply"}</button>
+            </div>
+          </details>
+          <span>☷ {sw ? "Chuja" : "Filters"}</span>
+        </div>
+        <div className="search-results-meta">
+          <strong>{sw ? `Matokeo ${totalCount}` : `${totalCount} results`}</strong>
+          <label>{sw ? "Panga kwa" : "Sort by"}
+            <select name="sort" defaultValue={sort}>
             <option value="recommended">
               {sw ? "Zilizopendekezwa" : "Recommended"}
             </option>
@@ -251,10 +182,8 @@ export default async function ListingsPage({
               {sw ? "Bei kubwa kwanza" : "Highest price"}
             </option>
           </select>
-        </label>
-        <button className="btn btn-primary self-end">
-          {sw ? "Tafuta mali" : "Search marketplace"}
-        </button>
+          </label>
+        </div>
       </form>
       <div className="mt-4">
         <SaveSearchButton

@@ -1938,14 +1938,6 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
     unawaited(_refreshSearch());
   }
 
-  void _openListing(String listingId) {
-    _openListingDetails(
-      context,
-      repository: widget.repository,
-      listingId: listingId,
-    );
-  }
-
   Future<void> _openFilters() async {
     final bool? apply = await showModalBottomSheet<bool>(
       context: context,
@@ -2044,84 +2036,33 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
     if (apply == true) unawaited(_refreshSearch());
   }
 
-  String _searchSummaryText(BuildContext context) {
-    final String query = _normalizedQuery;
-    if (_isLoading || _isSearching) {
-      if (query.isEmpty) {
-        return context.tr("search.searching");
-      }
-      return context.tr(
-        "search.searchingQuery",
-        values: <String, String>{"query": query},
-      );
-    }
-    if (_results.isEmpty) {
-      if (query.isEmpty) {
-        return context.tr("search.empty");
-      }
-      return context.tr(
-        "search.emptyQuery",
-        values: <String, String>{"query": query},
-      );
-    }
-    final Map<String, String> values = <String, String>{
-      "count": _results.length.toString(),
-      "query": query,
-    };
-    return query.isEmpty
-        ? context.tr("search.resultCount", values: values)
-        : context.tr("search.resultCountQuery", values: values);
-  }
-
-  String _searchSummarySubtitle(BuildContext context) {
-    if (_errorMessage != null) {
-      return _errorMessage!;
-    }
-    if (_isLoading || _isSearching) {
-      return context.tr("search.liveHint");
-    }
-    if (_results.isEmpty) {
-      return context.tr("search.tryAnother");
-    }
-    if (_normalizedQuery.isEmpty) {
-      return context.tr("search.liveHint");
-    }
-    return context.tr("search.suggestionsHint");
-  }
-
   @override
   Widget build(BuildContext context) {
     final String query = _normalizedQuery;
     final List<Widget> listChildren = <Widget>[
-      _SearchSummaryCard(
-        icon: _errorMessage != null
-            ? Icons.error_outline
-            : (_results.isEmpty
-                  ? Icons.search_off_rounded
-                  : Icons.search_rounded),
-        title: _searchSummaryText(context),
-        subtitle: _searchSummarySubtitle(context),
-        showProgress: _isLoading || _isSearching,
-        isError: _errorMessage != null,
-      ),
-    ];
-    if (query.isNotEmpty && _suggestions.isNotEmpty) {
-      listChildren.add(
-        Padding(
-          padding: const EdgeInsets.only(bottom: KodimaliSpacing.md),
-          child: _SearchSuggestionsCard(
-            title: context.tr("search.suggestions"),
-            suggestions: _suggestions,
-            onSelected: (Map<String, dynamic> suggestion) {
-              final String? listingId = suggestion["listing_id"] as String?;
-              if (listingId != null && listingId.isNotEmpty) {
-                _openListing(listingId);
-              }
-            },
+      Row(
+        children: <Widget>[
+          Expanded(
+            child: Text(
+              _isLoading || _isSearching
+                  ? context.tr('search.searching')
+                  : 'Matokeo ${_results.length}',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
           ),
+          TextButton.icon(
+            onPressed: _openFilters,
+            icon: const Icon(Icons.swap_vert_rounded, size: 18),
+            label: Text(_sort == 'recommended' ? 'Mapendekezo' : 'Panga kwa'),
+          ),
+        ],
+      ),
+      if (_isLoading || _isSearching)
+        const Padding(
+          padding: EdgeInsets.only(bottom: 12),
+          child: LinearProgressIndicator(minHeight: 3),
         ),
-      );
-    }
+    ];
     if (_errorMessage != null) {
       listChildren.add(_ErrorMessageCard(message: _errorMessage!));
     } else if (!_isLoading && _results.isEmpty) {
@@ -2138,11 +2079,14 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
       );
     } else {
       listChildren.addAll(
-        _buildListingChildren(
-          listings: _results,
-          promotions: query.isEmpty ? _promotions : <Map<String, dynamic>>[],
-          repository: widget.repository,
-          showAds: true,
+        _results.map(
+          (Map<String, dynamic> listing) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _CategoryListingCard(
+              listing: listing,
+              repository: widget.repository,
+            ),
+          ),
         ),
       );
     }
@@ -2156,45 +2100,78 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
             KodimaliSpacing.md,
             0,
           ),
-          child: Row(
+          child: Column(
             children: <Widget>[
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  textInputAction: TextInputAction.search,
-                  onChanged: _handleSearchChanged,
-                  onSubmitted: (_) => _submitSearch(),
-                  decoration: InputDecoration(
-                    labelText: context.tr("search.label"),
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: query.isEmpty
-                        ? null
-                        : IconButton(
-                            onPressed: _clearSearch,
-                            tooltip: context.tr("search.clear"),
-                            icon: const Icon(Icons.close_rounded),
-                          ),
-                    helperText: context.tr("search.liveHint"),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      textInputAction: TextInputAction.search,
+                      onChanged: _handleSearchChanged,
+                      onSubmitted: (_) => _submitSearch(),
+                      decoration: InputDecoration(
+                        labelText: context.tr("search.label"),
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: query.isEmpty
+                            ? null
+                            : IconButton(
+                                onPressed: _clearSearch,
+                                tooltip: context.tr("search.clear"),
+                                icon: const Icon(Icons.close_rounded),
+                              ),
+                        hintText: context.tr("search.label"),
+                      ),
+                    ),
                   ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _submitSearch,
+                    style: FilledButton.styleFrom(
+                      shape: const CircleBorder(),
+                      minimumSize: const Size(52, 52),
+                      padding: EdgeInsets.zero,
+                    ),
+                    child: const Icon(Icons.search_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 38,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: <Widget>[
+                    ActionChip(
+                      avatar: const Icon(Icons.category_outlined, size: 17),
+                      label: const Text('Aina zote'),
+                      onPressed: _openFilters,
+                    ),
+                    const SizedBox(width: 8),
+                    ActionChip(
+                      avatar: const Icon(Icons.location_on_outlined, size: 17),
+                      label: Text(
+                        widget.regionId != null || widget.latitude != null
+                            ? 'Eneo limechaguliwa'
+                            : 'Eneo lote',
+                      ),
+                      onPressed: _openFilters,
+                    ),
+                    const SizedBox(width: 8),
+                    ActionChip(
+                      avatar: const Icon(Icons.payments_outlined, size: 17),
+                      label: const Text('Bei'),
+                      onPressed: _openFilters,
+                    ),
+                    const SizedBox(width: 8),
+                    ActionChip(
+                      avatar: const Icon(Icons.tune_rounded, size: 17),
+                      label: const Text('Chuja'),
+                      onPressed: _openFilters,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 12),
-              FilledButton(
-                onPressed: _submitSearch,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 56),
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                ),
-                child: const Icon(Icons.arrow_forward_rounded),
-              ),
-              const SizedBox(width: 8),
-              IconButton.filledTonal(
-                onPressed: _openFilters,
-                tooltip: 'Price and availability filters',
-                icon: const Icon(Icons.tune_rounded),
-              ),
-              const SizedBox(width: 12),
-              const _LanguageSwitcherButton(),
             ],
           ),
         ),
@@ -2218,13 +2195,15 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
   }
 }
 
+// Kept for compatibility with older cached search routes.
+// ignore: unused_element
 class _SearchSummaryCard extends StatelessWidget {
   const _SearchSummaryCard({
     required this.icon,
     required this.title,
     required this.subtitle,
-    this.showProgress = false,
-    this.isError = false,
+    required this.showProgress,
+    required this.isError,
   });
 
   final IconData icon;
@@ -2279,6 +2258,8 @@ class _SearchSummaryCard extends StatelessWidget {
   }
 }
 
+// Kept for compatibility with older cached search routes.
+// ignore: unused_element
 class _SearchSuggestionsCard extends StatelessWidget {
   const _SearchSuggestionsCard({
     required this.title,

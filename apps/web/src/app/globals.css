@@ -741,6 +741,55 @@ p {
   right: max(1rem, calc((100vw - var(--max-width)) / 2));
   margin-top: 0.6rem;
 }
+.search-results-head {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: rgba(232, 240, 235, 0.94);
+  padding: 0.8rem;
+  box-shadow: var(--shadow-soft);
+}
+.search-results-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  padding: 0.3rem;
+}
+.search-results-bar > .btn { min-height: 40px; padding-inline: 0.8rem; }
+.search-results-bar > input { min-width: 0; flex: 1; padding: 0.65rem 0.2rem; outline: none; }
+.search-results-bar > button {
+  display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center;
+  border-radius: 999px; background: var(--navy); color: #fff; font-weight: 900;
+}
+.search-filter-chips { display: flex; gap: 0.5rem; margin-top: 0.7rem; overflow-x: auto; scrollbar-width: none; }
+.search-filter-chips > select,
+.search-filter-chips > span,
+.search-filter-chips > details > summary {
+  min-height: 36px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--card-soft); padding: 0.5rem 0.75rem; color: var(--navy);
+  font-size: 0.7rem; font-weight: 800; white-space: nowrap;
+}
+.search-price-popover {
+  position: absolute; z-index: 35; right: 0.8rem; left: 0.8rem; display: grid;
+  grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-top: 0.5rem;
+  border: 1px solid var(--border); border-radius: 18px; background: var(--card); padding: 1rem;
+  box-shadow: var(--shadow-lifted);
+}
+.search-price-popover label { display: grid; gap: 0.35rem; color: var(--muted); font-size: 0.72rem; }
+.search-price-popover input,
+.search-price-popover select { border: 1px solid var(--border); border-radius: 12px; background: #fff; padding: 0.7rem; }
+.search-price-popover button { border-radius: 12px; background: var(--navy); color: #fff; font-weight: 800; }
+.search-results-meta { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 0.9rem; }
+.search-results-meta strong { color: var(--navy); font-size: 0.82rem; }
+.search-results-meta label { display: flex; align-items: center; gap: 0.5rem; color: var(--muted); font-size: 0.72rem; }
+.search-results-meta select { border: 0; background: transparent; color: var(--navy); font-weight: 800; outline: none; }
+@media (min-width: 720px) {
+  .search-results-head { padding: 1rem; }
+  .search-price-popover { right: auto; left: 12rem; width: 430px; }
+}
 .listing-card:hover {
   transform: translateY(-4px);
   border-color: rgba(215, 138, 85, 0.65);
