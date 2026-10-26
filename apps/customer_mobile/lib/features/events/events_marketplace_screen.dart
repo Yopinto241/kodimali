@@ -1,3 +1,7 @@
+// Advisor widgets remain unreachable only to preserve source compatibility with
+// historical plans while the customer-facing entry points are removed.
+// ignore_for_file: unused_element_parameter
+
 import 'package:flutter/material.dart';
 
 import '../../core/data/customer_public_repository.dart';
@@ -26,14 +30,27 @@ class EventsMarketplaceScreen extends StatefulWidget {
 
 class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
   late Future<JsonMap> _future;
+  String _categoryKey = 'all';
   @override
   void initState() {
     super.initState();
-    _future = widget.repository.fetchEventsMarketplace();
+    _future = widget.repository.fetchEventsMarketplace(
+      locationId:
+          widget.initialAreaId ??
+          widget.initialWardId ??
+          widget.initialDistrictId ??
+          widget.initialRegionId,
+    );
   }
 
   Future<void> _reload() async {
-    final next = widget.repository.fetchEventsMarketplace();
+    final next = widget.repository.fetchEventsMarketplace(
+      locationId:
+          widget.initialAreaId ??
+          widget.initialWardId ??
+          widget.initialDistrictId ??
+          widget.initialRegionId,
+    );
     setState(() => _future = next);
     await next;
   }
@@ -45,21 +62,6 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
       appBar: AppBar(
         title: Text(sw ? 'Sherehe na Matukio' : 'Events'),
         actions: <Widget>[
-          IconButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => _EventAdvisorScreen(
-                  repository: widget.repository,
-                  initialRegionId: widget.initialRegionId,
-                  initialDistrictId: widget.initialDistrictId,
-                  initialWardId: widget.initialWardId,
-                  initialAreaId: widget.initialAreaId,
-                ),
-              ),
-            ),
-            icon: const Icon(Icons.auto_awesome_outlined),
-            tooltip: 'Event Advisor',
-          ),
           IconButton(
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
@@ -109,6 +111,26 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
                 .cast<JsonMap>();
             final services = (data['services'] as List? ?? const <dynamic>[])
                 .cast<JsonMap>();
+            final categoryRows = <String, JsonMap>{
+              for (final item in equipment)
+                if (item['category_id'] != null)
+                  item['category_id'].toString(): item,
+            };
+            final visibleEquipment = _categoryKey == 'all'
+                ? equipment
+                : _categoryKey.startsWith('equipment:')
+                ? equipment
+                      .where(
+                        (item) =>
+                            item['category_id'].toString() ==
+                            _categoryKey.substring(10),
+                      )
+                      .toList()
+                : <JsonMap>[];
+            final visibleServices =
+                _categoryKey == 'all' || _categoryKey == 'professionals'
+                ? services
+                : <JsonMap>[];
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
               children: <Widget>[
@@ -150,6 +172,47 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  height: 48,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: <Widget>[
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(sw ? 'Vyote' : 'All'),
+                          selected: _categoryKey == 'all',
+                          onSelected: (_) =>
+                              setState(() => _categoryKey = 'all'),
+                        ),
+                      ),
+                      ...categoryRows.entries.map(
+                        (entry) => Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            label: Text(
+                              (sw
+                                      ? entry.value['category_name_sw']
+                                      : entry.value['category_name_en'])
+                                  .toString(),
+                            ),
+                            selected: _categoryKey == 'equipment:${entry.key}',
+                            onSelected: (_) => setState(
+                              () => _categoryKey = 'equipment:${entry.key}',
+                            ),
+                          ),
+                        ),
+                      ),
+                      ChoiceChip(
+                        label: Text(sw ? 'Wataalamu' : 'Professionals'),
+                        selected: _categoryKey == 'professionals',
+                        onSelected: (_) =>
+                            setState(() => _categoryKey = 'professionals'),
+                      ),
+                    ],
+                  ),
+                ),
                 _title(sw ? 'Aina ya tukio' : 'Event types'),
                 SizedBox(
                   height: 108,
@@ -174,14 +237,14 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
                   ),
                 ),
                 _title(sw ? 'Vifaa vya kukodisha' : 'Equipment for rent'),
-                if (equipment.isEmpty)
+                if (visibleEquipment.isEmpty)
                   Text(
                     sw
                         ? 'Hakuna vifaa vilivyothibitishwa kwa sasa.'
                         : 'No verified equipment yet.',
                   )
                 else
-                  ...equipment.map(
+                  ...visibleEquipment.map(
                     (item) => Card(
                       child: ListTile(
                         leading: const Icon(Icons.chair_alt_outlined),
@@ -203,18 +266,14 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
                     ),
                   ),
                 _title(sw ? 'Wataalamu wa matukio' : 'Event professionals'),
-                if (services.isEmpty)
+                if (visibleServices.isEmpty)
                   Text(
                     sw
                         ? 'Hakuna wataalamu waliothibitishwa kwa sasa.'
                         : 'No verified professionals yet.',
                   )
                 else
-                  ...services.map((item) {
-                    final offerings =
-                        (item['event_service_offerings'] as List? ??
-                                const <dynamic>[])
-                            .cast<JsonMap>();
+                  ...visibleServices.map((item) {
                     return Card(
                       child: ListTile(
                         leading: const CircleAvatar(
@@ -225,14 +284,14 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
                           item['provider_kind'].toString().replaceAll('_', ' '),
                         ),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: offerings.isEmpty
+                        onTap: item['offering_id'] == null
                             ? null
                             : () => Navigator.of(context).push(
                                 MaterialPageRoute<void>(
                                   builder: (_) => _IndividualEventDetailScreen(
                                     repository: widget.repository,
                                     kind: 'service',
-                                    id: offerings.first['id'].toString(),
+                                    id: item['offering_id'].toString(),
                                   ),
                                 ),
                               ),
@@ -271,8 +330,6 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
     String typeId = types.first['id'].toString();
     final title = TextEditingController();
     final location = TextEditingController();
-    final attendance = TextEditingController();
-    final budget = TextEditingController();
     EventLocationSelection? selectedLocation;
     DateTime start = DateTime.now().add(const Duration(days: 7));
     DateTime end = start.add(const Duration(hours: 5));
@@ -361,20 +418,6 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
                         },
                       ),
                     ),
-                    TextField(
-                      controller: attendance,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: sw ? 'Idadi ya wageni' : 'Attendance',
-                      ),
-                    ),
-                    TextField(
-                      controller: budget,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: sw ? 'Bajeti (TZS)' : 'Budget (TZS)',
-                      ),
-                    ),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(sw ? 'Mwanzo' : 'Starts'),
@@ -426,8 +469,6 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
     if (save != true || !mounted) {
       title.dispose();
       location.dispose();
-      attendance.dispose();
-      budget.dispose();
       return;
     }
     if (selectedLocation?.locationId == null) {
@@ -442,8 +483,6 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
       );
       title.dispose();
       location.dispose();
-      attendance.dispose();
-      budget.dispose();
       return;
     }
     try {
@@ -453,8 +492,8 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
         endsAt: end,
         locationId: selectedLocation!.locationId,
         locationDetails: null,
-        attendance: int.parse(attendance.text),
-        budgetTzs: double.tryParse(budget.text),
+        attendance: 1,
+        budgetTzs: null,
         title: title.text,
       );
       if (mounted) {
@@ -484,8 +523,6 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
     }
     title.dispose();
     location.dispose();
-    attendance.dispose();
-    budget.dispose();
   }
 }
 
@@ -534,8 +571,11 @@ class _ChooseEventComponentsScreenState
           ...equipment.map((item) {
             final id = item['id'].toString();
             final quantity = quantities[id] ?? 0;
-            final maximum = ((item['total_quantity'] as num?)?.toInt() ?? 1)
-                .clamp(1, 999);
+            final maximum =
+                ((item['available_quantity'] as num?)?.toInt() ??
+                        (item['total_quantity'] as num?)?.toInt() ??
+                        1)
+                    .clamp(1, 999);
             return Card(
               child: ListTile(
                 title: Text(item['name'].toString()),
@@ -585,7 +625,7 @@ class _ChooseEventComponentsScreenState
             ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
           ...services.map((provider) {
-            final id = provider['id'].toString();
+            final id = provider['offering_id'].toString();
             return CheckboxListTile(
               value: providers.contains(id),
               onChanged: (selected) => setState(() {
@@ -639,22 +679,12 @@ class _ChooseEventComponentsScreenState
           quantity: entry.value,
         );
       }
-      final services = (widget.marketplace['services'] as List? ?? <dynamic>[])
-          .cast<JsonMap>();
-      for (final providerId in providers) {
-        final provider = services.firstWhere(
-          (row) => row['id'].toString() == providerId,
+      for (final offeringId in providers) {
+        await widget.repository.addEventPlanItem(
+          planId: widget.planId,
+          kind: 'service',
+          offeringId: offeringId,
         );
-        final offerings =
-            (provider['event_service_offerings'] as List? ?? <dynamic>[])
-                .cast<Map<String, dynamic>>();
-        if (offerings.isNotEmpty) {
-          await widget.repository.addEventPlanItem(
-            planId: widget.planId,
-            kind: 'service',
-            offeringId: offerings.first['id'].toString(),
-          );
-        }
       }
       await widget.repository.requestEventQuote(widget.planId);
       if (mounted) {
@@ -802,9 +832,20 @@ class _MyEventPlansScreenState extends State<_MyEventPlansScreen> {
                             ),
                           ),
                         ],
+                        if (plan['status'] == 'payment_pending') ...<Widget>[
+                          const Divider(height: 28),
+                          FilledButton.icon(
+                            onPressed: busy
+                                ? null
+                                : () => pay(plan['id'].toString()),
+                            icon: const Icon(Icons.payments_outlined),
+                            label: Text(sw ? 'Lipa deposit' : 'Pay deposit'),
+                          ),
+                        ],
                         if (sent == null &&
                             agreement == null &&
-                            plan['status'] != 'confirmed')
+                            plan['status'] != 'confirmed' &&
+                            plan['status'] != 'payment_pending')
                           Padding(
                             padding: const EdgeInsets.only(top: 10),
                             child: Text(
@@ -846,6 +887,85 @@ class _MyEventPlansScreenState extends State<_MyEventPlansScreen> {
     try {
       await widget.repository.acceptEventAgreement(id);
       reload();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> pay(String planId) async {
+    final sw = context.isSwahili;
+    final controller = TextEditingController();
+    final phone = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(sw ? 'Namba ya malipo' : 'Payment number'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.phone,
+          decoration: const InputDecoration(hintText: '2557XXXXXXXX'),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: Text(sw ? 'Tuma ombi' : 'Send request'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (phone == null || phone.isEmpty || !mounted) return;
+    setState(() => busy = true);
+    try {
+      final started = await widget.repository.createPlatformPayment(
+        purpose: 'event_deposit',
+        resourceId: planId,
+        phoneNumber: phone,
+      );
+      var status = started['paymentStatus']?.toString() ?? 'pending';
+      final paymentId = started['paymentId'].toString();
+      for (
+        var attempt = 0;
+        attempt < 30 &&
+            !<String>{
+              'paid',
+              'failed',
+              'cancelled',
+              'expired',
+            }.contains(status);
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(seconds: 3));
+        final checked = await widget.repository.checkPlatformPayment(paymentId);
+        status = checked['paymentStatus']?.toString() ?? status;
+      }
+      if (status != 'paid') {
+        throw StateError(
+          sw
+              ? 'Malipo bado hayajathibitishwa.'
+              : 'Payment has not been confirmed.',
+        );
+      }
+      reload();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              sw ? 'Malipo yamethibitishwa.' : 'Payment confirmed.',
+            ),
+          ),
+        );
+      }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(

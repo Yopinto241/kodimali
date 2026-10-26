@@ -354,7 +354,13 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
             ),
           if (_signedIn) ...<Widget>[
             FilledButton.icon(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => CustomerTenancyScreen(repository: widget.accountRepository))),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => CustomerTenancyScreen(
+                    repository: widget.accountRepository,
+                  ),
+                ),
+              ),
               icon: const Icon(Icons.home_work_outlined),
               label: Text(context.isSwahili ? 'Upangaji wangu' : 'My tenancy'),
             ),
@@ -1916,6 +1922,86 @@ class _CustomerRequestDetailScreenState
     }
   }
 
+  Future<void> _payAndReserve() async {
+    final TextEditingController controller = TextEditingController();
+    final String? phone = await showDialog<String>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: const Text('Namba ya malipo'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.phone,
+          decoration: const InputDecoration(hintText: '2557XXXXXXXX'),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Lipa na uhifadhi'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (phone == null || phone.isEmpty || !mounted) return;
+    try {
+      final Map<String, dynamic> started = await widget.repository
+          .createBookingPayment(
+            bookingRequestId: widget.bookingRequestId,
+            phoneNumber: phone,
+          );
+      String status = started['paymentStatus']?.toString() ?? 'pending';
+      if (status == 'free') {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Booking imethibitishwa bila malipo.'),
+            ),
+          );
+        }
+        await _reload();
+        return;
+      }
+      final String paymentId = started['paymentId'].toString();
+      for (
+        int attempt = 0;
+        attempt < 30 &&
+            !<String>{
+              'paid',
+              'failed',
+              'cancelled',
+              'expired',
+            }.contains(status);
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(seconds: 3));
+        final checked = await widget.repository.checkBookingPayment(paymentId);
+        status = checked['paymentStatus']?.toString() ?? status;
+      }
+      if (status != 'paid') {
+        throw StateError('Malipo bado hayajathibitishwa.');
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Malipo yamethibitishwa na nafasi imehifadhiwa.'),
+          ),
+        );
+      }
+      await _reload();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+      }
+    }
+  }
+
   Future<void> _respondToViewingAppointment(
     Map<String, dynamic> appointment,
     String status,
@@ -2071,6 +2157,24 @@ class _CustomerRequestDetailScreenState
                         icon: const Icon(Icons.chat_bubble_outline_rounded),
                         label: Text(context.tr('chat.title')),
                       ),
+                      if (request['requested_start_at'] != null &&
+                          request['requested_end_at'] != null &&
+                          status != 'confirmed' &&
+                          <String>{
+                            'approved',
+                            'not_required',
+                          }.contains(request['owner_approval_status']) &&
+                          !((request['booking_payment_transactions'] as List? ??
+                                  <dynamic>[])
+                              .any(
+                                (dynamic row) =>
+                                    row is Map && row['status'] == 'paid',
+                              )))
+                        FilledButton.icon(
+                          onPressed: _payAndReserve,
+                          icon: const Icon(Icons.payments_outlined),
+                          label: const Text('Lipa na uhifadhi'),
+                        ),
                     ],
                   ),
                 ],

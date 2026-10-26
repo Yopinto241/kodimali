@@ -93,6 +93,17 @@ export function EventLocationFields({
     ward: string,
     area: string,
   ) {
+    const values = {
+      region: region,
+      district: district,
+      ward: ward,
+      area: area,
+    };
+    for (const [level, id] of Object.entries(values)) {
+      const key = `customer_${level}_id`;
+      if (id) window.localStorage.setItem(key, id);
+      else window.localStorage.removeItem(key);
+    }
     onChange(area || ward || district || region);
   }
 

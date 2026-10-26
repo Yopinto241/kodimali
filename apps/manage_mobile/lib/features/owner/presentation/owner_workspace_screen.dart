@@ -99,6 +99,103 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
     }
   }
 
+  Future<void> _claimListing() async {
+    final TextEditingController listing = TextEditingController();
+    String authority = owner?['owner_type'] == 'authorized_manager'
+        ? 'authorized_manager'
+        : 'owner';
+    final bool? submit = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => StatefulBuilder(
+        builder: (BuildContext context, StateSetter setDialogState) =>
+            AlertDialog(
+              title: Text(
+                context.isSwahili ? 'Unganisha mali' : 'Connect an item',
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  TextField(
+                    controller: listing,
+                    decoration: InputDecoration(
+                      labelText: context.isSwahili
+                          ? 'Link au ID ya tangazo'
+                          : 'Listing link or ID',
+                    ),
+                  ),
+                  DropdownButtonFormField<String>(
+                    initialValue: authority,
+                    decoration: InputDecoration(
+                      labelText: context.isSwahili
+                          ? 'Mamlaka yako'
+                          : 'Your authority',
+                    ),
+                    items: const <DropdownMenuItem<String>>[
+                      DropdownMenuItem(value: 'owner', child: Text('Owner')),
+                      DropdownMenuItem(
+                        value: 'authorized_manager',
+                        child: Text('Authorized manager'),
+                      ),
+                    ],
+                    onChanged: (String? value) {
+                      if (value != null) {
+                        setDialogState(() => authority = value);
+                      }
+                    },
+                  ),
+                ],
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: Text(context.isSwahili ? 'Ghairi' : 'Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: Text(context.isSwahili ? 'Tuma' : 'Submit'),
+                ),
+              ],
+            ),
+      ),
+    );
+    if (submit != true) {
+      listing.dispose();
+      return;
+    }
+    try {
+      final String raw = listing.text.trim().replaceFirst(RegExp(r'/$'), '');
+      final String listingId = raw.split('/').last;
+      await Supabase.instance.client.rpc(
+        'submit_owner_listing_claim',
+        params: <String, dynamic>{
+          'p_listing_id': listingId,
+          'p_authority_type': authority,
+          'p_evidence_paths': <dynamic>[],
+        },
+      );
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.isSwahili
+                  ? 'Ombi limetumwa kwa uhakiki wa admin.'
+                  : 'The item was submitted for administrator verification.',
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      listing.dispose();
+    }
+  }
+
   Future<void> _inviteTenant() async {
     if (assets.isEmpty) return;
     String assetId = assets.first['asset_id'].toString();
@@ -147,6 +244,11 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            onPressed: _claimListing,
+            icon: const Icon(Icons.add_business_outlined),
+            tooltip: context.isSwahili ? 'Unganisha mali' : 'Connect an item',
+          ),
           TextButton(
             onPressed: () => Navigator.pop(c, false),
             child: Text(context.isSwahili ? 'Ghairi' : 'Cancel'),

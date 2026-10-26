@@ -36,7 +36,7 @@ class ManageRepository {
     return (await _client
             .from('rental_information_submissions')
             .select(
-              'id,reference,category,location_description,description,approximate_rent,available_from,information_source,status,eligibility_status,next_follow_up_at,submitted_at,assigned_agent_id,possible_duplicate_of',
+              'id,reference,category,location_description,description,approximate_rent,available_from,information_source,status,eligibility_status,next_follow_up_at,submitted_at,assigned_agent_id,assigned_information_admin_id,possible_duplicate_of,linked_asset_id,linked_listing_id,marketing_started_at,target_completion_at,closed_at,outcome,outcome_notes,information_follow_ups(id,kind,summary,due_at,completed_at,created_at)',
             )
             .order('submitted_at', ascending: false)
             .limit(200))
@@ -46,15 +46,28 @@ class ManageRepository {
   Future<void> updateInformationSubmission({
     required String id,
     required String status,
+    String followUpNote = '',
     DateTime? nextFollowUpAt,
+    String? assignedAgentId,
+    String? linkedListingId,
+    String? eligibilityStatus,
+    String? outcome,
   }) async {
-    await _client
-        .from('rental_information_submissions')
-        .update(<String, dynamic>{
-          'status': status,
-          'next_follow_up_at': nextFollowUpAt?.toUtc().toIso8601String(),
-        })
-        .eq('id', id);
+    await _client.rpc(
+      'manage_information_submission',
+      params: <String, dynamic>{
+        'p_submission_id': id,
+        'p_status': status,
+        'p_follow_up_note': followUpNote.trim(),
+        'p_next_follow_up_at': nextFollowUpAt?.toUtc().toIso8601String(),
+        'p_assigned_agent_id': assignedAgentId,
+        'p_linked_listing_id': linkedListingId?.trim().isEmpty == true
+            ? null
+            : linkedListingId?.trim(),
+        'p_eligibility_status': eligibilityStatus,
+        'p_outcome': outcome,
+      },
+    );
   }
 
   Future<void> addInformationFollowUp({
@@ -600,7 +613,7 @@ class ManageRepository {
       final JsonMap? row = await _client
           .from("marketplace_settings")
           .select(
-            "contact_payments_enabled, agent_listing_payments_enabled, chat_payments_enabled, subscription_payments_enabled, listing_boost_payments_enabled, updated_at, updated_by",
+            "contact_payments_enabled, agent_listing_payments_enabled, chat_payments_enabled, subscription_payments_enabled, listing_boost_payments_enabled, booking_payments_enabled, event_payments_enabled, updated_at, updated_by",
           )
           .eq("id", true)
           .maybeSingle();
@@ -611,6 +624,8 @@ class ManageRepository {
             "chat_payments_enabled": false,
             "subscription_payments_enabled": false,
             "listing_boost_payments_enabled": false,
+            "booking_payments_enabled": false,
+            "event_payments_enabled": false,
           };
     } on PostgrestException catch (error) {
       if (_isManageIdentifierCompatibilityError(error)) {
@@ -672,6 +687,24 @@ class ManageRepository {
     await _client.from("marketplace_settings").upsert(<String, dynamic>{
       "id": true,
       "listing_boost_payments_enabled": enabled,
+      "updated_by": user.id,
+    });
+  }
+
+  Future<void> updateBookingPaymentsEnabled(bool enabled) async {
+    final User user = _requireUser();
+    await _client.from("marketplace_settings").upsert(<String, dynamic>{
+      "id": true,
+      "booking_payments_enabled": enabled,
+      "updated_by": user.id,
+    });
+  }
+
+  Future<void> updateEventPaymentsEnabled(bool enabled) async {
+    final User user = _requireUser();
+    await _client.from("marketplace_settings").upsert(<String, dynamic>{
+      "id": true,
+      "event_payments_enabled": enabled,
       "updated_by": user.id,
     });
   }
@@ -3027,19 +3060,19 @@ class ManageRepository {
       _client
           .from("listings")
           .select(
-            "id, title, category_id, public_location_label, status, removed_from_market_at, removed_reason, created_at, agent_id, asset_categories(id, name, slug)",
+            "id, title, category_id, public_location_label, status, publication_review_status, publication_requested, removed_from_market_at, removed_reason, created_at, agent_id, asset_categories(id, name, slug), agents(verification_status, account_status)",
           )
           .order("created_at", ascending: false),
     );
     return _withInquiryCounts(listings);
   }
 
-  Future<void> moderateListing({
+  Future<JsonMap> moderateListing({
     required String listingId,
     required String status,
     String? removedReason,
   }) async {
-    await _client.rpc(
+    final dynamic result = await _client.rpc(
       "admin_set_listing_marketplace_status",
       params: <String, dynamic>{
         "p_listing_id": listingId,
@@ -3051,6 +3084,10 @@ class ManageRepository {
         "p_moderation_note": null,
       },
     );
+    if (result is! Map) {
+      throw StateError("Supabase did not confirm the listing update.");
+    }
+    return Map<String, dynamic>.from(result);
   }
 
   Future<List<JsonMap>> fetchLocationsForAdmin() async {
@@ -3150,7 +3187,7 @@ class ManageRepository {
     final dynamic base = _client
         .from("booking_requests")
         .select(
-          "id, listing_id, customer_id, agent_id, request_reference, customer_name, customer_phone_number, customer_email, requested_start_at, requested_end_at, guest_count, request_message, requested_service_codes, booking_status, agent_response_due_at, first_agent_response_at, created_at, updated_at, listings!inner(title, asset_categories(name, slug))",
+          "id, listing_id, customer_id, agent_id, request_reference, customer_name, customer_phone_number, customer_email, requested_start_at, requested_end_at, guest_count, request_message, requested_service_codes, booking_status, booking_kind, owner_approval_status, accepted_at, payment_ready_at, completed_at, payment_expires_at, agent_response_due_at, first_agent_response_at, created_at, updated_at, booking_payment_transactions(status,amount_tzs,paid_at), listings!inner(title, asset_categories(name, slug))",
         );
     final dynamic filtered = queryBuilder(base);
     return _decodeListRows(filtered.order("created_at", ascending: false));

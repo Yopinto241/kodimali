@@ -257,6 +257,11 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
     final List<dynamic> requestedServices =
         booking["requested_service_codes"] as List<dynamic>? ?? <dynamic>[];
     final bool hasLinkedCustomer = booking["customer_id"] != null;
+    final bool paymentReady = booking["payment_ready_at"] != null;
+    final bool paid =
+        (booking["booking_payment_transactions"] as List<dynamic>? ??
+                <dynamic>[])
+            .any((dynamic row) => row is Map && row["status"] == "paid");
     final bool busy = _updatingIds.contains(booking["id"]);
     final bool terminal = <String>{
       "completed",
@@ -310,7 +315,28 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
                     size: 18,
                   ),
                   label: Text(
-                    hasLinkedCustomer ? "In-app chat ready" : "Guest contact",
+                    hasLinkedCustomer
+                        ? "Account-linked follow-up"
+                        : "Guest contact",
+                  ),
+                ),
+                Chip(
+                  avatar: Icon(
+                    paid
+                        ? Icons.verified_rounded
+                        : paymentReady
+                        ? Icons.payments_outlined
+                        : Icons.hourglass_top_rounded,
+                    size: 18,
+                  ),
+                  label: Text(
+                    paid
+                        ? "Reservation paid"
+                        : paymentReady
+                        ? "Customer can reserve/pay"
+                        : status == "new"
+                        ? "Accept to continue"
+                        : "Approval/availability in progress",
                   ),
                 ),
               ],
@@ -348,7 +374,7 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
                           BookingStatus.checkingAvailability,
                         ),
                   icon: const Icon(Icons.check_rounded),
-                  label: const Text("Accept"),
+                  label: const Text("Accept & notify customer"),
                 ),
                 OutlinedButton.icon(
                   onPressed: phone.isEmpty
@@ -373,7 +399,7 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
                   ),
                   label: Text(
                     hasLinkedCustomer
-                        ? "Open chat & workflow"
+                        ? "Open booking workflow"
                         : "Open workflow",
                   ),
                 ),

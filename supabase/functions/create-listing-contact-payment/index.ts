@@ -271,6 +271,7 @@ Deno.serve(async (request) => {
         access_token: accessToken,
         requested_amount: amount,
         requested_currency: "TZS",
+        payment_provider: sonic ? "sonicpesa" : "clickpesa",
         customer_name: customerName,
         customer_phone_number: customerPhoneNumber,
         customer_email: customerEmail || null,
@@ -344,9 +345,9 @@ Deno.serve(async (request) => {
         orderReference,
         phoneNumber: customerPhoneNumber,
       };
-      if (config.checksumKey) {
+      if (config!.checksumKey) {
         initiatePayload.checksum = createChecksum(
-          config.checksumKey,
+          config!.checksumKey,
           initiatePayload,
         );
       }

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { getBrowserSupabase } from "@/lib/supabase-browser";
+
 type ServiceOption = {
   key: string;
   label: string;
@@ -19,6 +21,32 @@ export function GuestRequestForm({
   availableServices: ServiceOption[];
 }) {
   const isApartment = categorySlug === "apartment";
+  const isVehicle = categorySlug === "car" || categorySlug === "motorcycle";
+  const isHouse = categorySlug === "house";
+  const isOffice = categorySlug === "office";
+  const isHall =
+    categorySlug === "meeting-hall" || categorySlug === "ceremony-hall";
+  const isReservable =
+    isApartment || isVehicle || isHouse || isOffice || isHall;
+  const usesTime = isVehicle || isHall;
+  const startLabel = isApartment
+    ? "Tarehe ya kuingia"
+    : isVehicle
+      ? "Tarehe na muda wa kuchukua"
+      : isHouse
+        ? "Tarehe ya kuhamia"
+        : isOffice
+          ? "Tarehe ya kuanza"
+          : "Tukio linaanza";
+  const endLabel = isApartment
+    ? "Tarehe ya kutoka"
+    : isVehicle
+      ? "Tarehe na muda wa kurudisha"
+      : isHouse
+        ? "Shikilia hadi"
+        : isOffice
+          ? "Muda unaishia"
+          : "Tukio linaisha";
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhoneNumber, setCustomerPhoneNumber] = useState("");
@@ -26,9 +54,13 @@ export function GuestRequestForm({
   const [requestedEndAt, setRequestedEndAt] = useState("");
   const [guestCount, setGuestCount] = useState("");
   const [requestMessage, setRequestMessage] = useState("");
-  const [requestedServiceCodes, setRequestedServiceCodes] = useState<string[]>([]);
+  const [requestedServiceCodes, setRequestedServiceCodes] = useState<string[]>(
+    [],
+  );
   const [submitting, setSubmitting] = useState(false);
   const [requestReference, setRequestReference] = useState<string | null>(null);
+  const [bookingId, setBookingId] = useState<string | null>(null);
+  const [instantReservation, setInstantReservation] = useState(false);
   const [errors, setErrors] = useState<{
     customerName?: string;
     customerEmail?: string;
@@ -50,7 +82,8 @@ export function GuestRequestForm({
     }
     if (
       isApartment &&
-      (!customerEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail.trim()))
+      (!customerEmail.trim() ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail.trim()))
     ) {
       nextErrors.customerEmail = "Weka email sahihi.";
     } else if (
@@ -65,11 +98,15 @@ export function GuestRequestForm({
     if (customerPhoneNumber.trim() && customerPhoneNumber.trim().length < 8) {
       nextErrors.customerPhoneNumber = "Weka namba sahihi.";
     }
-    if (isApartment) {
+    if (isReservable) {
       if (!requestedStartAt || !requestedEndAt) {
-        nextErrors.requestedDates = "Chagua tarehe za kuingia na kutoka.";
-      } else if (new Date(requestedStartAt).getTime() >= new Date(requestedEndAt).getTime()) {
-        nextErrors.requestedDates = "Tarehe ya kutoka lazima iwe baada ya kuingia.";
+        nextErrors.requestedDates = `Chagua ${startLabel.toLowerCase()} na ${endLabel.toLowerCase()}.`;
+      } else if (
+        new Date(requestedStartAt).getTime() >=
+        new Date(requestedEndAt).getTime()
+      ) {
+        nextErrors.requestedDates =
+          "Tarehe ya kutoka lazima iwe baada ya kuingia.";
       }
     }
 
@@ -79,7 +116,9 @@ export function GuestRequestForm({
 
   function toggleService(key: string) {
     setRequestedServiceCodes((current) =>
-      current.includes(key) ? current.filter((item) => item !== key) : [...current, key],
+      current.includes(key)
+        ? current.filter((item) => item !== key)
+        : [...current, key],
     );
   }
 
@@ -91,52 +130,99 @@ export function GuestRequestForm({
     setSubmitting(true);
     setErrors({});
     try {
-      const parsedGuestCount = guestCount ? Number.parseInt(guestCount, 10) : undefined;
-      if (isApartment) {
+      const parsedGuestCount = guestCount
+        ? Number.parseInt(guestCount, 10)
+        : undefined;
+      if (isReservable) {
         const availabilityResponse = await fetch("/api/check-availability", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             listingId,
-            requestedStartAt: `${requestedStartAt}T00:00:00.000Z`,
-            requestedEndAt: `${requestedEndAt}T00:00:00.000Z`,
+            requestedStartAt: new Date(
+              usesTime ? requestedStartAt : `${requestedStartAt}T00:00:00`,
+            ).toISOString(),
+            requestedEndAt: new Date(
+              usesTime ? requestedEndAt : `${requestedEndAt}T00:00:00`,
+            ).toISOString(),
           }),
         });
         const availabilityPayload = await availabilityResponse.json();
         if (!availabilityResponse.ok) {
-          throw new Error(availabilityPayload.error ?? "Availability check failed");
+          throw new Error(
+            availabilityPayload.error ?? "Availability check failed",
+          );
         }
         if (availabilityPayload.available !== true) {
           throw new Error(
-            availabilityPayload.reason ?? "Apartment haipatikani kwa tarehe ulizochagua.",
+            availabilityPayload.reason ?? "Haipatikani kwa muda uliochagua.",
           );
         }
       }
 
-      const response = await fetch("/api/guest-requests", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          listing_id: listingId,
-          customer_name: customerName,
-          customer_email: customerEmail || undefined,
-          customer_phone_number: customerPhoneNumber || undefined,
-          requested_start_at: isApartment
-            ? `${requestedStartAt}T00:00:00.000Z`
-            : undefined,
-          requested_end_at: isApartment
-            ? `${requestedEndAt}T00:00:00.000Z`
-            : undefined,
-          guest_count: Number.isFinite(parsedGuestCount) ? parsedGuestCount : undefined,
-          request_message: requestMessage || undefined,
-          requested_service_codes: requestedServiceCodes,
-        }),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.error ?? "Request failed");
+      const guestPayload = {
+        listing_id: listingId,
+        customer_name: customerName,
+        customer_email: customerEmail || undefined,
+        customer_phone_number: customerPhoneNumber || undefined,
+        requested_start_at: isReservable
+          ? new Date(
+              usesTime ? requestedStartAt : `${requestedStartAt}T00:00:00`,
+            ).toISOString()
+          : undefined,
+        requested_end_at: isReservable
+          ? new Date(
+              usesTime ? requestedEndAt : `${requestedEndAt}T00:00:00`,
+            ).toISOString()
+          : undefined,
+        guest_count: Number.isFinite(parsedGuestCount)
+          ? parsedGuestCount
+          : undefined,
+        request_message: requestMessage || undefined,
+        requested_service_codes: requestedServiceCodes,
+      };
+      const supabase = getBrowserSupabase();
+      const { data: sessionData } = await supabase.auth.getSession();
+      let payload: Record<string, unknown>;
+      if (sessionData.session) {
+        const { data, error } = await supabase.functions.invoke(
+          "create-booking-request",
+          {
+            body: {
+              listingId: guestPayload.listing_id,
+              customerName: guestPayload.customer_name,
+              customerEmail: guestPayload.customer_email,
+              customerPhoneNumber: guestPayload.customer_phone_number,
+              requestedStartAt: guestPayload.requested_start_at,
+              requestedEndAt: guestPayload.requested_end_at,
+              guestCount: guestPayload.guest_count,
+              requestMessage: guestPayload.request_message,
+              requestedServiceCodes: guestPayload.requested_service_codes,
+            },
+          },
+        );
+        if (error) throw error;
+        payload = (data ?? {}) as Record<string, unknown>;
+        setBookingId(
+          typeof payload.bookingId === "string" ? payload.bookingId : null,
+        );
+        setInstantReservation(isReservable);
+      } else {
+        const response = await fetch("/api/guest-requests", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(guestPayload),
+        });
+        payload = await response.json();
+        if (!response.ok) {
+          throw new Error(String(payload.error ?? "Request failed"));
+        }
       }
-      setRequestReference(payload.requestReference ?? null);
+      setRequestReference(
+        typeof payload.requestReference === "string"
+          ? payload.requestReference
+          : null,
+      );
     } catch (caughtError) {
       setErrors({
         form:
@@ -149,33 +235,51 @@ export function GuestRequestForm({
 
   if (requestReference) {
     return (
-      <div className="surface-card rounded-[20px] p-6">
-        <span className="status-badge status-active">Request sent</span>
+      <div
+        id="booking"
+        className="surface-card scroll-mt-28 rounded-[20px] p-6"
+      >
+        <span className="status-badge status-active">
+          {instantReservation ? "Muda umehifadhiwa" : "Booking imetumwa"}
+        </span>
         <p className="mt-4 font-heading text-2xl font-semibold text-brand-ink">
-          Ombi lako limetumwa kwa wakala.
+          {instantReservation
+            ? "Muda uliochagua umehifadhiwa kwa dakika 30."
+            : "Booking yako imetumwa kwa wakala."}
         </p>
         <p className="section-copy mt-3 text-base">
-          Wakala atakujibu kwa email au simu kuthibitisha upatikanaji.
+          {instantReservation
+            ? "Kamilisha malipo ya reservation sasa kuthibitisha booking. Huhitaji viewing wala kusubiri agent."
+            : "Wakala atakujibu kwa email au simu."}
         </p>
         <p className="mt-4 text-sm font-bold text-brand-navy">
           Reference: {requestReference}
         </p>
+        {instantReservation && bookingId ? (
+          <a
+            className="button-primary mt-5 inline-flex"
+            href={`/account/request/${bookingId}`}
+          >
+            Reserve na ulipe sasa
+          </a>
+        ) : null}
       </div>
     );
   }
 
   return (
-    <div className="surface-card rounded-[20px] p-6">
-      <p className="eyebrow">Secure request</p>
+    <div id="booking" className="surface-card scroll-mt-28 rounded-[20px] p-6">
+      <p className="eyebrow">Booking</p>
       <h2 className="mt-3 font-heading text-2xl font-semibold text-brand-ink">
-        {isApartment ? "Book Apartment" : "Tuma Ombi"}
+        Book {listingTitle}
       </h2>
       <p className="section-copy mt-3 text-sm">
-        {isApartment
-          ? "Chagua tarehe za kukaa, acha email yako, na chagua huduma unazotaka wakala athibitishe."
-          : "Tuma jina lako na uache email au namba ya simu. Wakala atakufuata kwa email au simu."}
+        Chagua muda unaohitaji. Ikiwa muda huo uko wazi, tutauhifadhi kwa dakika
+        30 ili ukamilishe malipo. Viewing si lazima na huhitaji kusubiri agent.
       </p>
-      <p className="mt-3 text-sm font-semibold text-brand-ink">{listingTitle}</p>
+      <p className="mt-3 text-sm font-semibold text-brand-ink">
+        {listingTitle}
+      </p>
       <div className="mt-5 grid gap-4">
         <label className="grid gap-2">
           <span className="field-label">Jina kamili</span>
@@ -198,7 +302,9 @@ export function GuestRequestForm({
           ) : null}
         </label>
         <label className="grid gap-2">
-          <span className="field-label">{isApartment ? "Email" : "Email (optional)"}</span>
+          <span className="field-label">
+            {isApartment ? "Email" : "Email (si lazima)"}
+          </span>
           <input
             value={customerEmail}
             onChange={(event) => {
@@ -220,12 +326,14 @@ export function GuestRequestForm({
             <span className="field-help">
               {isApartment
                 ? "Hii ndiyo njia kuu ya mawasiliano kwa wageni wa ndani na wa kimataifa."
-                : "Optional, but useful for international guests and written follow-up."}
+                : "Si lazima ikiwa umeweka simu; inasaidia kupata taarifa za booking kwa maandishi."}
             </span>
           )}
         </label>
         <label className="grid gap-2">
-          <span className="field-label">Namba ya simu / WhatsApp (optional)</span>
+          <span className="field-label">
+            Namba ya simu / WhatsApp (si lazima)
+          </span>
           <input
             value={customerPhoneNumber}
             onChange={(event) => {
@@ -246,15 +354,15 @@ export function GuestRequestForm({
             <span className="field-help">
               {isApartment
                 ? "Taarifa hii hutumika kwa WhatsApp au simu ikiwa umeiweka."
-                : "Optional. Add phone, email, or both so the agent can reach you."}
+                : "Weka simu, email, au zote mbili ili upokee majibu ya booking."}
             </span>
           )}
         </label>
-        {isApartment ? (
+        {isReservable ? (
           <>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-2">
-                <span className="field-label">Check-in</span>
+            <div className="booking-period-grid grid gap-4">
+              <label className="min-w-0 grid gap-2">
+                <span className="field-label">{startLabel}</span>
                 <input
                   value={requestedStartAt}
                   onChange={(event) => {
@@ -267,11 +375,11 @@ export function GuestRequestForm({
                   }}
                   aria-invalid={Boolean(errors.requestedDates)}
                   className="field-input"
-                  type="date"
+                  type={usesTime ? "datetime-local" : "date"}
                 />
               </label>
-              <label className="grid gap-2">
-                <span className="field-label">Check-out</span>
+              <label className="min-w-0 grid gap-2">
+                <span className="field-label">{endLabel}</span>
                 <input
                   value={requestedEndAt}
                   onChange={(event) => {
@@ -284,31 +392,35 @@ export function GuestRequestForm({
                   }}
                   aria-invalid={Boolean(errors.requestedDates)}
                   className="field-input"
-                  type="date"
+                  type={usesTime ? "datetime-local" : "date"}
                 />
               </label>
             </div>
             {errors.requestedDates ? (
               <span className="field-error">{errors.requestedDates}</span>
             ) : null}
-            <label className="grid gap-2">
-              <span className="field-label">Guests (optional)</span>
-              <input
-                value={guestCount}
-                onChange={(event) => setGuestCount(event.target.value)}
-                className="field-input"
-                inputMode="numeric"
-                type="number"
-                min="1"
-                placeholder="Mfano: 2"
-              />
-            </label>
-            {availableServices.length > 0 ? (
+            {isApartment ? (
+              <label className="grid gap-2">
+                <span className="field-label">Idadi ya wageni (si lazima)</span>
+                <input
+                  value={guestCount}
+                  onChange={(event) => setGuestCount(event.target.value)}
+                  className="field-input"
+                  inputMode="numeric"
+                  type="number"
+                  min="1"
+                  placeholder="Mfano: 2"
+                />
+              </label>
+            ) : null}
+            {isApartment && availableServices.length > 0 ? (
               <div className="grid gap-2">
                 <span className="field-label">Services to confirm</span>
                 <div className="flex flex-wrap gap-2">
                   {availableServices.map((service) => {
-                    const selected = requestedServiceCodes.includes(service.key);
+                    const selected = requestedServiceCodes.includes(
+                      service.key,
+                    );
                     return (
                       <button
                         key={service.key}
@@ -328,7 +440,7 @@ export function GuestRequestForm({
               </div>
             ) : null}
             <label className="grid gap-2">
-              <span className="field-label">Message (optional)</span>
+              <span className="field-label">Ujumbe (si lazima)</span>
               <textarea
                 value={requestMessage}
                 onChange={(event) => setRequestMessage(event.target.value)}
@@ -344,7 +456,7 @@ export function GuestRequestForm({
           disabled={submitting}
           className="btn btn-success"
         >
-          {submitting ? "Inatuma..." : "Tuma Ombi"}
+          {submitting ? "Inatuma booking..." : "Book"}
         </button>
         {errors.form ? <p className="field-error">{errors.form}</p> : null}
         <div className="soft-panel p-4">
@@ -352,7 +464,7 @@ export function GuestRequestForm({
           <p className="field-help mt-2">
             {isApartment
               ? "Baada ya booking request, wakala atathibitisha tarehe, huduma, bei, na hatua inayofuata kwa email au simu."
-              : "Ombi likishatumwa, wakala atakuthibitishia bei, upatikanaji, na hatua ya kuona mali hiyo."}
+              : "Booking ikishatumwa, mmiliki au msimamizi atathibitisha muda, bei na upatikanaji kabla ya malipo."}
           </p>
         </div>
       </div>

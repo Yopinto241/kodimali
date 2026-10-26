@@ -278,6 +278,38 @@ class _ContactPaymentSettingsPanelState
     return confirmed == true;
   }
 
+  Future<bool> _confirmPaymentAvailability({
+    required String feature,
+    required bool enabled,
+    required String enabledWarning,
+    required String pausedWarning,
+  }) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(
+          Icons.warning_amber_rounded,
+          color: Theme.of(dialogContext).colorScheme.error,
+        ),
+        title: Text(
+          enabled ? 'Enable $feature payments?' : 'Pause $feature payments?',
+        ),
+        content: Text(enabled ? enabledWarning : pausedWarning),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(enabled ? 'Enable payments' : 'Pause payments'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
   Future<void> _setEnabled(bool enabled) async {
     final bool confirmed = await _confirmToggle(
       feature: 'agent contact numbers',
@@ -320,9 +352,9 @@ class _ContactPaymentSettingsPanelState
       feature: 'listing publication',
       enablePayment: enabled,
       paidWarning:
-          'Agents will be charged their plan publication fee for every new listing before it becomes active.',
+          'Verified agents will pay their plan publication fee before direct publication. Unverified agents must both pay and receive admin approval.',
       freeWarning:
-          'All eligible agent listings will publish without payment. Existing inactive eligible listings may also be released.',
+          'Verified agents will publish directly without payment. Unverified agents will still require admin approval.',
     );
     if (!confirmed || !mounted) {
       return;
@@ -384,13 +416,13 @@ class _ContactPaymentSettingsPanelState
   }
 
   Future<void> _setSubscriptionEnabled(bool enabled) async {
-    final bool confirmed = await _confirmToggle(
+    final bool confirmed = await _confirmPaymentAvailability(
       feature: 'agent subscriptions',
-      enablePayment: enabled,
-      paidWarning:
-          'Agents must complete ClickPesa payment before a paid package activates.',
-      freeWarning:
-          'Agents may activate Basic, Pro or Business packages without payment while this switch remains free.',
+      enabled: enabled,
+      enabledWarning:
+          'Agents can purchase Basic, Pro and Business packages through SonicPesa. A package activates only after confirmed payment.',
+      pausedWarning:
+          'Agents cannot purchase paid packages while payments are paused. Existing subscriptions remain active; no paid package is granted for free.',
     );
     if (!confirmed || !mounted) {
       return;
@@ -413,6 +445,58 @@ class _ContactPaymentSettingsPanelState
       if (mounted) {
         setState(() => _saving = false);
       }
+    }
+  }
+
+  Future<void> _setBookingEnabled(bool enabled) async {
+    final bool confirmed = await _confirmPaymentAvailability(
+      feature: 'customer booking',
+      enabled: enabled,
+      enabledWarning:
+          'Customers can pay through SonicPesa to confirm eligible bookings after approval and availability checks.',
+      pausedWarning:
+          'New booking checkout will be unavailable. Existing paid reservations remain valid and unpaid requests are not confirmed for free.',
+    );
+    if (!confirmed || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await AppScope.of(
+        context,
+      ).repository.updateBookingPaymentsEnabled(enabled);
+      if (mounted) setState(() => _future = _load());
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _setEventPaymentsEnabled(bool enabled) async {
+    final bool confirmed = await _confirmPaymentAvailability(
+      feature: 'Events',
+      enabled: enabled,
+      enabledWarning:
+          'Customers can pay event deposits and balances through SonicPesa after accepting a quotation and agreement.',
+      pausedWarning:
+          'New event deposit and balance checkout will be unavailable. Existing paid obligations remain recorded and inventory is not reserved for free.',
+    );
+    if (!confirmed || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await AppScope.of(context).repository.updateEventPaymentsEnabled(enabled);
+      if (mounted) setState(() => _future = _load());
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -464,13 +548,16 @@ class _ContactPaymentSettingsPanelState
             snapshot.data?["subscription_payments_enabled"] as bool? ?? false;
         final bool boostEnabled =
             snapshot.data?["listing_boost_payments_enabled"] as bool? ?? false;
+        final bool bookingEnabled =
+            snapshot.data?["booking_payments_enabled"] as bool? ?? false;
+        final bool eventPaymentsEnabled =
+            snapshot.data?["event_payments_enabled"] as bool? ?? false;
         final String? updatedAt = snapshot.data?["updated_at"] as String?;
         final String? updatedBy = snapshot.data?["updated_by"] as String?;
         return ManagePanel(
           title: "Marketplace payment controls",
-          subtitle: enabled
-              ? "Payments are on. Customer app and website hide agent numbers until contact payment is confirmed."
-              : "Payments are off. Customer app and website can show agent numbers for free.",
+          subtitle:
+              "Admin-only controls shared by the website and mobile apps. Pausing checkout never grants a paid product for free.",
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
@@ -498,8 +585,10 @@ class _ContactPaymentSettingsPanelState
                       ? "Agent listing payment required"
                       : "Agent listings are free",
                 ),
-                subtitle: const Text(
-                  "When enabled, each new agent listing costs TSh 1,000 and remains private until payment succeeds.",
+                subtitle: Text(
+                  agentListingEnabled
+                      ? "Verified agents publish after paying their plan fee. Unverified agents also require admin approval."
+                      : "Verified agents publish free. Unverified agents remain private until admin approval.",
                 ),
                 onChanged:
                     snapshot.connectionState == ConnectionState.waiting ||
@@ -531,17 +620,53 @@ class _ContactPaymentSettingsPanelState
                 value: subscriptionEnabled,
                 title: Text(
                   subscriptionEnabled
-                      ? 'Subscription payment required'
-                      : 'Subscriptions are free',
+                      ? 'Subscription payments enabled'
+                      : 'Subscription purchasing paused',
                 ),
                 subtitle: const Text(
-                  'Controls ClickPesa payment for Basic, Pro and Business package activation.',
+                  'Controls SonicPesa purchasing for Basic, Pro and Business packages. Existing subscriptions are not changed.',
                 ),
                 onChanged:
                     snapshot.connectionState == ConnectionState.waiting ||
                         _saving
                     ? null
                     : _setSubscriptionEnabled,
+              ),
+              const Divider(height: 24),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: bookingEnabled,
+                title: Text(
+                  bookingEnabled
+                      ? 'Customer pay and book enabled'
+                      : 'Customer booking checkout paused',
+                ),
+                subtitle: const Text(
+                  'Controls SonicPesa checkout for ordinary booking reservations. Pausing does not confirm requests for free.',
+                ),
+                onChanged:
+                    snapshot.connectionState == ConnectionState.waiting ||
+                        _saving
+                    ? null
+                    : _setBookingEnabled,
+              ),
+              const Divider(height: 24),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: eventPaymentsEnabled,
+                title: Text(
+                  eventPaymentsEnabled
+                      ? 'Events payments enabled'
+                      : 'Events checkout paused',
+                ),
+                subtitle: const Text(
+                  'Controls SonicPesa deposits and balances after an event quotation and agreement are accepted.',
+                ),
+                onChanged:
+                    snapshot.connectionState == ConnectionState.waiting ||
+                        _saving
+                    ? null
+                    : _setEventPaymentsEnabled,
               ),
               const Divider(height: 24),
               SwitchListTile(

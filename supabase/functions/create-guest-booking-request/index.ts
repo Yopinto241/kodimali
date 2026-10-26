@@ -126,25 +126,52 @@ Deno.serve(async (request) => {
 
   const { data: listing, error: listingError } = await supabase
     .from("listings")
-    .select("id, title, asset_categories!inner(slug)")
+    .select("id, title, category_id")
     .eq("id", listingId)
-    .single();
+    .maybeSingle();
 
-  if (listingError || !listing) {
+  if (listingError) {
+    return json({ error: listingError.message }, 500);
+  }
+  if (!listing) {
     return json({ error: "Listing not found" }, 404);
   }
 
-  const categorySlug = readCategorySlug(listing.asset_categories);
+  const { data: category, error: categoryError } = await supabase
+    .from("asset_categories")
+    .select("slug")
+    .eq("id", listing.category_id)
+    .maybeSingle();
+  if (categoryError) {
+    return json({ error: categoryError.message }, 500);
+  }
+
+  const categorySlug = readCategorySlug(category);
   const isApartment = categorySlug === "apartment";
+  const isReservable = new Set([
+    "house",
+    "apartment",
+    "car",
+    "motorcycle",
+    "office",
+    "meeting-hall",
+    "ceremony-hall",
+  ]).has(categorySlug);
 
   if (isApartment && !customerEmail) {
     return json({ error: "Apartment bookings require an email address" }, 400);
   }
-  if (isApartment && (!requestedStartAt || !requestedEndAt)) {
+  if (isReservable && (!requestedStartAt || !requestedEndAt)) {
     return json(
-      { error: "Apartment bookings require check-in and check-out dates" },
+      { error: "This category requires a booking start and end period" },
       400,
     );
+  }
+  if (
+    isReservable &&
+    new Date(requestedEndAt).getTime() <= new Date(requestedStartAt).getTime()
+  ) {
+    return json({ error: "Booking end must be after its start" }, 400);
   }
 
   const { data: isPublic, error: publicRuleError } = await supabase.rpc(
@@ -213,7 +240,12 @@ Deno.serve(async (request) => {
     .single();
 
   if (bookingError || !booking) {
-    return json({ error: bookingError?.message ?? "Could not create request" }, 500);
+    const conflict = bookingError?.code === "23P01" ||
+      bookingError?.message?.toLowerCase().includes("reserved");
+    return json(
+      { error: bookingError?.message ?? "Could not create request" },
+      conflict ? 409 : 500,
+    );
   }
 
   return json({

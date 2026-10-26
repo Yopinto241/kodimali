@@ -16,7 +16,7 @@ enabled = true
 port = 54323
 
 [functions.create-booking-request]
-verify_jwt = true
+verify_jwt = false
 
 [functions.create-guest-booking-request]
 verify_jwt = false
@@ -80,3 +80,12 @@ verify_jwt = false
 
 [functions.check-agent-commercial-payment]
   verify_jwt = true
+
+[functions.create-platform-payment]
+    verify_jwt = false
+
+[functions.check-platform-payment]
+    verify_jwt = false
+
+[functions.sonicpesa-payment-webhook]
+  verify_jwt = false

@@ -30,7 +30,7 @@ Deno.serve(async (request) => {
     const config=sonic?null:readClickPesaConfig({clientIdEnv:"CLICKPESA_COLLECTION_CLIENT_ID",apiKeyEnv:"CLICKPESA_COLLECTION_API_KEY",checksumKeyEnv:"CLICKPESA_COLLECTION_CHECKSUM_KEY"});
     const orderReference=reference(); const payload:Record<string,unknown>={amount:formatAmount(AMOUNT),currency:"TZS",orderReference,phoneNumber:phone}; if(config?.checksumKey)payload.checksum=createChecksum(config.checksumKey,payload);
     const amount=sonic?sonicAmount():AMOUNT;
-    const {data:payment,error}=await db.from("listing_chat_payments").insert({listing_id:listingId,agent_id:listing.agent_id,customer_id:user.id,order_reference:orderReference,customer_phone_number:phone,requested_amount:amount}).select("id").single(); if(error)throw new Error(error.message);
+    const {data:payment,error}=await db.from("listing_chat_payments").insert({listing_id:listingId,agent_id:listing.agent_id,customer_id:user.id,order_reference:orderReference,customer_phone_number:phone,requested_amount:amount,payment_provider:sonic?"sonicpesa":"clickpesa"}).select("id").single(); if(error)throw new Error(error.message);
     try {
       if(sonic){const order=await createSonicPesaOrder({phone,amount});await db.from("listing_chat_payments").update({payment_status:order.status,provider_payment_id:order.orderId,provider_channel:order.channel,provider_response:order.payload}).eq("id",payment.id);return json({success:true,paymentRequired:true,paymentId:payment.id,paymentStatus:order.status,amount,currency:"TZS",provider:"sonicpesa"});}
       const token=await fetchClickPesaToken(config!); const preview=await previewUssdPushRequest(config!,token,payload);

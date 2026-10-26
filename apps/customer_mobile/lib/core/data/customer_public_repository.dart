@@ -105,31 +105,43 @@ class CustomerPublicRepository {
     }
   }
 
-  Future<JsonMap> fetchEventsMarketplace() async {
+  Future<JsonMap> fetchEventsMarketplace({String? locationId}) async {
     final results = await Future.wait<dynamic>(<Future<dynamic>>[
       _client
           .from('event_types')
           .select('id,slug,name_sw,name_en,description_sw,description_en')
           .eq('is_approved', true)
           .order('display_order'),
-      _client
-          .from('event_equipment_items')
-          .select(
-            'id,name,description,total_quantity,price_amount_tzs,price_unit,event_equipment_categories(name_sw,name_en)',
-          )
-          .eq('verification_status', 'verified')
-          .eq('publication_status', 'published')
-          .eq('is_active', true)
-          .limit(30),
-      _client
-          .from('event_service_profiles')
-          .select(
-            'id,display_name,provider_kind,biography,experience_years,portfolio_media,event_service_offerings(id,title,description,pricing_mode,price_amount_tzs,duration_minutes,publication_status)',
-          )
-          .eq('verification_status', 'verified')
-          .eq('is_active', true)
-          .eq('event_service_offerings.publication_status', 'published')
-          .limit(30),
+      _client.rpc(
+        'search_public_event_equipment',
+        params: <String, dynamic>{
+          'p_search': null,
+          'p_category_id': null,
+          'p_location_id': locationId,
+          'p_start_at': null,
+          'p_end_at': null,
+          'p_min_price': null,
+          'p_max_price': null,
+          'p_sort': 'recommended',
+          'p_limit': 30,
+          'p_offset': 0,
+        },
+      ),
+      _client.rpc(
+        'search_public_event_services',
+        params: <String, dynamic>{
+          'p_search': null,
+          'p_provider_kind': null,
+          'p_location_id': locationId,
+          'p_start_at': null,
+          'p_end_at': null,
+          'p_min_price': null,
+          'p_max_price': null,
+          'p_sort': 'recommended',
+          'p_limit': 30,
+          'p_offset': 0,
+        },
+      ),
     ]);
     return <String, dynamic>{
       'types': (results[0] as List).cast<JsonMap>(),
@@ -304,6 +316,46 @@ class CustomerPublicRepository {
       'accept_event_agreement',
       params: <String, dynamic>{'p_agreement_id': agreementId},
     );
+  }
+
+  Future<JsonMap> createPlatformPayment({
+    required String purpose,
+    required String resourceId,
+    required String phoneNumber,
+  }) async {
+    final response = await _client.functions.invoke(
+      'create-platform-payment',
+      body: <String, dynamic>{
+        'purpose': purpose,
+        'resource_id': resourceId,
+        'phone_number': phoneNumber.trim(),
+      },
+    );
+    if (response.status >= 400 || response.data is! Map) {
+      throw StateError(
+        (response.data as Map?)?['error']?.toString() ??
+            'Could not start payment.',
+      );
+    }
+    final result = Map<String, dynamic>.from(response.data as Map);
+    if (result['error'] != null) throw StateError(result['error'].toString());
+    return result;
+  }
+
+  Future<JsonMap> checkPlatformPayment(String paymentId) async {
+    final response = await _client.functions.invoke(
+      'check-platform-payment',
+      body: <String, dynamic>{'payment_id': paymentId},
+    );
+    if (response.status >= 400 || response.data is! Map) {
+      throw StateError(
+        (response.data as Map?)?['error']?.toString() ??
+            'Could not check payment.',
+      );
+    }
+    final result = Map<String, dynamic>.from(response.data as Map);
+    if (result['error'] != null) throw StateError(result['error'].toString());
+    return result;
   }
 
   Future<List<JsonMap>> fetchHomeFeed({

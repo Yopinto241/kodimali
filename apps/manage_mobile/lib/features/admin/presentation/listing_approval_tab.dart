@@ -15,6 +15,7 @@ class ListingApprovalTab extends StatefulWidget {
 class _ListingApprovalTabState extends State<ListingApprovalTab> {
   late Future<List<Map<String, dynamic>>> _future;
   bool _initialized = false;
+  final Set<String> _updatingListingIds = <String>{};
 
   @override
   void didChangeDependencies() {
@@ -42,12 +43,37 @@ class _ListingApprovalTabState extends State<ListingApprovalTab> {
     required String status,
     String? removedReason,
   }) async {
-    await AppScope.of(context).repository.moderateListing(
-      listingId: listingId,
-      status: status,
-      removedReason: removedReason,
-    );
-    await _refresh();
+    if (_updatingListingIds.contains(listingId)) return;
+    setState(() => _updatingListingIds.add(listingId));
+    try {
+      final Map<String, dynamic> result = await AppScope.of(context).repository
+          .moderateListing(
+            listingId: listingId,
+            status: status,
+            removedReason: removedReason,
+          );
+      await _refresh();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result["message"]?.toString() ??
+                  "Listing marketplace status updated.",
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Could not update listing: $error")),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _updatingListingIds.remove(listingId));
+      }
+    }
   }
 
   Future<void> _deletePermanently(Map<String, dynamic> listing) async {
@@ -143,6 +169,14 @@ class _ListingApprovalTabState extends State<ListingApprovalTab> {
             const SizedBox(height: 18),
             ...listings.map((Map<String, dynamic> listing) {
               final String status = listing["status"] as String? ?? "-";
+              final String reviewStatus =
+                  listing["publication_review_status"] as String? ?? "pending";
+              final Map<String, dynamic>? agent =
+                  listing["agents"] as Map<String, dynamic>?;
+              final bool verifiedAgent =
+                  agent?["verification_status"] == "approved" &&
+                  agent?["account_status"] == "active";
+              final bool updating = _updatingListingIds.contains(listing["id"]);
               return Padding(
                 padding: const EdgeInsets.only(bottom: 14),
                 child: ManagePanel(
@@ -177,6 +211,12 @@ class _ListingApprovalTabState extends State<ListingApprovalTab> {
                       ManageMetaWrap(
                         items: <String>[
                           "Inquiries: ${listing["inquiry_count"] ?? 0}",
+                          verifiedAgent
+                              ? "Verified agent · direct publication"
+                              : "Unverified agent · admin approval required",
+                          "Review: $reviewStatus",
+                          if (listing["publication_requested"] == true)
+                            "Waiting for publication requirement",
                           if (listing["removed_reason"] != null)
                             "Reason: ${listing["removed_reason"]}",
                         ],
@@ -187,13 +227,19 @@ class _ListingApprovalTabState extends State<ListingApprovalTab> {
                         runSpacing: 8,
                         children: <Widget>[
                           FilledButton(
-                            onPressed: status == "active"
+                            onPressed: status == "active" || updating
                                 ? null
                                 : () => _moderate(
                                     listingId: listing["id"] as String,
                                     status: "active",
                                   ),
-                            child: const Text("Reactivate"),
+                            child: Text(
+                              updating
+                                  ? "Updating..."
+                                  : reviewStatus == "pending"
+                                  ? "Approve and activate"
+                                  : "Reactivate",
+                            ),
                           ),
                           OutlinedButton(
                             onPressed: status == "inactive"

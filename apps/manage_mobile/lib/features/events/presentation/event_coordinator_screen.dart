@@ -14,6 +14,7 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
   List<Map<String, dynamic>> plans = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> equipment = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> providers = <Map<String, dynamic>>[];
+  List<Map<String, dynamic>> offerings = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> escalations = <Map<String, dynamic>>[];
   String? error;
 
@@ -50,6 +51,12 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
             )
             .order('created_at'),
         db
+            .from('event_service_offerings')
+            .select(
+              'id,title,publication_status,provider_id,event_service_profiles(display_name,verification_status)',
+            )
+            .order('created_at'),
+        db
             .from('event_emergency_escalations')
             .select('*, event_plans(reference,title)')
             .order('created_at'),
@@ -57,7 +64,8 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
       plans = (values[0] as List).cast<Map<String, dynamic>>();
       equipment = (values[1] as List).cast<Map<String, dynamic>>();
       providers = (values[2] as List).cast<Map<String, dynamic>>();
-      escalations = (values[3] as List).cast<Map<String, dynamic>>();
+      offerings = (values[3] as List).cast<Map<String, dynamic>>();
+      escalations = (values[4] as List).cast<Map<String, dynamic>>();
     } catch (e) {
       error = e.toString();
     } finally {
@@ -195,6 +203,31 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
               ),
             ),
           ),
+          _heading(sw ? 'Uchapishaji wa huduma' : 'Service publication'),
+          if (offerings.isEmpty)
+            Text(sw ? 'Hakuna huduma.' : 'No service offerings.')
+          else
+            ...offerings.map((item) {
+              final provider = item['event_service_profiles'] as Map?;
+              final canPublish =
+                  item['publication_status'] != 'published' &&
+                  provider?['verification_status'] == 'verified';
+              return Card(
+                child: ListTile(
+                  title: Text(item['title'].toString()),
+                  subtitle: Text(
+                    '${provider?['display_name'] ?? ''} · ${item['publication_status']}',
+                  ),
+                  trailing: canPublish
+                      ? FilledButton(
+                          onPressed: () =>
+                              _publishOffering(item['id'].toString()),
+                          child: Text(sw ? 'Chapisha' : 'Publish'),
+                        )
+                      : null,
+                ),
+              );
+            }),
           _heading(sw ? 'Dharura na mbadala' : 'Emergency and substitutions'),
           if (escalations.isEmpty)
             Text(
@@ -251,6 +284,18 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
             .eq('provider_id', id)
             .eq('is_active', true);
       }
+      await _load();
+    } catch (e) {
+      _message(e.toString());
+    }
+  }
+
+  Future<void> _publishOffering(String id) async {
+    try {
+      await Supabase.instance.client
+          .from('event_service_offerings')
+          .update(<String, dynamic>{'publication_status': 'published'})
+          .eq('id', id);
       await _load();
     } catch (e) {
       _message(e.toString());

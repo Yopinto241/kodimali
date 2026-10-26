@@ -389,6 +389,14 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
 
   Widget _buildStatusActions(BuildContext context) {
     final String currentStatus = _booking["booking_status"] as String? ?? "new";
+    final String ownerApproval =
+        _booking["owner_approval_status"] as String? ?? "not_required";
+    final List<dynamic> payments =
+        _booking["booking_payment_transactions"] as List<dynamic>? ??
+        <dynamic>[];
+    final bool paid = payments.any(
+      (dynamic row) => row is Map && row["status"] == "paid",
+    );
     final bool terminal = <String>{
       "completed",
       "cancelled",
@@ -399,56 +407,75 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
       title: "Respond and move request",
       subtitle:
           "Accepting starts availability checks. Every stage change is retained in booking history.",
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          FilledButton.icon(
-            onPressed: _busy || terminal
-                ? null
-                : () => _updateStatus(BookingStatus.checkingAvailability),
-            icon: const Icon(Icons.check_circle_outline),
-            label: const Text("Accept request"),
+          Text(
+            paid
+                ? "Payment confirmed. The booking is secured and can continue to completion."
+                : ownerApproval == "pending"
+                ? "Waiting for the verified owner or manager to approve before payment."
+                : _booking["payment_ready_at"] != null
+                ? "Customer has been notified to pay and secure this booking."
+                : currentStatus == "new"
+                ? "Accept this request to unlock the customer's next step."
+                : "Availability is being handled; payment becomes available after required approval.",
+            style: Theme.of(context).textTheme.bodyMedium,
           ),
-          OutlinedButton.icon(
-            onPressed: _busy || terminal
-                ? null
-                : () => _updateStatus(BookingStatus.contacted),
-            icon: const Icon(Icons.mark_chat_read_outlined),
-            label: const Text("Mark contacted"),
-          ),
-          OutlinedButton.icon(
-            onPressed: _busy || terminal || !_hasCustomerAccount
-                ? null
-                : _proposeViewing,
-            icon: const Icon(Icons.event_available_outlined),
-            label: const Text("Schedule viewing"),
-          ),
-          PopupMenuButton<BookingStatus>(
-            enabled: !_busy,
-            onSelected: _updateStatus,
-            itemBuilder: (BuildContext context) => BookingStatus.values
-                .where(
-                  (BookingStatus item) => item != BookingStatus.agentDelayed,
-                )
-                .map(
-                  (BookingStatus item) => PopupMenuItem<BookingStatus>(
-                    value: item,
-                    child: Text(item.label),
-                  ),
-                )
-                .toList(growable: false),
-            child: const Chip(
-              avatar: Icon(Icons.account_tree_outlined, size: 18),
-              label: Text("All stages"),
-            ),
-          ),
-          TextButton.icon(
-            onPressed: _busy || terminal
-                ? null
-                : () => _updateStatus(BookingStatus.rejected),
-            icon: const Icon(Icons.close_rounded),
-            label: const Text("Reject"),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: <Widget>[
+              FilledButton.icon(
+                onPressed: _busy || terminal
+                    ? null
+                    : () => _updateStatus(BookingStatus.checkingAvailability),
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text("Accept request"),
+              ),
+              OutlinedButton.icon(
+                onPressed: _busy || terminal
+                    ? null
+                    : () => _updateStatus(BookingStatus.contacted),
+                icon: const Icon(Icons.mark_chat_read_outlined),
+                label: const Text("Mark contacted"),
+              ),
+              OutlinedButton.icon(
+                onPressed: _busy || terminal || !_hasCustomerAccount
+                    ? null
+                    : _proposeViewing,
+                icon: const Icon(Icons.event_available_outlined),
+                label: const Text("Schedule viewing"),
+              ),
+              PopupMenuButton<BookingStatus>(
+                enabled: !_busy,
+                onSelected: _updateStatus,
+                itemBuilder: (BuildContext context) => BookingStatus.values
+                    .where(
+                      (BookingStatus item) =>
+                          item != BookingStatus.agentDelayed,
+                    )
+                    .map(
+                      (BookingStatus item) => PopupMenuItem<BookingStatus>(
+                        value: item,
+                        child: Text(item.label),
+                      ),
+                    )
+                    .toList(growable: false),
+                child: const Chip(
+                  avatar: Icon(Icons.account_tree_outlined, size: 18),
+                  label: Text("All stages"),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _busy || terminal
+                    ? null
+                    : () => _updateStatus(BookingStatus.rejected),
+                icon: const Icon(Icons.close_rounded),
+                label: const Text("Reject"),
+              ),
+            ],
           ),
         ],
       ),

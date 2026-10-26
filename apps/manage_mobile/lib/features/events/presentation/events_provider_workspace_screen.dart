@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/localization/manage_localization.dart';
+import '../../../core/media/listing_image_compressor.dart';
 
 class EventsProviderWorkspaceScreen extends StatefulWidget {
   const EventsProviderWorkspaceScreen({super.key});
@@ -10,14 +12,249 @@ class EventsProviderWorkspaceScreen extends StatefulWidget {
       _EventsProviderWorkspaceScreenState();
 }
 
+class _EventLocationSelection {
+  const _EventLocationSelection(this.locationId, this.label);
+  final String locationId;
+  final String label;
+}
+
+class _EventLocationPicker extends StatefulWidget {
+  const _EventLocationPicker({required this.swahili});
+  final bool swahili;
+  @override
+  State<_EventLocationPicker> createState() => _EventLocationPickerState();
+}
+
+class _EventLocationPickerState extends State<_EventLocationPicker> {
+  final db = Supabase.instance.client;
+  List<Map<String, dynamic>> regions = <Map<String, dynamic>>[];
+  List<Map<String, dynamic>> districts = <Map<String, dynamic>>[];
+  List<Map<String, dynamic>> wards = <Map<String, dynamic>>[];
+  List<Map<String, dynamic>> areas = <Map<String, dynamic>>[];
+  String? regionId, districtId, wardId, areaId;
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRegions();
+  }
+
+  Future<List<Map<String, dynamic>>> _children(
+    String type,
+    String parent,
+  ) async =>
+      ((await db
+                  .from('locations')
+                  .select('id,name')
+                  .eq('location_type', type)
+                  .eq('parent_id', parent)
+                  .eq('is_active', true)
+                  .order('name'))
+              as List)
+          .cast<Map<String, dynamic>>();
+
+  Future<void> _loadRegions() async {
+    final country = await db
+        .from('locations')
+        .select('id')
+        .eq('location_type', 'country')
+        .eq('is_active', true)
+        .limit(1)
+        .single();
+    regions = await _children('region', country['id'].toString());
+    if (mounted) setState(() => loading = false);
+  }
+
+  String _name(List<Map<String, dynamic>> values, String? id) {
+    for (final row in values) {
+      if (row['id'].toString() == id) return row['name'].toString();
+    }
+    return '';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sw = widget.swahili;
+    return Scaffold(
+      appBar: AppBar(title: Text(sw ? 'Chagua eneo' : 'Choose location')),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(20),
+              children: <Widget>[
+                DropdownButtonFormField<String>(
+                  initialValue: regionId,
+                  decoration: InputDecoration(
+                    labelText: sw ? 'Mkoa' : 'Region',
+                  ),
+                  items: regions
+                      .map(
+                        (row) => DropdownMenuItem(
+                          value: row['id'].toString(),
+                          child: Text(row['name'].toString()),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (id) async {
+                    regionId = id;
+                    districtId = wardId = areaId = null;
+                    wards = [];
+                    areas = [];
+                    districts = id == null
+                        ? []
+                        : await _children('district', id);
+                    if (mounted) setState(() {});
+                  },
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: districtId,
+                  decoration: InputDecoration(
+                    labelText: sw
+                        ? 'Wilaya (si lazima)'
+                        : 'District (optional)',
+                  ),
+                  items: districts
+                      .map(
+                        (row) => DropdownMenuItem(
+                          value: row['id'].toString(),
+                          child: Text(row['name'].toString()),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: regionId == null
+                      ? null
+                      : (id) async {
+                          districtId = id;
+                          wardId = areaId = null;
+                          if (id == null) {
+                            wards = [];
+                            areas = [];
+                          } else {
+                            final result = await Future.wait([
+                              _children('ward', id),
+                              _children('area', id),
+                            ]);
+                            wards = result[0];
+                            areas = result[1];
+                          }
+                          if (mounted) setState(() {});
+                        },
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: wardId,
+                  decoration: InputDecoration(
+                    labelText: sw ? 'Kata (si lazima)' : 'Ward (optional)',
+                  ),
+                  items: wards
+                      .map(
+                        (row) => DropdownMenuItem(
+                          value: row['id'].toString(),
+                          child: Text(row['name'].toString()),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: districtId == null
+                      ? null
+                      : (id) async {
+                          wardId = id;
+                          areaId = null;
+                          areas = id == null
+                              ? await _children('area', districtId!)
+                              : await _children('area', id);
+                          if (mounted) setState(() {});
+                        },
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: areaId,
+                  decoration: InputDecoration(
+                    labelText: sw ? 'Eneo (si lazima)' : 'Area (optional)',
+                  ),
+                  items: areas
+                      .map(
+                        (row) => DropdownMenuItem(
+                          value: row['id'].toString(),
+                          child: Text(row['name'].toString()),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: districtId == null
+                      ? null
+                      : (id) => setState(() => areaId = id),
+                ),
+                const SizedBox(height: 28),
+                FilledButton(
+                  onPressed: regionId == null
+                      ? null
+                      : () {
+                          final id =
+                              areaId ?? wardId ?? districtId ?? regionId!;
+                          final names = [
+                            _name(areas, areaId),
+                            _name(wards, wardId),
+                            _name(districts, districtId),
+                            _name(regions, regionId),
+                          ].where((v) => v.isNotEmpty).toList();
+                          Navigator.pop(
+                            context,
+                            _EventLocationSelection(id, names.join(', ')),
+                          );
+                        },
+                  child: Text(sw ? 'Tumia eneo hili' : 'Use this location'),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
 class _EventsProviderWorkspaceScreenState
     extends State<EventsProviderWorkspaceScreen> {
   bool loading = true;
   String? error;
   String? ownerId;
   Map<String, dynamic>? serviceProfile;
+  List<Map<String, dynamic>> serviceAreas = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> equipment = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> requests = <Map<String, dynamic>>[];
+  final ImagePicker _imagePicker = ImagePicker();
+
+  Future<_EventLocationSelection?> _pickLocation(bool sw) =>
+      Navigator.of(context).push<_EventLocationSelection>(
+        MaterialPageRoute(builder: (_) => _EventLocationPicker(swahili: sw)),
+      );
+
+  Future<String?> _uploadEventImage({
+    required String entityId,
+    required String folder,
+  }) async {
+    final XFile? picked = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 88,
+      maxWidth: 2200,
+      maxHeight: 2200,
+    );
+    if (picked == null) return null;
+    final images = await const ListingImageCompressor().compressAll(<XFile>[
+      picked,
+    ]);
+    final userId = Supabase.instance.client.auth.currentUser!.id;
+    final path = '$userId/events/$folder/$entityId/cover.jpg';
+    await Supabase.instance.client.storage
+        .from('listing-media')
+        .uploadBinary(
+          path,
+          await images.first.readAsBytes(),
+          fileOptions: const FileOptions(
+            upsert: true,
+            contentType: 'image/jpeg',
+          ),
+        );
+    return path;
+  }
 
   @override
   void initState() {
@@ -40,6 +277,14 @@ class _EventsProviderWorkspaceScreenState
           .select()
           .eq('profile_id', db.auth.currentUser!.id)
           .maybeSingle();
+      serviceAreas = serviceProfile == null
+          ? <Map<String, dynamic>>[]
+          : ((await db
+                        .from('event_service_areas')
+                        .select('location_id, locations(name,location_type)')
+                        .eq('profile_id', serviceProfile!['id']))
+                    as List)
+                .cast<Map<String, dynamic>>();
       if (ownerId != null && ownerId != 'null') {
         equipment =
             (await db
@@ -200,11 +445,56 @@ class _EventsProviderWorkspaceScreenState
                   ),
                   if (serviceProfile != null)
                     Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.verified_user_outlined),
-                        title: Text(serviceProfile!['display_name'].toString()),
-                        subtitle: Text(
-                          '${serviceProfile!['provider_kind']} · ${serviceProfile!['verification_status']}',
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.verified_user_outlined),
+                              title: Text(
+                                serviceProfile!['display_name'].toString(),
+                              ),
+                              subtitle: Text(
+                                '${serviceProfile!['provider_kind']} · ${serviceProfile!['verification_status']}',
+                              ),
+                            ),
+                            Text(
+                              sw ? 'Maeneo ya huduma' : 'Service areas',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            if (serviceAreas.isEmpty)
+                              Text(
+                                sw
+                                    ? 'Hakuna eneo lililowekwa.'
+                                    : 'No service area set.',
+                              ),
+                            ...serviceAreas.map((row) {
+                              final location = row['locations'] as Map?;
+                              return Chip(
+                                avatar: const Icon(
+                                  Icons.location_on_outlined,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  location?['name']?.toString() ??
+                                      row['location_id'].toString(),
+                                ),
+                              );
+                            }),
+                            const SizedBox(height: 8),
+                            OutlinedButton.icon(
+                              onPressed: _addServiceArea,
+                              icon: const Icon(Icons.add_location_alt_outlined),
+                              label: Text(
+                                sw
+                                    ? 'Ongeza eneo la huduma'
+                                    : 'Add service area',
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -413,6 +703,8 @@ class _EventsProviderWorkspaceScreenState
 
   Future<void> _registerService() async {
     final sw = context.isSwahili;
+    final selectedLocation = await _pickLocation(sw);
+    if (selectedLocation == null || !mounted) return;
     final name = TextEditingController();
     final bio = TextEditingController();
     String kind = 'planner';
@@ -474,14 +766,35 @@ class _EventsProviderWorkspaceScreenState
     );
     if (ok == true) {
       try {
-        await Supabase.instance.client
+        final inserted = await Supabase.instance.client
             .from('event_service_profiles')
             .insert(<String, dynamic>{
               'profile_id': Supabase.instance.client.auth.currentUser!.id,
               'display_name': name.text.trim(),
               'provider_kind': kind,
               'biography': bio.text.trim(),
-            });
+            })
+            .select('id')
+            .single();
+        final profileId = inserted['id'].toString();
+        await Supabase.instance.client.from('event_service_areas').insert(
+          <String, dynamic>{
+            'profile_id': profileId,
+            'location_id': selectedLocation.locationId,
+          },
+        );
+        final imagePath = await _uploadEventImage(
+          entityId: profileId,
+          folder: 'professionals',
+        );
+        if (imagePath != null) {
+          await Supabase.instance.client
+              .from('event_service_profiles')
+              .update(<String, dynamic>{
+                'portfolio_media': <String>[imagePath],
+              })
+              .eq('id', profileId);
+        }
         await _load();
       } catch (e) {
         if (mounted) {
@@ -495,9 +808,32 @@ class _EventsProviderWorkspaceScreenState
     bio.dispose();
   }
 
+  Future<void> _addServiceArea() async {
+    if (serviceProfile == null) return;
+    final selectedLocation = await _pickLocation(context.isSwahili);
+    if (selectedLocation == null) return;
+    try {
+      await Supabase.instance.client
+          .from('event_service_areas')
+          .upsert(<String, dynamic>{
+            'profile_id': serviceProfile!['id'],
+            'location_id': selectedLocation.locationId,
+          }, onConflict: 'profile_id,location_id');
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    }
+  }
+
   Future<void> _addEquipment() async {
     final sw = context.isSwahili;
     final db = Supabase.instance.client;
+    final selectedLocation = await _pickLocation(sw);
+    if (selectedLocation == null || !mounted) return;
     final categories =
         (await db
                     .from('event_equipment_categories')
@@ -570,15 +906,34 @@ class _EventsProviderWorkspaceScreenState
     );
     if (ok == true) {
       try {
-        await db.from('event_equipment_items').insert(<String, dynamic>{
-          'owner_id': ownerId,
-          'category_id': categoryId,
-          'name': name.text.trim(),
-          'condition': 'good',
-          'total_quantity': int.parse(quantity.text),
-          'price_amount_tzs': num.parse(price.text),
-          'price_unit': 'item_event',
-        });
+        final inserted = await db
+            .from('event_equipment_items')
+            .insert(<String, dynamic>{
+              'owner_id': ownerId,
+              'category_id': categoryId,
+              'location_id': selectedLocation.locationId,
+              'public_location_label': selectedLocation.label,
+              'name': name.text.trim(),
+              'condition': 'good',
+              'total_quantity': int.parse(quantity.text),
+              'price_amount_tzs': num.parse(price.text),
+              'price_unit': 'item_event',
+            })
+            .select('id')
+            .single();
+        final itemId = inserted['id'].toString();
+        final imagePath = await _uploadEventImage(
+          entityId: itemId,
+          folder: 'equipment',
+        );
+        if (imagePath != null) {
+          await db
+              .from('event_equipment_items')
+              .update(<String, dynamic>{
+                'media_paths': <String>[imagePath],
+              })
+              .eq('id', itemId);
+        }
         await _load();
       } catch (e) {
         if (mounted) {

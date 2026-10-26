@@ -1,9 +1,16 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
 const normalizePhone = (value: string) => value.replace(/[^\d+]/g, "");
@@ -44,6 +51,9 @@ function readCategorySlug(value: unknown) {
 }
 
 Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
   if (request.method !== "POST") {
     return json({ error: "Method not allowed" }, 405);
   }
@@ -141,25 +151,51 @@ Deno.serve(async (request) => {
 
   const { data: listing, error: listingError } = await supabase
     .from("listings")
-    .select("id, agent_id, title, asset_categories!inner(slug)")
+    .select("id, agent_id, title, category_id")
     .eq("id", listing_id)
-    .single();
+    .maybeSingle();
 
-  if (listingError || !listing) {
+  if (listingError) {
+    return json({ error: listingError.message }, 500);
+  }
+  if (!listing) {
     return json({ error: "Listing not found" }, 404);
   }
 
-  const categorySlug = readCategorySlug(listing.asset_categories);
+  const { data: category, error: categoryError } = await supabase
+    .from("asset_categories")
+    .select("slug")
+    .eq("id", listing.category_id)
+    .maybeSingle();
+  if (categoryError) {
+    return json({ error: categoryError.message }, 500);
+  }
+  const categorySlug = readCategorySlug(category);
   const isApartment = categorySlug === "apartment";
+  const isReservable = new Set([
+    "house",
+    "apartment",
+    "car",
+    "motorcycle",
+    "office",
+    "meeting-hall",
+    "ceremony-hall",
+  ]).has(categorySlug);
 
   if (isApartment && !customer_email) {
     return json({ error: "Apartment bookings require an email address" }, 400);
   }
-  if (isApartment && (!requested_start_at || !requested_end_at)) {
+  if (isReservable && (!requested_start_at || !requested_end_at)) {
     return json(
-      { error: "Apartment bookings require check-in and check-out dates" },
+      { error: "This category requires a booking start and end period" },
       400,
     );
+  }
+  if (
+    isReservable &&
+    new Date(requested_end_at).getTime() <= new Date(requested_start_at).getTime()
+  ) {
+    return json({ error: "Booking end must be after its start" }, 400);
   }
 
   const { data: isPublic, error: publicRuleError } = await supabase.rpc(
@@ -228,7 +264,12 @@ Deno.serve(async (request) => {
   const booking = Array.isArray(bookingRows) ? bookingRows[0] : null;
 
   if (bookingError || !booking) {
-    return json({ error: bookingError?.message ?? "Could not create request" }, 500);
+    const conflict = bookingError?.code === "23P01" ||
+      bookingError?.message?.toLowerCase().includes("reserved");
+    return json(
+      { error: bookingError?.message ?? "Could not create request" },
+      conflict ? 409 : 500,
+    );
   }
 
   return json({

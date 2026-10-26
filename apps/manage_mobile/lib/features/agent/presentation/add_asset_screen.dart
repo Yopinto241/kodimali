@@ -61,6 +61,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
   bool _draftRestored = false;
   DateTime? _draftSavedAt;
   bool _listingPaymentRequired = false;
+  bool _agentVerified = false;
+  bool _adminApprovalRequired = true;
+  int _listingFeeAmount = 0;
 
   List<Map<String, dynamic>> _owners = <Map<String, dynamic>>[];
   String? _selectedOwnerId;
@@ -420,6 +423,12 @@ class _AddAssetScreenState extends State<AddAssetScreen>
     if (!mounted) return;
     setState(() {
       _listingPaymentRequired = mode['payment_required'] as bool? ?? true;
+      _agentVerified = mode['agent_verified'] as bool? ?? false;
+      _adminApprovalRequired =
+          mode['admin_approval_required'] as bool? ?? !_agentVerified;
+      _listingFeeAmount =
+          (mode['amount_tzs'] as num?)?.toInt() ??
+          (_listingPaymentRequired ? 1000 : 0);
     });
   }
 
@@ -1281,14 +1290,19 @@ class _AddAssetScreenState extends State<AddAssetScreen>
       final Map<String, dynamic> payment = await repository
           .createAgentListingPayment(listingId);
       final bool paymentRequired = payment["paymentRequired"] as bool? ?? true;
+      final bool approvalRequired =
+          payment["approvalRequired"] as bool? ?? _adminApprovalRequired;
+      final bool published = payment["published"] as bool? ?? false;
+      final int paymentAmount =
+          (payment["amount"] as num?)?.toInt() ?? _listingFeeAmount;
       String paymentStatus = payment["paymentStatus"]?.toString() ?? "pending";
       final String? paymentId = payment["paymentId"]?.toString();
       if (paymentRequired && paymentId != null && paymentStatus != "paid") {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text(
-                "TSh 1,000 payment request sent. Confirm it on your agent phone.",
+                "TSh $paymentAmount payment request sent. Confirm it on your agent phone.",
               ),
             ),
           );
@@ -1318,11 +1332,19 @@ class _AddAssetScreenState extends State<AddAssetScreen>
         SnackBar(
           content: Text(
             !paymentRequired
-                ? "Listing published. Agent listing publication is currently free."
+                ? published
+                      ? "Listing published. Publication is currently free."
+                      : approvalRequired
+                      ? "Listing saved. Admin approval is required because this agent is not verified. Publication is free after approval."
+                      : "Listing saved and is being published."
                 : paymentStatus == "paid"
-                ? "Payment confirmed. Listing is now live on the marketplace."
+                ? published
+                      ? "Payment confirmed. Listing is now live on the marketplace."
+                      : approvalRequired
+                      ? "Payment confirmed. Admin approval is still required before this listing becomes public."
+                      : "Payment confirmed. The listing is being published."
                 : paymentRequired
-                ? "Listing saved privately. Complete the TSh 1,000 payment to publish it."
+                ? "Listing saved privately. Complete the TSh $paymentAmount payment${approvalRequired ? " and wait for admin approval" : ""} to publish it."
                 : "Listing published.",
           ),
         ),
@@ -1438,8 +1460,11 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                     ? "Draft autosave ready"
                     : "Draft saved ${TimeOfDay.fromDateTime(_draftSavedAt!).format(context)}",
                 _listingPaymentRequired
-                    ? "Publication fee: TSh 1,000"
+                    ? "Publication fee: TSh $_listingFeeAmount"
                     : "Publication is currently FREE",
+                _agentVerified
+                    ? "Verified agent: publishes after the payment rule"
+                    : "Unverified agent: admin approval required",
               ],
             ),
           ),
@@ -1462,8 +1487,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
           ],
           ManagePanel(
             title: "Publishing checklist",
-            subtitle:
-                "The listing can publish after all four required sections are ready.",
+            subtitle: _adminApprovalRequired
+                ? "Complete all sections. This listing will remain private until an admin approves it${_listingPaymentRequired ? " and payment is confirmed" : ""}."
+                : "Complete all sections. As a verified agent, your listing publishes directly${_listingPaymentRequired ? " after payment" : ""}.",
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -2156,7 +2182,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                   : _compressingVideo
                   ? "Compressing video..."
                   : _listingPaymentRequired
-                  ? "Save and pay TSh 1,000"
+                  ? "Save and pay TSh $_listingFeeAmount"
+                  : _adminApprovalRequired
+                  ? "Submit for admin approval"
                   : "Publish listing free",
             ),
           ),

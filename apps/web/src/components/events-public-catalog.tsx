@@ -96,7 +96,7 @@ export function EventsPublicCatalog() {
   }, [supabase]);
   useEffect(() => {
     void load(true);
-  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, filters.category, filters.kind, filters.location]); // eslint-disable-line react-hooks/exhaustive-deps
   function submit(event: FormEvent) {
     event.preventDefault();
     void load(true);
@@ -132,12 +132,45 @@ export function EventsPublicCatalog() {
           {sw ? "Wataalamu" : "Professionals"}
         </button>
       </div>
+      <div className="event-category-rail mt-4 flex gap-3 overflow-x-auto pb-2">
+        {categories.map((row) => (
+          <button
+            type="button"
+            key={String(row.id)}
+            className={`event-category-tile ${mode === "equipment" && filters.category === String(row.id) ? "is-active" : ""}`}
+            onClick={() => {
+              setMode("equipment");
+              setFilters((current) => ({
+                ...current,
+                category: String(row.id),
+                kind: "",
+              }));
+            }}
+          >
+            <span aria-hidden>◈</span>
+            {String(sw ? row.name_sw : row.name_en)}
+          </button>
+        ))}
+        <button
+          type="button"
+          className={`event-category-tile ${mode === "service" ? "is-active" : ""}`}
+          onClick={() => {
+            setMode("service");
+            setFilters((current) => ({ ...current, category: "" }));
+          }}
+        >
+          <span aria-hidden>✦</span>
+          {sw ? "Wataalamu" : "Professionals"}
+        </button>
+      </div>
       <form
         className="event-filter-panel mt-5 grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4 sm:p-5"
         onSubmit={submit}
       >
-        <label className="grid gap-2 text-sm font-semibold lg:col-span-2">
-          <span>{sw ? "Unatafuta nini?" : "What are you looking for?"}</span>
+        <label className="grid self-end lg:col-span-2">
+          <span className="sr-only">
+            {sw ? "Tafuta vifaa au huduma" : "Search equipment or services"}
+          </span>
           <input
             className="field-input"
             placeholder={
@@ -148,8 +181,10 @@ export function EventsPublicCatalog() {
           />
         </label>
         {mode === "equipment" ? (
-          <label className="grid gap-2 text-sm font-semibold lg:col-span-2">
-            <span>{sw ? "Aina ya kifaa" : "Equipment category"}</span>
+          <label className="grid self-end lg:col-span-2">
+            <span className="sr-only">
+              {sw ? "Chagua aina ya kifaa" : "Choose equipment category"}
+            </span>
             <select
               className="field-input"
               value={filters.category}

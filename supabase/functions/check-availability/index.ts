@@ -44,28 +44,46 @@ Deno.serve(async (request) => {
 
   const { data: listing, error: listingError } = await supabase
     .from("listings")
-    .select(
-      "id, approval_status, status, availability_status, removed_from_market_at, asset_categories!inner(slug), agents!inner(account_status)",
-    )
+    .select("id, category_id")
     .eq("id", listingId)
-    .single();
+    .maybeSingle();
 
-  if (listingError || !listing) {
+  if (listingError) {
+    return json({ error: listingError.message }, 500);
+  }
+  if (!listing) {
     return json({ error: "Listing not found" }, 404);
   }
 
-  const available =
-    listing.approval_status === "approved" &&
-    listing.status === "active" &&
-    listing.availability_status === "available" &&
-    listing.removed_from_market_at === null &&
-    listing.agents.account_status === "active";
+  const [categoryResult, publicResult] = await Promise.all([
+    supabase
+      .from("asset_categories")
+      .select("slug")
+      .eq("id", listing.category_id)
+      .maybeSingle(),
+    supabase.rpc("is_listing_public", { p_listing_id: listingId }),
+  ]);
 
-  const category =
-    (listing.asset_categories as Record<string, unknown> | null) ?? {};
-  const categorySlug = typeof category.slug === "string" ? category.slug : "";
+  if (categoryResult.error) {
+    return json({ error: categoryResult.error.message }, 500);
+  }
+  if (publicResult.error) {
+    return json({ error: publicResult.error.message }, 500);
+  }
+
+  const available = publicResult.data === true;
+
+  const categorySlug = categoryResult.data?.slug ?? "";
   const shouldCheckSchedule =
-    categorySlug === "apartment" &&
+    new Set([
+      "house",
+      "apartment",
+      "car",
+      "motorcycle",
+      "office",
+      "meeting-hall",
+      "ceremony-hall",
+    ]).has(categorySlug) &&
     typeof requestedStartAt === "string" &&
     typeof requestedEndAt === "string" &&
     requestedStartAt.trim().length > 0 &&
@@ -93,47 +111,30 @@ Deno.serve(async (request) => {
     });
   }
 
-  const [blocksResult, bookingsResult] = await Promise.all([
-    supabase
-      .from("availability_blocks")
-      .select("id, start_at, end_at, block_reason")
-      .eq("listing_id", listingId)
-      .lt("start_at", requestedEndAt)
-      .gt("end_at", requestedStartAt)
-      .order("start_at", { ascending: true }),
-    supabase
-      .from("booking_requests")
-      .select("id, request_reference, booking_status, requested_start_at, requested_end_at")
-      .eq("listing_id", listingId)
-      .not(
-        "booking_status",
-        "in",
-        "(completed,cancelled,rejected,no_response)",
-      )
-      .not("requested_start_at", "is", null)
-      .not("requested_end_at", "is", null)
-      .lt("requested_start_at", requestedEndAt)
-      .gt("requested_end_at", requestedStartAt)
-      .order("requested_start_at", { ascending: true }),
-  ]);
-
-  if (blocksResult.error) {
-    return json({ error: blocksResult.error.message }, 500);
+  const availabilityResult = await supabase.rpc(
+    "check_listing_period_availability",
+    {
+      p_listing_id: listingId,
+      p_start_at: requestedStartAt,
+      p_end_at: requestedEndAt,
+    },
+  );
+  if (availabilityResult.error) {
+    return json({ error: availabilityResult.error.message }, 500);
   }
-  if (bookingsResult.error) {
-    return json({ error: bookingsResult.error.message }, 500);
-  }
-
-  const blocks = blocksResult.data ?? [];
-  const bookings = bookingsResult.data ?? [];
-  const scheduleAvailable = blocks.length === 0 && bookings.length === 0;
+  const result = availabilityResult.data as {
+    available?: boolean;
+    reason?: string | null;
+  } | null;
+  const scheduleAvailable = result?.available === true;
 
   return json({
     available: scheduleAvailable,
     conflicts: {
-      blocks,
-      bookings,
+      blocks: [],
+      bookings: [],
     },
-    reason: scheduleAvailable ? null : "The apartment is not available for the selected dates",
+    reason: result?.reason ??
+      (scheduleAvailable ? null : "The listing is not available for the selected period"),
   });
 });

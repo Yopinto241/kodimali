@@ -3062,6 +3062,17 @@ class PublicListingCard extends StatelessWidget {
     final ThemeData theme = KodimaliTheme.dark();
     final String categoryName =
         listing["category_name"] as String? ?? "Listing";
+    final String categorySlug =
+        listing["category_slug"]?.toString().toLowerCase() ?? "";
+    final bool reservable = <String>{
+      "house",
+      "apartment",
+      "car",
+      "motorcycle",
+      "office",
+      "meeting-hall",
+      "ceremony-hall",
+    }.contains(categorySlug);
     final String agentName =
         listing["agent_display_name"] as String? ?? "Agent";
     final String? agentPhotoUrl = listing["agent_profile_photo_url"] as String?;
@@ -3337,6 +3348,31 @@ class PublicListingCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (reservable) ...<Widget>[
+                    const SizedBox(height: KodimaliSpacing.sm),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        style: KodimaliButtonStyles.success(context),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => GuestRequestScreen(
+                                repository: repository,
+                                listingId: listing["listing_id"].toString(),
+                                listingTitle: title,
+                                categorySlug: categorySlug,
+                                availableServices:
+                                    const <Map<String, String>>[],
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.calendar_month_outlined),
+                        label: Text("Book"),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -4294,6 +4330,34 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
   bool _submitting = false;
 
   bool get _isApartment => widget.categorySlug == "apartment";
+  bool get _isVehicle =>
+      widget.categorySlug == "car" || widget.categorySlug == "motorcycle";
+  bool get _isHouse => widget.categorySlug == "house";
+  bool get _isOffice => widget.categorySlug == "office";
+  bool get _isHall =>
+      widget.categorySlug == "meeting-hall" ||
+      widget.categorySlug == "ceremony-hall";
+  bool get _isReservable =>
+      _isApartment || _isVehicle || _isHouse || _isOffice || _isHall;
+  bool get _usesTime => _isVehicle || _isHall;
+  String get _startLabel => _isApartment
+      ? (context.isSwahili ? "Tarehe ya kuingia" : "Check-in")
+      : _isVehicle
+      ? (context.isSwahili ? "Kuchukua" : "Pickup")
+      : _isHouse
+      ? (context.isSwahili ? "Tarehe ya kuhamia" : "Desired move-in")
+      : _isOffice
+      ? (context.isSwahili ? "Tarehe ya kuanza" : "Start date")
+      : (context.isSwahili ? "Tukio linaanza" : "Event starts");
+  String get _endLabel => _isApartment
+      ? (context.isSwahili ? "Tarehe ya kutoka" : "Check-out")
+      : _isVehicle
+      ? (context.isSwahili ? "Kurudisha" : "Return")
+      : _isHouse
+      ? (context.isSwahili ? "Shikilia hadi" : "Hold until")
+      : _isOffice
+      ? (context.isSwahili ? "Muda unaishia" : "Requested until")
+      : (context.isSwahili ? "Tukio linaisha" : "Event ends");
 
   @override
   void initState() {
@@ -4344,14 +4408,29 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
     if (picked == null || !mounted) {
       return;
     }
+    TimeOfDay? pickedTime;
+    if (_usesTime) {
+      pickedTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(initialDate),
+      );
+      if (pickedTime == null || !mounted) return;
+    }
+    final DateTime selected = DateTime.utc(
+      picked.year,
+      picked.month,
+      picked.day,
+      pickedTime?.hour ?? 0,
+      pickedTime?.minute ?? 0,
+    );
     setState(() {
       if (checkIn) {
-        _checkInDate = DateTime.utc(picked.year, picked.month, picked.day);
+        _checkInDate = selected;
         if (_checkOutDate != null && !_checkOutDate!.isAfter(_checkInDate!)) {
           _checkOutDate = null;
         }
       } else {
-        _checkOutDate = DateTime.utc(picked.year, picked.month, picked.day);
+        _checkOutDate = selected;
       }
     });
   }
@@ -4360,14 +4439,21 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
     if (value == null) {
       return "-";
     }
-    return MaterialLocalizations.of(context).formatMediumDate(value.toLocal());
+    final MaterialLocalizations localizations = MaterialLocalizations.of(
+      context,
+    );
+    final DateTime local = value.toLocal();
+    final String date = localizations.formatMediumDate(local);
+    return _usesTime
+        ? "$date ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(local))}"
+        : date;
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    if (_isApartment &&
+    if (_isReservable &&
         (_checkInDate == null ||
             _checkOutDate == null ||
             !_checkOutDate!.isAfter(_checkInDate!))) {
@@ -4378,7 +4464,7 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
     }
     setState(() => _submitting = true);
     try {
-      if (_isApartment) {
+      if (_isReservable) {
         final Map<String, dynamic> availability = await widget.repository
             .checkListingAvailability(
               listingId: widget.listingId,
@@ -4388,7 +4474,7 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
         if (availability["available"] != true) {
           throw StateError(
             availability["reason"] as String? ??
-                "The apartment is not available for the selected dates.",
+                "This listing is not available for the selected period.",
           );
         }
       }
@@ -4411,6 +4497,9 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
           builder: (_) => RequestSuccessScreen(
             reference: reference,
             publicRepository: widget.repository,
+            instantReservation:
+                _isReservable &&
+                Supabase.instance.client.auth.currentUser != null,
           ),
         ),
       );
@@ -4433,11 +4522,7 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
     final bool isApartment = _isApartment;
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          isApartment
-              ? context.tr("apartment.bookingTitle")
-              : context.tr("request.form"),
-        ),
+        title: Text("Booking"),
         actions: const <Widget>[_LanguageSwitcherButton()],
       ),
       body: ListView(
@@ -4450,14 +4535,14 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   const KodimaliStatusBadge(
-                    label: "Secure request",
+                    label: "Booking",
                     tone: KodimaliStatusTone.active,
                   ),
                   const SizedBox(height: KodimaliSpacing.sm),
                   Text(
-                    isApartment
-                        ? context.tr("apartment.bookingBody")
-                        : "Leave your name plus phone or email. The agent will reply with availability and the next step.",
+                    context.isSwahili
+                        ? "Chagua muda unaohitaji. Ukiwa umeingia, muda ulio wazi utahifadhiwa kwa dakika 30 ili ulipe. Viewing si lazima na huhitaji kusubiri agent."
+                        : "Choose the required period. When signed in, an open period is held for 30 minutes so you can pay. Viewing is optional and no agent wait is required.",
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   if (widget.listingTitle.trim().isNotEmpty) ...<Widget>[
@@ -4494,10 +4579,10 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                   decoration: InputDecoration(
                     labelText: isApartment
                         ? context.tr("request.email")
-                        : "${context.tr("request.email")} (optional)",
-                    helperText: isApartment
-                        ? "Used for agent follow-up and booking updates."
-                        : "Optional for most categories, but useful for travelers and email follow-up.",
+                        : "${context.tr("request.email")} (${context.isSwahili ? "si lazima" : "optional"})",
+                    helperText: context.isSwahili
+                        ? "Weka email ili upokee taarifa za booking kwa maandishi."
+                        : "Add an email to receive written booking updates.",
                   ),
                   validator: (String? value) {
                     final String text = value?.trim() ?? "";
@@ -4517,9 +4602,9 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                   keyboardType: TextInputType.phone,
                   decoration: InputDecoration(
                     labelText: context.tr("request.phoneOptional"),
-                    helperText: isApartment
-                        ? "Optional, but useful for WhatsApp or local follow-up."
-                        : "Optional. Add phone, email, or both so the agent can reach you.",
+                    helperText: context.isSwahili
+                        ? "Weka simu, email, au zote mbili ili upokee majibu ya booking."
+                        : "Add a phone, email, or both to receive a booking response.",
                   ),
                   validator: (String? value) {
                     final String text = value?.trim() ?? "";
@@ -4529,7 +4614,7 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                     return null;
                   },
                 ),
-                if (isApartment) ...<Widget>[
+                if (_isReservable) ...<Widget>[
                   const SizedBox(height: KodimaliSpacing.md),
                   Row(
                     children: <Widget>[
@@ -4540,7 +4625,7 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                               : () => _pickDate(checkIn: true),
                           icon: const Icon(Icons.calendar_month_outlined),
                           label: Text(
-                            "${context.tr('request.checkIn')}: ${_formatSelectedDate(_checkInDate)}",
+                            "$_startLabel: ${_formatSelectedDate(_checkInDate)}",
                           ),
                         ),
                       ),
@@ -4556,21 +4641,23 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                               : () => _pickDate(checkIn: false),
                           icon: const Icon(Icons.event_available_outlined),
                           label: Text(
-                            "${context.tr('request.checkOut')}: ${_formatSelectedDate(_checkOutDate)}",
+                            "$_endLabel: ${_formatSelectedDate(_checkOutDate)}",
                           ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: KodimaliSpacing.md),
-                  TextFormField(
-                    controller: _guestCountController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: context.tr("request.guestCount"),
+                  if (isApartment)
+                    TextFormField(
+                      controller: _guestCountController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: context.tr("request.guestCount"),
+                      ),
                     ),
-                  ),
-                  if (widget.availableServices.isNotEmpty) ...<Widget>[
+                  if (isApartment &&
+                      widget.availableServices.isNotEmpty) ...<Widget>[
                     const SizedBox(height: KodimaliSpacing.md),
                     Align(
                       alignment: Alignment.centerLeft,
@@ -4623,11 +4710,7 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                   child: FilledButton(
                     style: KodimaliButtonStyles.success(context),
                     onPressed: _submitting ? null : _submit,
-                    child: Text(
-                      _submitting
-                          ? context.tr("request.submitting")
-                          : context.tr("request.submit"),
-                    ),
+                    child: Text(_submitting ? "Inatuma booking..." : "Book"),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -4668,9 +4751,7 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                         ),
                         const SizedBox(height: KodimaliSpacing.xs),
                         Text(
-                          isApartment
-                              ? "Baada ya kutuma booking request, wakala atathibitisha tarehe, huduma, bei, na hatua inayofuata kwa email au simu."
-                              : "Baada ya kutuma ombi, wakala atakuthibitishia bei, upatikanaji, na hatua ya kuona mali hiyo.",
+                          "Booking ikitumwa, mmiliki au msimamizi atathibitisha muda, bei na upatikanaji kabla ya malipo.",
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ],
@@ -4691,10 +4772,12 @@ class RequestSuccessScreen extends StatelessWidget {
     super.key,
     required this.reference,
     required this.publicRepository,
+    this.instantReservation = false,
   });
 
   final String reference;
   final CustomerPublicRepository publicRepository;
+  final bool instantReservation;
 
   @override
   Widget build(BuildContext context) {
@@ -4710,18 +4793,26 @@ class RequestSuccessScreen extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     const KodimaliStatusBadge(
-                      label: "Request sent",
+                      label: "Booking",
                       tone: KodimaliStatusTone.active,
                     ),
                     const SizedBox(height: KodimaliSpacing.sm),
                     Text(
-                      context.tr("request.successTitle"),
+                      instantReservation
+                          ? (context.isSwahili
+                                ? "Muda wako umehifadhiwa kwa dakika 30"
+                                : "Your period is held for 30 minutes")
+                          : context.tr("request.successTitle"),
                       style: Theme.of(context).textTheme.headlineSmall,
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: KodimaliSpacing.sm),
                     Text(
-                      context.tr("request.successBody"),
+                      instantReservation
+                          ? (context.isSwahili
+                                ? "Endelea kwenye bookings zako ukamilishe malipo na kuthibitisha reservation."
+                                : "Open your bookings to complete payment and confirm the reservation.")
+                          : context.tr("request.successBody"),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: KodimaliSpacing.sm),
@@ -4775,7 +4866,13 @@ class RequestSuccessScreen extends StatelessWidget {
                             ),
                           ),
                           icon: const Icon(Icons.timeline_rounded),
-                          label: Text(context.tr('requests.track')),
+                          label: Text(
+                            instantReservation
+                                ? (context.isSwahili
+                                      ? 'Endelea kulipa'
+                                      : 'Continue to payment')
+                                : context.tr('requests.track'),
+                          ),
                         ),
                       ),
                       const SizedBox(height: KodimaliSpacing.sm),

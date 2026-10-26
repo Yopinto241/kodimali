@@ -1,111 +1,98 @@
-# KODIMALI Events — jinsi mfumo unavyofanya kazi
+# KODIMALI Sherehe na Matukio — hali ya sasa
 
-Hati hii inaeleza hali ya sasa ya sehemu ya **Sherehe na Matukio** kwenye website, mobile customer app, Manage app na Supabase.
+## Dhamira
 
-## Njia kuu za mteja
+Events ni module maalumu ndani ya marketplace ileile ya KODIMALI. Inafuata category discovery, stored location preferences, hierarchy filters, sorting na navigation zinazotumiwa na Nyumba, Magari, Ofisi na Kumbi. Mteja anaweza kuvinjari bila kuingia, kuona vifaa na wataalamu halisi, kuomba huduma moja au kukusanya huduma kadhaa kupitia **Panga Tukio**.
 
-Mteja ana njia tatu:
+Hakuna AI Advisor, chatbot au dodoso refu kwenye customer website na Customer Mobile App. Tables na records za Advisor zimeachwa kwenye database kwa compatibility na historia; hazionekani kwa mteja.
 
-1. **Kukodisha kifaa kimoja** — anatafuta kifaa, anaweka tarehe, eneo na idadi, kisha anatuma ombi kwa mmiliki.
-2. **Kuhifadhi mtaalamu mmoja** — anatafuta DJ, mpiga picha, mpambaji au mtoa huduma mwingine na kutuma ombi la muda maalumu.
-3. **Kupanga tukio kamili** — anachagua aina ya tukio, eneo, tarehe, vifaa na wataalamu; mfumo unatengeneza mpango mmoja na ombi la quotation.
+## Safari ya mteja
 
-`Event Advisor` (kwa Kiswahili, **Mshauri wa Tukio**) ni njia ya kusaidia mteja ambaye hajui aanzie wapi. Anachagua mfumo wa tukio na kutoa maelezo muhimu. Mfumo huunda mapendekezo yanayoelezeka; haubuni bei wala kudai kuwa mtoa huduma yupo bila ukaguzi.
+### 1. Kuingia Events
 
-## Eneo linavyofanya kazi
+Website `/events` na Customer Mobile huonyesha hero fupi, search/filter za marketplace, category tiles na listings mapema. Login haihitajiki kwa browsing na location si sharti.
 
-Eneo haliandikwi kama maandishi huru. UI hutumia mpangilio huu:
+### 2. Kuchagua eneo
+
+Hierarchy iliyopo hutumika:
 
 `Mkoa → Wilaya → Kata → Eneo`
 
-- Mkoa na wilaya zinahitajika wakati wa kuunda mpango.
-- Kata na eneo dogo ni za hiari ikiwa taarifa hizo hazipo au mteja hataki kwenda chini zaidi.
-- Chaguo la mwisho lililo sahihi huhifadhiwa kama `location_id` kwenye `event_plans`.
-- Website husoma eneo lililohifadhiwa kwenye kifaa na kulijaza kwenye fomu za Events.
-- Utafutaji wa vifaa hutumia `location_is_within`: ukichagua mkoa, vifaa vya wilaya/kata/maeneo ndani ya mkoa huo vinaweza kuonekana; ukichagua kata, matokeo yanakuwa finyu zaidi.
-- Mtaalamu aliyeweka eneo kubwa la huduma, kwa mfano wilaya, anaweza kupatikana na mteja aliyechagua kata ndani ya wilaya hiyo.
+Mteja halazimishwi kuchagua location wala kufika mwisho wa hierarchy. Anaweza kuvinjari kwa default, au kuishia mkoa, wilaya, kata au eneo. Chaguo la mwisho huwa `location_id`. Website hurejesha shared browser preference; mobile hupokea shared app preference kutoka navigation ya kawaida. Events haina location onboarding yake tofauti.
 
-## Catalog ya vifaa na wataalamu
+`location_is_within` huwezesha region/district kurudisha listings za descendants. Professional anayehudumia parent area anaweza kupatikana ndani ya child area yake.
 
-Component ya website ni `EventsPublicCatalog`.
+### 3. Categories
 
-Vichujio ni:
+Website husoma `event_equipment_categories`; haitengenezi duplicate taxonomy. Category tiles huchuja catalog mara moja huku location ikibaki. Tile ya Wataalamu hubadilisha catalog kwenda professional services. Mobile hutengeneza category chips kutoka category IDs zinazorudishwa na public equipment search.
 
-- jina au maelezo;
-- aina ya kifaa au aina ya mtaalamu;
-- mkoa, wilaya, kata na eneo;
-- muda wa kuanza na kumaliza;
-- bei ya chini na ya juu;
-- mpangilio wa matokeo.
+### 4. Public catalog
 
-Vifaa hutafutwa kupitia RPC `search_public_event_equipment`. RPC hukagua publication status, verification, eneo, bei na stock iliyoshikiliwa au kuthibitishwa kwenye muda uliochaguliwa.
+Equipment hutumia `search_public_event_equipment`. Inaonyesha published + verified records pekee na huheshimu location, price, date range na allocations.
 
-Wataalamu hutafutwa kupitia `search_public_event_services`. RPC hukagua verification, maeneo wanayohudumia, ratiba walizozuia na booking nyingine zilizoshikiliwa au kuthibitishwa.
+Professional services hutumia `search_public_event_services`. Inaonyesha offerings za providers waliothibitishwa na huheshimu service areas, unavailability na confirmed/held bookings.
 
-## Mpango kamili wa tukio
+Bila tarehe, listings muhimu zinaonekana lakini UI haidai kuwa availability ya muda fulani imehakikishwa.
 
-Fomu ya “Mpango wa tukio” hufanya yafuatayo:
+### 5. Booking moja
 
-1. Inahakikisha mteja ameingia.
-2. Inaita `create_event_plan` na kuhifadhi aina, jina, muda, `location_id`, wageni na bajeti.
-3. Kila kifaa kilichochaguliwa kinaongezwa kwa `add_event_plan_item` pamoja na idadi.
-4. Kila mtaalamu aliyechaguliwa huunganishwa na offering yake na kuongezwa kama plan item.
-5. `request_event_quote` hubadilisha mpango kutoka draft kwenda `quote_requested`.
-6. Notifications hutumwa kwa watoa huduma husika kupitia trigger ya plan item.
+Equipment/service detail inaweza kufunguliwa bila login. Wakati wa kutuma request, authentication inahitajika. `create_individual_event_booking` huunda event plan nyepesi na plan item moja, kisha provider huendelea na approval, quotation na agreement zilizopo.
 
-Mpango haukusanyi malipo moja kwa moja kwa sasa. Availability, quotation na makubaliano lazima yakamilike kwanza.
+Equipment huomba period na quantity. Professional huomba period/duration. Server bado hufanya validation; UI rahisi haiondoi overlap na inventory checks.
 
-## Mshauri wa Tukio
+### 6. Panga Tukio
 
-Mshauri hutumia `event_templates` zilizoidhinishwa. Baada ya mteja kujaza tarehe, wageni, eneo, bajeti, venue status na mahitaji maalumu:
+Panga Tukio ni option tofauti kwenye route `/events/plan`; hailazimishi wala kuchelewesha mtu anayevinjari catalog. Huomba taarifa za lazima tu:
 
-1. `create_event_plan` huunda mpango unaomilikiwa na mteja.
-2. `run_event_advisor` hutumia template kutengeneza checklist na mapendekezo.
-3. Mapendekezo huonyesha sababu na chanzo cha estimate.
-4. Mpango unabaki kwenye akaunti ya mteja kwa hatua zinazofuata.
+- aina ya tukio;
+- jina la hiari;
+- tarehe/muda;
+- location;
+- vifaa, quantities na wataalamu halisi.
 
-## Provider, owner na coordinator
+Guest count, budget, venue status, accessibility questionnaire na weather questionnaire hazipo kwenye customer flow. Kwa compatibility ya schema, plan hutumwa na internal attendance placeholder ya `1`; hii si claim ya idadi ya wageni na haionyeshwi kwa mteja.
 
-- Mmiliki wa vifaa huona maombi yanayohusu vifaa vyake kwenye Manage.
-- Mtoa huduma huona maombi yanayohusu offering yake.
-- Provider anaweza kukubali au kukataa ombi.
-- Kukubali kifaa hutumia allocation yenye time range, quantity na hold expiry.
-- Kukubali huduma hutumia service booking yenye muda na travel buffer.
-- Database hutumia transaction locks na overlap checks kuzuia double booking.
-- Coordinator/admin mwenye ruhusa za Events anaweza kusimamia mpango, quotation na escalation.
+Mteja huchagua vifaa na professional offerings halisi zilizochapishwa kwenye portal ya Events, hubadilisha quantities, kisha anatuma. `create_event_plan` huunda draft. `add_event_plan_item` huongeza selected equipment/offerings. `request_event_quote` hutuma ombi moja la quotation kwa mpango wenye providers wengi. Existing notifications, provider confirmation, quote revisions na agreements zimehifadhiwa.
 
-## Quotation na makubaliano
+## Usalama wa booking
 
-Quotation ni revisioned: quotation mpya husupersede draft/sent ya zamani. Kila quotation ina itemized lines, subtotal, additional costs na expiry. Mteja anaweza kukubali quotation halali tu baada ya providers wanaohitajika kuthibitisha availability. Baada ya hapo mpango huenda `agreement_pending`; makubaliano yakikubaliwa booking inaweza kuthibitishwa.
+- Public catalog huonyesha verified/published data tu.
+- Equipment allocation hutumia transaction/advisory locks, quantity na overlapping ranges.
+- Service booking hukagua provider unavailability na overlapping bookings.
+- Availability hukaguliwa tena provider anapothibitisha.
+- Quotation ina revisions na expiry.
+- Agreement flow imehifadhiwa.
+- Baada ya quotation kukubaliwa na agreement kuthibitishwa, plan huingia `payment_pending`. Mteja hulipa deposit iliyokokotolewa na server kupitia SonicPesa; inventory na huduma huthibitishwa tu baada ya provider kuthibitisha malipo kupitia webhook au status check.
+- `event_payments_enabled` ni kill switch ya dharura. Kiasi cha deposit hutoka `event_payment_deposit_percent` (default 30%); client haiwezi kutuma au kubadilisha kiasi kinachotozwa.
+- Balance ya Events hutumia order tofauti na deposit, huku `event_payment_obligations` ikihifadhi audit trail ya deposit/balance.
 
-## UI ya website
+## Manage App na Supabase
 
-Mpangilio wa ukurasa sasa ni:
+Owner huongeza kifaa kwenye Events workspace na huchagua eneo kupitia hierarchy ileile ya `locations`. App huhifadhi `location_id` pamoja na public label kwenye `event_equipment_items`, hukandamiza picha kuwa JPEG, kisha huiweka kwenye private `listing-media` path ya account hiyo. Record huanza kama pending/draft; haiwezi kuonekana public mpaka admin aithibitishe na kuichapisha.
 
-1. Hero fupi yenye kitendo kikuu.
-2. Navigation ya sehemu, inayoweza kuscroll kwenye simu.
-3. Catalog yenye tabs mbili na filters zilizogawanywa kwa majina yanayoonekana.
-4. Mshauri wa Tukio kwenye panel yenye intro tofauti na fomu.
-5. Aina za matukio.
-6. Muhtasari wa vifaa na wataalamu waliothibitishwa.
-7. Fomu ya mpango kamili yenye groups tofauti za eneo, muda, vifaa na wataalamu.
+Mtaalamu hujisajili kwenye `event_service_profiles`, huchagua eneo la kwanza kwenye `event_service_areas`, na anaweza kuongeza maeneo mengine baadaye. Portfolio image hutumia pipeline ileile ya compression/storage. Baada ya profile kuthibitishwa, offerings mpya bado husubiri admin kuzichapisha kwenye coordinator workspace.
 
-Desktop hutumia columns zenye upana unaolingana. Simu hubadilika kuwa column moja; navigation hubaki horizontal ili buttons zisibanane.
-
-## Mambo ambayo bado hayajawashwa
-
-- Malipo ya moja kwa moja ya Events hayajawashwa.
-- Result count inaweza kuwa sifuri mpaka owners/providers wachapishe vifaa na offerings zilizothibitishwa katika eneo husika.
-- GPS ya rental discovery ipo, lakini Events form kwa sasa hutumia hierarchy iliyohifadhiwa au uchaguzi wa mteja ili kuepuka kuchagua eneo lisilo sahihi kimya kimya.
+Coordinator/admin workspace ina hatua tofauti za kuthibitisha equipment, kuthibitisha professional profile na kuchapisha service offering. Public RPCs husoma verified + published records tu; kwa hiyo website na Customer Mobile App hupokea catalog ileile moja kwa moja kutoka Supabase bila duplicate data.
 
 ## Files muhimu
 
 - `apps/web/src/components/events-marketplace.tsx`
 - `apps/web/src/components/events-public-catalog.tsx`
-- `apps/web/src/components/event-advisor.tsx`
 - `apps/web/src/components/event-location-fields.tsx`
 - `apps/customer_mobile/lib/features/events/events_marketplace_screen.dart`
-- `apps/manage_mobile/lib/features/events/events_workspace_screen.dart`
-- `supabase/migrations/20261024160000_kodimali_events_foundation.sql`
-- `supabase/migrations/20261024170000_event_public_catalog_individual_bookings.sql`
+- `apps/customer_mobile/lib/features/events/event_location_picker.dart`
+- `apps/customer_mobile/lib/core/data/customer_public_repository.dart`
+- `apps/manage_mobile/lib/features/events/presentation/events_provider_workspace_screen.dart`
+- `apps/manage_mobile/lib/features/events/presentation/event_coordinator_screen.dart`
 - `supabase/migrations/20261025150000_event_location_hierarchy_search.sql`
+- `supabase/migrations/20261025213000_unified_sonicpesa_checkout.sql`
+- `supabase/functions/create-platform-payment/index.ts`
+- `supabase/functions/check-platform-payment/index.ts`
+- `supabase/functions/sonicpesa-payment-webhook/index.ts`
+
+## Limitations
+
+- Package selection ya website bado hutumia published selection list iliyo kwenye page; cart ya cross-device haipo.
+- Draft recovery hutegemea saved event plans baada ya plan kuundwa; local anonymous cart haijahifadhiwa.
+- Delivery fee/radius hutegemea provider configuration na quotation; UI haibuni gharama.
+- Live confirmation bado hutegemea SonicPesa kutuma webhook kwenye deployed endpoint; polling ya app/web ni fallback salama.

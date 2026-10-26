@@ -11,23 +11,43 @@ class CustomerAccountRepository {
 
   Future<List<CustomerJson>> fetchMyRentalAgreements() async {
     _requireUser();
-    final dynamic rows = await _client.from('rental_agreements').select('*, rental_assets(display_name)').order('created_at', ascending: false);
+    final dynamic rows = await _client
+        .from('rental_agreements')
+        .select('*, rental_assets(display_name)')
+        .order('created_at', ascending: false);
     return (rows as List).cast<CustomerJson>();
   }
 
   Future<void> acceptTenantInvitation(String token) async {
     _requireUser();
-    await _client.rpc('accept_tenant_invitation', params: <String,dynamic>{'p_token': token.trim()});
+    await _client.rpc(
+      'accept_tenant_invitation',
+      params: <String, dynamic>{'p_token': token.trim()},
+    );
   }
 
   Future<void> acceptRentalAgreement(String agreementId) async {
     _requireUser();
-    await _client.rpc('accept_rental_agreement', params: <String,dynamic>{'p_agreement_id': agreementId});
+    await _client.rpc(
+      'accept_rental_agreement',
+      params: <String, dynamic>{'p_agreement_id': agreementId},
+    );
   }
 
-  Future<void> submitMoveOutNotice({required String agreementId, required DateTime date, String? reason}) async {
+  Future<void> submitMoveOutNotice({
+    required String agreementId,
+    required DateTime date,
+    String? reason,
+  }) async {
     _requireUser();
-    await _client.rpc('submit_move_out_notice', params: <String,dynamic>{'p_agreement_id': agreementId,'p_intended_move_out_on': date.toIso8601String().substring(0,10),'p_reason': reason?.trim()});
+    await _client.rpc(
+      'submit_move_out_notice',
+      params: <String, dynamic>{
+        'p_agreement_id': agreementId,
+        'p_intended_move_out_on': date.toIso8601String().substring(0, 10),
+        'p_reason': reason?.trim(),
+      },
+    );
   }
 
   Future<CustomerJson> submitRentalInformation({
@@ -361,10 +381,52 @@ class CustomerAccountRepository {
     final List<CustomerJson> requests = await fetchMyBookingRequests();
     for (final CustomerJson request in requests) {
       if (request['id']?.toString() == bookingRequestId) {
-        return request;
+        final CustomerJson? paymentState = await _client
+            .from('booking_requests')
+            .select(
+              'booking_kind,owner_approval_status,payment_expires_at,booking_payment_transactions(status,amount_tzs)',
+            )
+            .eq('id', bookingRequestId)
+            .maybeSingle();
+        return <String, dynamic>{...request, ...?paymentState};
       }
     }
     return null;
+  }
+
+  Future<CustomerJson> createBookingPayment({
+    required String bookingRequestId,
+    required String phoneNumber,
+  }) async {
+    final response = await _client.functions.invoke(
+      'create-platform-payment',
+      body: <String, dynamic>{
+        'purpose': 'booking_reservation',
+        'resource_id': bookingRequestId,
+        'phone_number': phoneNumber.trim(),
+      },
+    );
+    if (response.status >= 400 || response.data is! Map) {
+      throw StateError(
+        (response.data as Map?)?['error']?.toString() ??
+            'Could not start payment.',
+      );
+    }
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<CustomerJson> checkBookingPayment(String paymentId) async {
+    final response = await _client.functions.invoke(
+      'check-platform-payment',
+      body: <String, dynamic>{'payment_id': paymentId},
+    );
+    if (response.status >= 400 || response.data is! Map) {
+      throw StateError(
+        (response.data as Map?)?['error']?.toString() ??
+            'Could not check payment.',
+      );
+    }
+    return Map<String, dynamic>.from(response.data as Map);
   }
 
   Future<List<CustomerJson>> fetchBookingHistory(
