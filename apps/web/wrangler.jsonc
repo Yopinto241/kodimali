@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "kodimali-web",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-10-26",
+  "compatibility_flags": ["nodejs_compat"],
+  "upload_source_maps": true,
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "routes": [
+    { "pattern": "kodimali.com", "custom_domain": true },
+    { "pattern": "www.kodimali.com", "custom_domain": true }
+  ],
+  "vars": {
+    "NEXT_PUBLIC_SITE_URL": "https://kodimali.com"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
