@@ -3,7 +3,6 @@ import Link from "next/link";
 import { BackNavButton } from "@/components/back-nav-button";
 import { GoogleAdSlot } from "@/components/google-ad-slot";
 import { LocationBanner } from "@/components/location-banner";
-import { PageHero } from "@/components/page-hero";
 import { PageShell } from "@/components/page-shell";
 import { PromotionStrip } from "@/components/promotion-strip";
 import { PublicListingGrid } from "@/components/public-listing-grid";
@@ -91,34 +90,39 @@ export default async function CategoryPage({
 
   return (
     <PageShell className="pb-20">
-      <PageHero
-        eyebrow="Category"
-        title={category?.name ?? slug}
-        description={
-          category?.description ??
-          "Angalia listings zilizo kwenye kundi hili na fungua detail ya inayokufaa."
-        }
-        actions={
-          <>
-            <BackNavButton fallbackHref="/listings" label="Back" />
-            <Link href="/listings" className="btn btn-outline">
-              Rudi kwenye listings zote
-            </Link>
-          </>
-        }
-      />
+      <section className="category-browser-head">
+        <div className="flex items-center gap-3">
+          <BackNavButton fallbackHref="/" label="Nyuma" />
+          <div className="min-w-0 flex-1">
+            <h1>{category?.name ?? slug}</h1>
+            <p>{listings.length} zinapatikana kwenye ukurasa huu</p>
+          </div>
+          <Link href={`/listings?category=${encodeURIComponent(slug)}`} className="category-search-icon" aria-label="Tafuta">⌕</Link>
+        </div>
+        <form action="/listings" className="category-inline-search">
+          <span aria-hidden="true">⌕</span>
+          <input name="q" placeholder={`Tafuta ${category?.name ?? slug}`} aria-label={`Tafuta ${category?.name ?? slug}`} />
+          <input type="hidden" name="category" value={slug} />
+          <button>Tafuta</button>
+        </form>
+        <div className="category-browser-controls">
+          <details>
+            <summary>⌖ {regionId || districtId || wardId || areaId ? "Eneo limechaguliwa" : "Chagua eneo"}</summary>
+            <div className="category-location-panel">
+              <LocationBanner
+                visibleByDefault
+                persistent
+                regions={regions.map((item: { id: string; name: string }) => ({ id: item.id, name: item.name }))}
+              />
+            </div>
+          </details>
+          <Link href={`/listings?category=${encodeURIComponent(slug)}`} className="category-control-chip">Aina</Link>
+          <Link href={`/listings?category=${encodeURIComponent(slug)}#filters`} className="category-control-chip">Bei</Link>
+          <Link href={`/listings?category=${encodeURIComponent(slug)}#filters`} className="category-control-chip">☷ Chuja</Link>
+        </div>
+      </section>
 
       <PromotionStrip promotions={promotions as never} />
-      <section className="mb-8">
-        <LocationBanner
-          visibleByDefault
-          persistent
-          regions={regions.map((item: { id: string; name: string }) => ({
-            id: item.id,
-            name: item.name,
-          }))}
-        />
-      </section>
       <PublicListingGrid
         listings={listings as Array<{ listing_id: string }>}
         adSlot="category"

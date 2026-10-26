@@ -644,6 +644,103 @@ p {
     box-shadow 220ms ease,
     border-color 220ms ease;
 }
+.category-browser-head {
+  margin-bottom: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: rgba(232, 240, 235, 0.92);
+  padding: 1rem;
+  box-shadow: var(--shadow-soft);
+}
+.category-browser-head h1 {
+  overflow: hidden;
+  color: var(--navy);
+  font-family: var(--font-headline), sans-serif;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  font-weight: 850;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.category-browser-head p {
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+.category-search-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--navy);
+  font-size: 1.3rem;
+}
+.category-inline-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  padding: 0.3rem 0.35rem 0.3rem 0.9rem;
+}
+.category-inline-search input {
+  min-width: 0;
+  flex: 1;
+  background: transparent;
+  padding: 0.55rem 0;
+  font-size: 0.82rem;
+  outline: none;
+}
+.category-inline-search button {
+  border-radius: 999px;
+  background: var(--navy);
+  padding: 0.65rem 1rem;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+.category-browser-controls {
+  display: flex;
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.category-browser-controls > details,
+.category-control-chip {
+  flex: 0 0 auto;
+}
+.category-browser-controls summary,
+.category-control-chip {
+  display: inline-flex;
+  min-height: 38px;
+  cursor: pointer;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card-soft);
+  padding: 0.55rem 0.85rem;
+  color: var(--navy);
+  font-size: 0.72rem;
+  font-weight: 800;
+  list-style: none;
+}
+.category-browser-controls details[open] summary {
+  background: var(--green);
+  color: #fff;
+}
+.category-location-panel {
+  position: absolute;
+  z-index: 30;
+  left: max(1rem, calc((100vw - var(--max-width)) / 2));
+  right: max(1rem, calc((100vw - var(--max-width)) / 2));
+  margin-top: 0.6rem;
+}
 .listing-card:hover {
   transform: translateY(-4px);
   border-color: rgba(215, 138, 85, 0.65);

@@ -2767,7 +2767,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   }
 }
 
-class CategoryListingsScreen extends StatelessWidget {
+class CategoryListingsScreen extends StatefulWidget {
   const CategoryListingsScreen({
     super.key,
     required this.repository,
@@ -2789,37 +2789,54 @@ class CategoryListingsScreen extends StatelessWidget {
   final double? latitude;
   final double? longitude;
 
+  @override
+  State<CategoryListingsScreen> createState() => _CategoryListingsScreenState();
+}
+
+class _CategoryListingsScreenState extends State<CategoryListingsScreen> {
+  late String? _regionId = widget.regionId;
+  late String? _districtId = widget.districtId;
+  late String? _wardId = widget.wardId;
+  late String? _areaId = widget.areaId;
+  late double? _latitude = widget.latitude;
+  late double? _longitude = widget.longitude;
+  late Future<_CategoryListingsData> _future = _load();
+  String _sort = 'recommended';
+  double? _minimumPrice;
+  double? _maximumPrice;
+
   Future<_CategoryListingsData> _load() async {
     final List<dynamic> results = await Future.wait<dynamic>(<Future<dynamic>>[
-      repository.fetchPublicListings(
-        categorySlug: category["slug"] as String?,
+      widget.repository.fetchPublicListings(
+        categorySlug: widget.category["slug"] as String?,
         limit: 30,
-        regionId: regionId,
-        districtId: districtId,
-        wardId: wardId,
-        areaId: areaId,
-        latitude: latitude,
-        longitude: longitude,
-        sessionSeed: category["slug"] as String?,
+        regionId: _regionId,
+        districtId: _districtId,
+        wardId: _wardId,
+        areaId: _areaId,
+        latitude: _latitude,
+        longitude: _longitude,
+        sessionSeed: widget.category["slug"] as String?,
       ),
-      repository.fetchHomeFeed(
+      widget.repository.fetchHomeFeed(
         limit: 10,
-        regionId: regionId,
-        districtId: districtId,
-        wardId: wardId,
-        areaId: areaId,
-        latitude: latitude,
-        longitude: longitude,
-        sessionSeed: "fallback:${category["slug"] as String? ?? "category"}",
+        regionId: _regionId,
+        districtId: _districtId,
+        wardId: _wardId,
+        areaId: _areaId,
+        latitude: _latitude,
+        longitude: _longitude,
+        sessionSeed:
+            "fallback:${widget.category["slug"] as String? ?? "category"}",
       ),
-      repository.fetchPromotions(
+      widget.repository.fetchPromotions(
         surface: "customer_app",
         placement: "category_page",
         limit: 6,
-        regionId: regionId,
-        districtId: districtId,
-        wardId: wardId,
-        areaId: areaId,
+        regionId: _regionId,
+        districtId: _districtId,
+        wardId: _wardId,
+        areaId: _areaId,
       ),
     ]);
     return _CategoryListingsData(
@@ -2830,17 +2847,143 @@ class CategoryListingsScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _chooseLocation() async {
+    final Map<String, String?>? result =
+        await showModalBottomSheet<Map<String, String?>>(
+          context: context,
+          isScrollControlled: true,
+          showDragHandle: true,
+          builder: (_) => LocationSelectorSheet(
+            repository: widget.repository,
+            initialRegionId: _regionId,
+            initialDistrictId: _districtId,
+            initialWardId: _wardId,
+            initialAreaId: _areaId,
+          ),
+        );
+    if (result == null || !mounted) return;
+    setState(() {
+      _regionId = result['regionId'];
+      _districtId = result['districtId'];
+      _wardId = result['wardId'];
+      _areaId = result['areaId'];
+      _latitude = null;
+      _longitude = null;
+      _future = _load();
+    });
+  }
+
+  Future<void> _openFilters() async {
+    final TextEditingController minimum = TextEditingController(
+      text: _minimumPrice?.toStringAsFixed(0) ?? '',
+    );
+    final TextEditingController maximum = TextEditingController(
+      text: _maximumPrice?.toStringAsFixed(0) ?? '',
+    );
+    String nextSort = _sort;
+    final bool? apply = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) => StatefulBuilder(
+        builder: (BuildContext context, StateSetter setSheetState) => SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              0,
+              20,
+              20 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Chuja matokeo',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: nextSort,
+                  decoration: const InputDecoration(labelText: 'Panga kwa'),
+                  items: const <DropdownMenuItem<String>>[
+                    DropdownMenuItem(
+                      value: 'recommended',
+                      child: Text('Mapendekezo'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'price_low',
+                      child: Text('Bei ya chini kwanza'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'price_high',
+                      child: Text('Bei ya juu kwanza'),
+                    ),
+                  ],
+                  onChanged: (String? value) =>
+                      setSheetState(() => nextSort = value ?? 'recommended'),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: TextField(
+                        controller: minimum,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Bei ya chini',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: maximum,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Bei ya juu',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(sheetContext, true),
+                    child: const Text('Tazama matokeo'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (apply == true && mounted) {
+      setState(() {
+        _sort = nextSort;
+        _minimumPrice = double.tryParse(minimum.text.replaceAll(',', ''));
+        _maximumPrice = double.tryParse(maximum.text.replaceAll(',', ''));
+      });
+    }
+    minimum.dispose();
+    maximum.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          category["name"] as String? ?? context.tr("category.titleFallback"),
+          widget.category["name"] as String? ??
+              context.tr("category.titleFallback"),
         ),
         actions: const <Widget>[_LanguageSwitcherButton()],
       ),
       body: FutureBuilder<_CategoryListingsData>(
-        future: _load(),
+        future: _future,
         builder:
             (
               BuildContext context,
@@ -2851,7 +2994,7 @@ class CategoryListingsScreen extends StatelessWidget {
               }
               if (snapshot.hasError) {
                 return _CategoryPageShell(
-                  category: category,
+                  category: widget.category,
                   child: Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
@@ -2870,26 +3013,63 @@ class CategoryListingsScreen extends StatelessWidget {
                     fallbackListings: <Map<String, dynamic>>[],
                     promotions: <Map<String, dynamic>>[],
                   );
-              final List<Map<String, dynamic>> listings = data.listings;
-              final List<Map<String, dynamic>> promotions = data.promotions;
+              final List<Map<String, dynamic>> listings =
+                  data.listings.where((Map<String, dynamic> item) {
+                    final double price =
+                        double.tryParse(
+                          item['price_amount']?.toString() ?? '',
+                        ) ??
+                        0;
+                    if (_minimumPrice != null && price < _minimumPrice!) {
+                      return false;
+                    }
+                    if (_maximumPrice != null && price > _maximumPrice!) {
+                      return false;
+                    }
+                    return true;
+                  }).toList()..sort((
+                    Map<String, dynamic> a,
+                    Map<String, dynamic> b,
+                  ) {
+                    final double left =
+                        double.tryParse(a['price_amount']?.toString() ?? '') ??
+                        0;
+                    final double right =
+                        double.tryParse(b['price_amount']?.toString() ?? '') ??
+                        0;
+                    if (_sort == 'price_low') return left.compareTo(right);
+                    if (_sort == 'price_high') return right.compareTo(left);
+                    return 0;
+                  });
               final List<Map<String, dynamic>> fallbackListings = data
                   .fallbackListings
                   .where(
                     (Map<String, dynamic> item) =>
-                        item["category_slug"] != category["slug"],
+                        item["category_slug"] != widget.category["slug"],
                   )
                   .toList();
 
               return _CategoryPageShell(
-                category: category,
+                category: widget.category,
                 child: ListView(
                   padding: KodimaliSpacing.screenPadding,
                   children: <Widget>[
+                    _CategoryBrowseControls(
+                      hasLocation: _regionId != null || _latitude != null,
+                      resultCount: listings.length,
+                      onLocation: _chooseLocation,
+                      onFilter: _openFilters,
+                    ),
+                    const SizedBox(height: KodimaliSpacing.md),
                     if (listings.isNotEmpty)
-                      ..._buildListingChildren(
-                        listings: listings,
-                        promotions: promotions,
-                        repository: repository,
+                      ...listings.map(
+                        (Map<String, dynamic> listing) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _CategoryListingCard(
+                            listing: listing,
+                            repository: widget.repository,
+                          ),
+                        ),
                       )
                     else ...<Widget>[
                       Container(
@@ -2927,7 +3107,7 @@ class CategoryListingsScreen extends StatelessWidget {
                             padding: const EdgeInsets.only(bottom: 12),
                             child: PublicListingCard(
                               listing: listing,
-                              repository: repository,
+                              repository: widget.repository,
                             ),
                           ),
                         ),
@@ -2960,52 +3140,215 @@ class _CategoryPageShell extends StatelessWidget {
             0,
           ),
           width: double.infinity,
-          padding: const EdgeInsets.all(KodimaliSpacing.lg),
+          padding: const EdgeInsets.all(KodimaliSpacing.md),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: <Color>[KodimaliColors.navy, KodimaliColors.blueSurface],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(KodimaliRadii.card),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
             ),
-            borderRadius: BorderRadius.circular(KodimaliRadii.hero),
             boxShadow: KodimaliShadows.soft(KodimaliColors.navy),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              const KodimaliStatusBadge(
-                label: "Category focus",
-                tone: KodimaliStatusTone.active,
-              ),
-              const SizedBox(height: KodimaliSpacing.sm),
-              Text(
-                context.tr("category.browseTitle"),
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(color: Colors.white),
-              ),
-              const SizedBox(height: KodimaliSpacing.sm),
               Text(
                 category["name"] as String? ??
                     context.tr("category.titleFallback"),
-                style: Theme.of(
-                  context,
-                ).textTheme.headlineSmall?.copyWith(color: Colors.white),
+                style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: KodimaliSpacing.xs),
               Text(
                 (category["description"] as String?)?.trim().isNotEmpty == true
                     ? category["description"] as String
                     : context.tr("category.browseBody"),
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.92),
-                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
           ),
         ),
         Expanded(child: child),
       ],
+    );
+  }
+}
+
+class _CategoryBrowseControls extends StatelessWidget {
+  const _CategoryBrowseControls({
+    required this.hasLocation,
+    required this.resultCount,
+    required this.onLocation,
+    required this.onFilter,
+  });
+
+  final bool hasLocation;
+  final int resultCount;
+  final VoidCallback onLocation;
+  final VoidCallback onFilter;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: onLocation,
+                icon: const Icon(Icons.location_on_outlined, size: 18),
+                label: Text(hasLocation ? 'Eneo limechaguliwa' : 'Chagua eneo'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: onFilter,
+              icon: const Icon(Icons.tune_rounded, size: 18),
+              label: const Text('Chuja'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: <Widget>[
+            Text(
+              'Matokeo $resultCount',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: onFilter,
+              icon: const Icon(Icons.swap_vert_rounded, size: 18),
+              label: const Text('Panga kwa'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _CategoryListingCard extends StatelessWidget {
+  const _CategoryListingCard({required this.listing, required this.repository});
+
+  final Map<String, dynamic> listing;
+  final CustomerPublicRepository repository;
+
+  @override
+  Widget build(BuildContext context) {
+    final String id = listing['listing_id']?.toString() ?? '';
+    final String title = listing['title']?.toString() ?? '-';
+    final String? image = listing['cover_url']?.toString();
+    final String location = listing['public_location_label']?.toString() ?? '-';
+    final String period = listing['price_period']?.toString() ?? '';
+    final num? price = num.tryParse(listing['price_amount']?.toString() ?? '');
+    final bool verified =
+        listing['agent_verification_status']?.toString() == 'approved';
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () =>
+            _openListingDetails(context, repository: repository, listingId: id),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  if (image == null)
+                    Container(
+                      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                      child: const Icon(Icons.image_outlined, size: 46),
+                    )
+                  else
+                    _NetworkMediaImage(
+                      imageUrl: image,
+                      cacheKey:
+                          listing['cover_storage_path']?.toString() ?? image,
+                      fit: BoxFit.cover,
+                    ),
+                  if (verified)
+                    const Positioned(
+                      left: 10,
+                      top: 10,
+                      child: KodimaliStatusBadge(
+                        label: 'Imethibitishwa',
+                        tone: KodimaliStatusTone.active,
+                      ),
+                    ),
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: AnimatedBuilder(
+                      animation: CustomerActivityStore.instance,
+                      builder: (BuildContext context, _) {
+                        final bool saved = CustomerActivityStore.instance
+                            .isSaved(id);
+                        return Material(
+                          color: Colors.white.withValues(alpha: 0.94),
+                          shape: const CircleBorder(),
+                          child: IconButton(
+                            onPressed: () => CustomerActivityStore.instance
+                                .toggleSaved(listing),
+                            icon: Icon(
+                              saved
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              color: saved ? Colors.red : KodimaliColors.navy,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'TZS ${price?.toStringAsFixed(0) ?? '-'} / $period',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: KodimaliColors.greenStrong,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Row(
+                    children: <Widget>[
+                      const Icon(Icons.location_on_outlined, size: 16),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          location,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
