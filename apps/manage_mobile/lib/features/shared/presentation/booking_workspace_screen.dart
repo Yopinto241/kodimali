@@ -403,16 +403,19 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
       "rejected",
       "no_response",
     }.contains(currentStatus);
+    final bool instantHold = currentStatus == "reserved" && !paid;
     return ManagePanel(
       title: "Respond and move request",
       subtitle:
-          "Accepting starts availability checks. Every stage change is retained in booking history.",
+          "Verified availability is reserved automatically. Every stage change is retained in booking history.",
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
             paid
                 ? "Payment confirmed. The booking is secured and can continue to completion."
+                : instantHold
+                ? "The period is temporarily held for this customer. No manual acceptance is needed; payment confirmation secures it."
                 : ownerApproval == "pending"
                 ? "Waiting for the verified owner or manager to approve before payment."
                 : _booking["payment_ready_at"] != null
@@ -428,7 +431,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
             runSpacing: 10,
             children: <Widget>[
               FilledButton.icon(
-                onPressed: _busy || terminal
+                onPressed: _busy || terminal || instantHold
                     ? null
                     : () => _updateStatus(BookingStatus.checkingAvailability),
                 icon: const Icon(Icons.check_circle_outline),

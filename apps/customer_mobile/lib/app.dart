@@ -4751,7 +4751,9 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                         ),
                         const SizedBox(height: KodimaliSpacing.xs),
                         Text(
-                          "Booking ikitumwa, mmiliki au msimamizi atathibitisha muda, bei na upatikanaji kabla ya malipo.",
+                          context.isSwahili
+                              ? "Ukiwa umeingia, mfumo hukagua muda papo hapo na kuushikilia kwa dakika 30 ukamilishe malipo. Booking inathibitishwa baada ya malipo; viewing ni hiari."
+                              : "When signed in, the system checks the period immediately and holds it for 30 minutes while you pay. The booking is confirmed after payment; viewing is optional.",
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ],

@@ -15,6 +15,8 @@ export function SimpleEventsListings() {
   const supabase = getBrowserSupabase();
   const [mode, setMode] = useState<"equipment" | "service">("equipment");
   const [locationId, setLocationId] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [categories, setCategories] = useState<Row[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
@@ -23,7 +25,7 @@ export function SimpleEventsListings() {
       mode === "equipment"
         ? {
             p_search: null,
-            p_category_id: null,
+            p_category_id: categoryId || null,
             p_location_id: locationId || null,
             p_start_at: null,
             p_end_at: null,
@@ -53,10 +55,18 @@ export function SimpleEventsListings() {
     );
     setRows((data ?? []) as Row[]);
     setLoading(false);
-  }, [locationId, mode, supabase]);
+  }, [categoryId, locationId, mode, supabase]);
   useEffect(() => {
     void load();
   }, [load]);
+  useEffect(() => {
+    void supabase
+      .from("event_equipment_categories")
+      .select("id,name_sw,name_en")
+      .eq("is_active", true)
+      .order("display_order")
+      .then(({ data }) => setCategories((data ?? []) as Row[]));
+  }, [supabase]);
   return (
     <div className="space-y-6 pb-16">
       <section className="owner-hero rounded-[26px] p-6 text-white sm:p-8">
@@ -72,12 +82,6 @@ export function SimpleEventsListings() {
             : "Choose a location to narrow the results, or browse every listing."}
         </p>
       </section>
-      <section className="surface-card p-4 sm:p-5">
-        <p className="mb-3 text-sm font-bold">
-          {sw ? "Eneo (si lazima)" : "Location (optional)"}
-        </p>
-        <EventLocationFields value={locationId} onChange={setLocationId} />
-      </section>
       <section>
         <div className="flex items-center justify-between gap-3">
           <div className="flex gap-2">
@@ -89,7 +93,10 @@ export function SimpleEventsListings() {
             </button>
             <button
               className={`btn ${mode === "service" ? "btn-success" : "btn-outline"}`}
-              onClick={() => setMode("service")}
+              onClick={() => {
+                setMode("service");
+                setCategoryId("");
+              }}
             >
               {sw ? "Wataalamu" : "Professionals"}
             </button>
@@ -98,6 +105,37 @@ export function SimpleEventsListings() {
             {sw ? "Panga Tukio" : "Plan event"}
           </Link>
         </div>
+        {mode === "equipment" ? (
+          <div className="event-category-rail mt-4 flex gap-3 overflow-x-auto pb-2">
+            <button
+              className={`event-category-tile ${categoryId === "" ? "is-active" : ""}`}
+              onClick={() => setCategoryId("")}
+              type="button"
+            >
+              {sw ? "Vifaa vyote" : "All equipment"}
+            </button>
+            {categories.map((category) => (
+              <button
+                className={`event-category-tile ${categoryId === String(category.id) ? "is-active" : ""}`}
+                key={String(category.id)}
+                onClick={() => setCategoryId(String(category.id))}
+                type="button"
+              >
+                {String(sw ? category.name_sw : category.name_en)}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <details className="surface-card mt-5 p-4 sm:p-5">
+          <summary className="cursor-pointer text-sm font-bold">
+            {sw
+              ? "Chuja kwa eneo (si lazima)"
+              : "Filter by location (optional)"}
+          </summary>
+          <div className="mt-4">
+            <EventLocationFields value={locationId} onChange={setLocationId} />
+          </div>
+        </details>
         {loading ? (
           <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map((item) => (
@@ -114,9 +152,24 @@ export function SimpleEventsListings() {
             </h2>
             <p className="mt-2 text-sm text-muted">
               {sw
-                ? "Badili eneo au vinjari bila kuchagua eneo."
-                : "Change the location or browse without a location filter."}
+                ? "Ondoa vichujio, badili eneo, au tuombe tukusaidie kupata mbadala."
+                : "Clear filters, change location, or ask us to help find an alternative."}
             </p>
+            <div className="mt-5 flex flex-wrap justify-center gap-3">
+              <button
+                className="btn btn-outline"
+                type="button"
+                onClick={() => {
+                  setLocationId("");
+                  setCategoryId("");
+                }}
+              >
+                {sw ? "Ondoa vichujio" : "Clear filters"}
+              </button>
+              <Link className="btn btn-success" href="/events/plan">
+                {sw ? "Nisaidie kupata mbadala" : "Help me find an alternative"}
+              </Link>
+            </div>
           </div>
         ) : (
           <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

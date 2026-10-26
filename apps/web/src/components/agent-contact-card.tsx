@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { StatusPill } from "@/components/status-pill";
 import Link from "next/link";
+import { useLanguage } from "@/components/language-provider";
 
 type AgentSummary = {
   id?: string | null;
@@ -46,6 +47,8 @@ export function AgentContactCard({
   listingId: string;
   agentSummary?: AgentSummary | null;
 }) {
+  const { language } = useLanguage();
+  const sw = language === "sw";
   const [customerName, setCustomerName] = useState("");
   const [customerPhoneNumber, setCustomerPhoneNumber] = useState("");
   const [session, setSession] = useState<PaymentSession | null>(null);
@@ -117,7 +120,9 @@ export function AgentContactCard({
       });
       const payload = (await response.json()) as Record<string, unknown>;
       if (!response.ok) {
-        throw new Error(String(payload.error ?? "Could not start the payment."));
+        throw new Error(
+          String(payload.error ?? "Could not start the payment."),
+        );
       }
 
       const nextSession: PaymentSession = {
@@ -145,9 +150,9 @@ export function AgentContactCard({
       if (!session?.payment_id || !session.access_token || checking) {
         return;
       }
-    if (!silent) {
-      setMessage(null);
-    }
+      if (!silent) {
+        setMessage(null);
+      }
       setChecking(true);
       try {
         const response = await fetch("/api/listing-contact-payment/status", {
@@ -160,12 +165,15 @@ export function AgentContactCard({
         });
         const payload = (await response.json()) as Record<string, unknown>;
         if (!response.ok) {
-          throw new Error(String(payload.error ?? "Could not verify the payment."));
+          throw new Error(
+            String(payload.error ?? "Could not verify the payment."),
+          );
         }
 
         const nextSession: PaymentSession = {
           ...session,
-          status: (payload.paymentStatus as string | undefined) ?? session.status,
+          status:
+            (payload.paymentStatus as string | undefined) ?? session.status,
           phone_number:
             (payload.phoneNumber as string | undefined) ?? session.phone_number,
           message: payload.message as string | undefined,
@@ -214,7 +222,14 @@ export function AgentContactCard({
           <p className="section-copy mt-2 text-sm">
             {agentSummary?.location_label?.trim() || "Location not shared yet"}
           </p>
-          {agentSummary?.id ? <Link className="mt-2 inline-block text-sm font-bold text-brand-navy underline" href={`/agent/${agentSummary.id}`}>View public agent profile</Link> : null}
+          {agentSummary?.id ? (
+            <Link
+              className="mt-2 inline-block text-sm font-bold text-brand-navy underline"
+              href={`/agent/${agentSummary.id}`}
+            >
+              View public agent profile
+            </Link>
+          ) : null}
         </div>
         <StatusPill
           label={verified ? "Verified agent" : "Verification pending"}
@@ -225,7 +240,9 @@ export function AgentContactCard({
       {unlockedPhone ? (
         <div className="soft-panel mt-5 p-5">
           <p className="eyebrow">Unlocked number</p>
-          <p className="mt-3 text-2xl font-bold text-brand-navy">{unlockedPhone}</p>
+          <p className="mt-3 text-2xl font-bold text-brand-navy">
+            {unlockedPhone}
+          </p>
           <div className="mt-4 flex flex-wrap gap-3">
             <a href={`tel:${unlockedPhone}`} className="btn btn-success">
               Call agent
@@ -268,16 +285,56 @@ export function AgentContactCard({
             >
               {checking ? "Checking..." : "Check payment now"}
             </button>
-            <button type="button" onClick={resetSession} className="btn btn-ghost">
+            <button
+              type="button"
+              onClick={resetSession}
+              className="btn btn-ghost"
+            >
               Start a new payment
             </button>
           </div>
         </div>
       ) : (
         <div className="mt-5 grid gap-4">
+          <div className="rounded-2xl border border-brand-border bg-brand-info-soft p-4 text-sm">
+            <p className="font-bold text-brand-ink">
+              {sw ? "Kabla ya kulipa" : "Before you pay"}
+            </p>
+            <ul className="mt-2 grid list-disc gap-1 pl-5 text-muted">
+              <li>
+                {sw
+                  ? "Hii ni ada ya kufungua namba kwa saa 24; si deposit wala malipo ya rental."
+                  : "This fee unlocks the number for 24 hours; it is not a rental payment or deposit."}
+              </li>
+              <li>
+                {sw
+                  ? "Kiasi kamili kitaonekana kabla hujaidhinisha ombi la mobile money."
+                  : "The exact amount is shown before you approve the mobile-money request."}
+              </li>
+              <li>
+                {sw
+                  ? "Ikiwa tangazo halipatikani au wakala hajibu, unaweza kuomba KODIMALI ikague refund; refund si ya moja kwa moja."
+                  : "If the listing is unavailable or the agent does not respond, you may request a KODIMALI refund review; refunds are not automatic."}
+              </li>
+              <li>
+                {sw
+                  ? "Unaweza kutumia booking au private chat bila kufungua namba; ada yoyote inayotumika itaonyeshwa kabla ya malipo."
+                  : "You may use booking or private chat without revealing the number; any applicable fee is shown before payment."}
+              </li>
+            </ul>
+            <Link
+              className="mt-3 inline-block font-bold underline"
+              href="/terms"
+            >
+              {sw
+                ? "Soma masharti ya malipo na refund"
+                : "Read payment and refund terms"}
+            </Link>
+          </div>
           <p className="section-copy text-sm">
-            Pay once through the available mobile-money provider to reveal this agent phone number directly on
-            this device.
+            {sw
+              ? "Lipa mara moja kufungua namba ya wakala kwenye kifaa hiki."
+              : "Pay once to reveal the agent phone number on this device."}
           </p>
           <label className="grid gap-2">
             <span className="field-label">Full name</span>

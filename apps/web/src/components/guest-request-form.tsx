@@ -462,9 +462,9 @@ export function GuestRequestForm({
         <div className="soft-panel p-4">
           <p className="text-sm font-semibold text-brand-ink">Kinachofuata</p>
           <p className="field-help mt-2">
-            {isApartment
-              ? "Baada ya booking request, wakala atathibitisha tarehe, huduma, bei, na hatua inayofuata kwa email au simu."
-              : "Booking ikishatumwa, mmiliki au msimamizi atathibitisha muda, bei na upatikanaji kabla ya malipo."}
+            Ukiwa umeingia, mfumo hukagua muda papo hapo. Ukiwa wazi,
+            unahifadhiwa kwa dakika 30 ukamilishe malipo. Booking inakuwa
+            confirmed baada ya malipo kuthibitishwa; viewing ni hiari.
           </p>
         </div>
       </div>

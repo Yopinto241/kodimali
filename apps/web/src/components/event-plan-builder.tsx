@@ -181,7 +181,18 @@ export function EventPlanBuilder() {
         </Link>
       </section>
       <form className="surface-card grid gap-6 p-5 sm:p-8" onSubmit={submit}>
-        <section className="grid gap-4 sm:grid-cols-2">
+        <section className="order-3 grid gap-4 border-t border-black/5 pt-6 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <p className="eyebrow">{sw ? "Hatua ya 2" : "Step 2"}</p>
+            <h2 className="mt-2 font-heading text-2xl font-semibold">
+              {sw ? "Tarehe na eneo la tukio" : "Event date and location"}
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              {sw
+                ? "Tunaomba maelezo haya baada ya kuchagua unachohitaji ili kuthibitisha upatikanaji na quotation."
+                : "We ask for these details after your selections to confirm availability and prepare the quote."}
+            </p>
+          </div>
           <label className="field-label sm:col-span-2">
             {sw ? "Jina la tukio (si lazima)" : "Event name (optional)"}
             <input className="field-input mt-2" name="title" />
@@ -226,12 +237,14 @@ export function EventPlanBuilder() {
             />
           </div>
         </section>
-        <fieldset className="event-filter-group">
-          <legend>{sw ? "Vifaa" : "Equipment"}</legend>
+        <fieldset className="event-filter-group order-1">
+          <legend>
+            {sw ? "Hatua ya 1 · Chagua vifaa" : "Step 1 · Choose equipment"}
+          </legend>
           <div className="grid gap-3 sm:grid-cols-2">
             {equipment.map((item) => (
               <div
-                className="flex items-center gap-3 rounded-xl border border-black/5 p-3"
+                className="flex items-center gap-3 rounded-2xl border border-black/10 bg-brand-card-soft p-4 transition hover:-translate-y-0.5 hover:border-brand-teal"
                 key={String(item.id)}
               >
                 <label className="flex min-w-0 flex-1 items-center gap-2">
@@ -253,13 +266,13 @@ export function EventPlanBuilder() {
             ))}
           </div>
         </fieldset>
-        <fieldset className="event-filter-group">
-          <legend>{sw ? "Wataalamu" : "Professionals"}</legend>
+        <fieldset className="event-filter-group order-2">
+          <legend>{sw ? "Chagua wataalamu" : "Choose professionals"}</legend>
           <div className="grid gap-3 sm:grid-cols-2">
             {services.map((item) => {
               return (
                 <label
-                  className="flex items-center gap-3 rounded-xl border border-black/5 p-3"
+                  className="flex items-center gap-3 rounded-2xl border border-black/10 bg-brand-card-soft p-4 transition hover:-translate-y-0.5 hover:border-brand-teal"
                   key={String(item.id)}
                 >
                   <input type="checkbox" name={`service-${item.id}`} />
@@ -274,7 +287,10 @@ export function EventPlanBuilder() {
             })}
           </div>
         </fieldset>
-        <button className="btn btn-success" disabled={busy || !locationId}>
+        <button
+          className="btn btn-success order-4"
+          disabled={busy || !locationId}
+        >
           {busy
             ? sw
               ? "Inatuma…"
@@ -285,7 +301,7 @@ export function EventPlanBuilder() {
         </button>
         {notice ? (
           <p
-            className="rounded-2xl bg-brand-info-soft p-4 font-semibold"
+            className="order-5 rounded-2xl bg-brand-info-soft p-4 font-semibold"
             role="status"
           >
             {notice}

@@ -38,6 +38,10 @@ export function PublicListingCard({
     .toLowerCase()
     .replaceAll(" ", "-");
   const canBook = reservableCategories.has(category);
+  const price = Number(listing.price_amount);
+  const formattedPrice = Number.isFinite(price)
+    ? new Intl.NumberFormat("sw-TZ", { maximumFractionDigits: 0 }).format(price)
+    : String(listing.price_amount);
   return (
     <article className="listing-card group">
       <Link href={`/listing/${listing.listing_id}`} className="block">
@@ -61,7 +65,7 @@ export function PublicListingCard({
             {listing.featured ? <span>Featured</span> : null}
           </div>
           <span className="listing-card-price">
-            TZS {listing.price_amount} / {listing.price_period}
+            TZS {formattedPrice} / {listing.price_period}
           </span>
           <div className="listing-card-copy">
             <h3>{listing.title}</h3>

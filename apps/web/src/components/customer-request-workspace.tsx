@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
+import { useLanguage } from "@/components/language-provider";
 
 type DataRow = Record<string, unknown>;
 
@@ -12,6 +13,8 @@ export function CustomerRequestWorkspace({
   bookingRequestId: string;
 }) {
   const supabase = getBrowserSupabase();
+  const { language } = useLanguage();
+  const sw = language === "sw";
   const [booking, setBooking] = useState<DataRow | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<DataRow[]>([]);
@@ -19,6 +22,7 @@ export function CustomerRequestWorkspace({
   const [viewingStart, setViewingStart] = useState("");
   const [rating, setRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
+  const [acceptedPaymentTerms, setAcceptedPaymentTerms] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("Loading request...");
 
@@ -212,7 +216,7 @@ export function CustomerRequestWorkspace({
       <section className="surface-card p-6 sm:p-8">
         <p className="section-copy">{notice}</p>
         <Link className="btn btn-outline mt-5" href="/account">
-          Back to account
+          {sw ? "Rudi kwenye akaunti" : "Back to account"}
         </Link>
       </section>
     );
@@ -242,7 +246,9 @@ export function CustomerRequestWorkspace({
             {String(listing?.public_location_label ?? "")}
           </p>
           <div className="soft-panel mt-5 p-4">
-            <p className="text-sm text-muted">Assigned agent</p>
+            <p className="text-sm text-muted">
+              {sw ? "Wakala anayehudumia" : "Assigned agent"}
+            </p>
             <p className="mt-1 font-semibold">
               {String(
                 agent?.display_name ?? agent?.business_name ?? booking.agent_id,
@@ -256,9 +262,12 @@ export function CustomerRequestWorkspace({
             <Progress done label="Booking imetumwa" />
             <Progress
               done={Boolean(booking.accepted_at)}
-              label="Agent amekubali na anakagua upatikanaji"
+              label="Muda umekaguliwa na kushikiliwa kwa dakika 30"
             />
-            <Progress done={ownerReady} label="Owner/manager approval" />
+            <Progress
+              done={ownerReady}
+              label="Ruhusa ya booking imethibitishwa"
+            />
             <Progress
               done={paid || booking.booking_status === "confirmed"}
               label="Reservation na malipo yamethibitishwa"
@@ -274,7 +283,8 @@ export function CustomerRequestWorkspace({
             </h2>
             <p className="mt-2 text-sm text-muted">
               Malipo yakithibitishwa, muda uliochagua unahifadhiwa kwenye
-              inventory na booking inakuwa confirmed.
+              inventory na booking inakuwa confirmed. Hold ya dakika 30 si
+              booking iliyolipwa na itaisha usipokamilisha malipo.
             </p>
             <label className="mt-4 grid gap-2 font-semibold">
               Namba ya malipo
@@ -287,21 +297,42 @@ export function CustomerRequestWorkspace({
                 onChange={(event) => setPaymentPhone(event.target.value)}
               />
             </label>
+            <label className="mt-4 flex items-start gap-3 text-sm text-muted">
+              <input
+                className="mt-1 h-4 w-4 accent-[var(--brand-success)]"
+                type="checkbox"
+                checked={acceptedPaymentTerms}
+                onChange={(event) =>
+                  setAcceptedPaymentTerms(event.target.checked)
+                }
+              />
+              <span>
+                {sw
+                  ? "Nimekagua muda, kiasi kitakachoonyeshwa na sera ya cancellation/refund."
+                  : "I have reviewed the dates, the amount to be shown, and the cancellation/refund policy."}{" "}
+                <Link
+                  className="font-semibold underline"
+                  href="/terms#booking-payments"
+                >
+                  {sw ? "Soma masharti" : "Read terms"}
+                </Link>
+              </span>
+            </label>
             <button
               className="btn btn-success mt-4 w-full"
-              disabled={busy}
+              disabled={busy || !acceptedPaymentTerms || !paymentPhone.trim()}
               onClick={() => void reserveAndPay()}
             >
-              Reserve / Pay
+              {sw ? "Reserve na ulipe" : "Reserve and pay"}
             </button>
           </section>
         ) : null}
         <form className="surface-card p-6" onSubmit={proposeViewing}>
           <h2 className="font-heading text-xl font-semibold">
-            Propose a viewing
+            {sw ? "Panga viewing (si lazima)" : "Propose a viewing (optional)"}
           </h2>
           <label className="mt-4 grid gap-2 font-semibold">
-            Date and time
+            {sw ? "Tarehe na muda" : "Date and time"}
             <input
               className="rounded-2xl border border-brand-border bg-white px-4 py-3"
               type="datetime-local"
@@ -311,7 +342,7 @@ export function CustomerRequestWorkspace({
             />
           </label>
           <button className="btn btn-success mt-4" disabled={busy}>
-            Send to assigned agent
+            {sw ? "Tuma kwa wakala" : "Send to assigned agent"}
           </button>
         </form>
         {completed ? (
@@ -349,7 +380,7 @@ export function CustomerRequestWorkspace({
       </div>
       <section className="surface-card flex min-h-[560px] flex-col p-6">
         <h2 className="font-heading text-2xl font-semibold">
-          Booking follow-up
+          {sw ? "Ufuatiliaji wa booking" : "Booking follow-up"}
         </h2>
         <p className="mt-2 text-sm text-muted">
           Tumia majibu haya mafupi kuthibitisha hatua. Chat ya kawaida inabaki

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
+import { useLanguage } from "@/components/language-provider";
 
 const comparisonKey = "kodimali-comparison-listings";
 
@@ -14,6 +15,8 @@ export function ListingActions({
   bookingHref?: string;
 }) {
   const supabase = useMemo(() => getBrowserSupabase(), []);
+  const { language } = useLanguage();
+  const sw = language === "sw";
   const [saved, setSaved] = useState(false);
   const [compared, setCompared] = useState(false);
   const [message, setMessage] = useState("");
@@ -104,27 +107,33 @@ export function ListingActions({
           className="btn btn-outline !min-h-9 !px-3 !py-2 text-xs"
           onClick={() => void toggleSaved()}
         >
-          {saved ? "Saved" : "Save"}
+          {saved ? (sw ? "Imehifadhiwa" : "Saved") : sw ? "Hifadhi" : "Save"}
         </button>
         <button
           type="button"
           className="btn btn-outline !min-h-9 !px-3 !py-2 text-xs"
           onClick={toggleCompared}
         >
-          {compared ? "Comparing" : "Compare"}
+          {compared
+            ? sw
+              ? "Inalinganishwa"
+              : "Comparing"
+            : sw
+              ? "Linganisha"
+              : "Compare"}
         </button>
         <button
           type="button"
           className="btn btn-outline !min-h-9 !px-3 !py-2 text-xs"
           onClick={() => void createPriceAlert()}
         >
-          Price alert
+          {sw ? "Taarifa ya bei" : "Price alert"}
         </button>
         <Link
           href="/compare"
           className="btn btn-ghost !min-h-9 !px-3 !py-2 text-xs"
         >
-          View comparison
+          {sw ? "Angalia ulinganisho" : "View comparison"}
         </Link>
       </div>
       {message ? (

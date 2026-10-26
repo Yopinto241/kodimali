@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 
 import { AgentContactCard } from "@/components/agent-contact-card";
 import { BackNavButton } from "@/components/back-nav-button";
@@ -8,11 +9,18 @@ import { GoogleAdSlot } from "@/components/google-ad-slot";
 import { ListingMediaGallery } from "@/components/listing-media-gallery";
 import { ListingChatCard } from "@/components/listing-chat-card";
 import { ListingShareButton } from "@/components/listing-share-button";
-import { ListingActions, ListingViewRecorder } from "@/components/listing-actions";
+import {
+  ListingActions,
+  ListingViewRecorder,
+} from "@/components/listing-actions";
 import { PageShell } from "@/components/page-shell";
 import { PromotionStrip } from "@/components/promotion-strip";
 import { StatusPill } from "@/components/status-pill";
-import { fetchListingDetail, fetchPromotions, fetchPublicListings } from "@/lib/supabase-public";
+import {
+  fetchListingDetail,
+  fetchPromotions,
+  fetchPublicListings,
+} from "@/lib/supabase-public";
 import { PublicListingCard } from "@/components/public-listing-card";
 
 export const revalidate = 15;
@@ -32,7 +40,10 @@ export async function generateMetadata({
     title: String(listing.title ?? "Rental listing"),
     description,
     alternates: { canonical: `/listing/${id}` },
-    openGraph: { title: String(listing.title ?? "Rental listing"), description },
+    openGraph: {
+      title: String(listing.title ?? "Rental listing"),
+      description,
+    },
   };
 }
 
@@ -64,12 +75,13 @@ function farmHighlights(attributes: Record<string, unknown>) {
     },
     {
       label: "Land size",
-      value: [
-        attributes.land_size ? String(attributes.land_size) : "",
-        attributes.land_size_unit ? String(attributes.land_size_unit) : "",
-      ]
-        .filter(Boolean)
-        .join(" ") || "-",
+      value:
+        [
+          attributes.land_size ? String(attributes.land_size) : "",
+          attributes.land_size_unit ? String(attributes.land_size_unit) : "",
+        ]
+          .filter(Boolean)
+          .join(" ") || "-",
     },
   ];
 }
@@ -106,24 +118,43 @@ export default async function ListingPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const sw = (await cookies()).get("kodimali_language")?.value !== "en";
   const adsenseClientId = process.env.ADSENSE_CLIENT_ID ?? "";
   const adsenseDetailSlot = process.env.ADSENSE_SLOT_DETAIL ?? "";
   const { id } = await params;
   const [listing, promotions] = await Promise.all([
     fetchListingDetail(id),
-    fetchPromotions({ surface: "website", placement: "listing_detail", limit: 1 }),
+    fetchPromotions({
+      surface: "website",
+      placement: "listing_detail",
+      limit: 1,
+    }),
   ]);
 
   if (!listing) {
     return (
       <PageShell>
-        <div className="surface-card rounded-[20px] p-8">Listing not found.</div>
+        <div className="surface-card rounded-[20px] p-8">
+          Listing not found.
+        </div>
       </PageShell>
     );
   }
 
-  const attributes = (listing.listing_attributes ?? {}) as Record<string, unknown>;
-  const similar = (await fetchPublicListings({ categorySlug: listing.asset_categories?.slug, limit: 4, page: 0, sessionSeed: `similar-${id}` })).filter((item: { listing_id: string }) => item.listing_id !== id).slice(0, 3);
+  const attributes = (listing.listing_attributes ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const similar = (
+    await fetchPublicListings({
+      categorySlug: listing.asset_categories?.slug,
+      limit: 4,
+      page: 0,
+      sessionSeed: `similar-${id}`,
+    })
+  )
+    .filter((item: { listing_id: string }) => item.listing_id !== id)
+    .slice(0, 3);
   const fieldSchema = Array.isArray(listing.asset_categories?.field_schema)
     ? (listing.asset_categories.field_schema as Array<{
         key?: string;
@@ -135,11 +166,13 @@ export default async function ListingPage({
   const showApartmentServices = listing.asset_categories?.slug === "apartment";
   const highlights = showFarmHighlights ? farmHighlights(attributes) : [];
   const services = showApartmentServices ? apartmentServices(attributes) : [];
-  const media = ((listing.listing_media ?? []) as Array<{
-    media_type?: string | null;
-    signed_url?: string | null;
-    display_order?: number | null;
-  }>).sort(
+  const media = (
+    (listing.listing_media ?? []) as Array<{
+      media_type?: string | null;
+      signed_url?: string | null;
+      display_order?: number | null;
+    }>
+  ).sort(
     (left, right) => (left.display_order ?? 0) - (right.display_order ?? 0),
   );
   const schemaByKey = new Map(fieldSchema.map((field) => [field.key, field]));
@@ -162,15 +195,32 @@ export default async function ListingPage({
   return (
     <PageShell className="pb-20">
       <ListingViewRecorder listingId={id} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ "@context": "https://schema.org", "@type": "Offer", name: listing.title, description: listing.description, price: listing.price_amount, priceCurrency: "TZS", availability: "https://schema.org/InStock", areaServed: listing.public_location_label, url: `https://kodimali.co.tz/listing/${id}` }).replaceAll("<", "\\u003c") }} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Offer",
+            name: listing.title,
+            description: listing.description,
+            price: listing.price_amount,
+            priceCurrency: "TZS",
+            availability: "https://schema.org/InStock",
+            areaServed: listing.public_location_label,
+            url: `https://kodimali.co.tz/listing/${id}`,
+          }).replaceAll("<", "\\u003c"),
+        }}
+      />
       <div className="mb-4">
-        <BackNavButton fallbackHref="/listings" label="Back" />
+        <BackNavButton fallbackHref="/listings" label={sw ? "Rudi" : "Back"} />
       </div>
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <section className="surface-card rounded-[20px] p-6 sm:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="eyebrow">{listing.asset_categories?.name ?? "Listing"}</p>
+              <p className="eyebrow">
+                {listing.asset_categories?.name ?? "Listing"}
+              </p>
               <h1 className="mt-3 font-heading text-4xl font-semibold text-brand-ink">
                 {listing.title}
               </h1>
@@ -179,8 +229,14 @@ export default async function ListingPage({
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <StatusPill label="Public listing" tone="active" />
-              <StatusPill label="Verified flow" tone="info" />
+              <StatusPill
+                label={sw ? "Tangazo la umma" : "Public listing"}
+                tone="active"
+              />
+              <StatusPill
+                label={sw ? "Utaratibu uliothibitishwa" : "Verified process"}
+                tone="info"
+              />
             </div>
           </div>
 
@@ -252,10 +308,8 @@ export default async function ListingPage({
                     key={key}
                     className="rounded-[16px] border border-brand-border bg-card px-4 py-3 text-sm text-muted"
                   >
-                    <span className="font-bold text-brand-ink">
-                      {label}
-                    </span>
-                    : {displayValue(value)}
+                    <span className="font-bold text-brand-ink">{label}</span>:{" "}
+                    {displayValue(value)}
                   </div>
                 ))}
               </div>
@@ -283,7 +337,22 @@ export default async function ListingPage({
           />
         </aside>
       </div>
-      {similar.length > 0 ? <section className="mt-10"><p className="eyebrow">Similar listings</p><h2 className="mt-2 font-heading text-3xl font-semibold">You may also consider</h2><div className="mt-6 grid gap-5 md:grid-cols-3">{similar.map((item: { listing_id: string }) => <PublicListingCard key={item.listing_id} listing={item as never} />)}</div></section> : null}
+      {similar.length > 0 ? (
+        <section className="mt-10">
+          <p className="eyebrow">Similar listings</p>
+          <h2 className="mt-2 font-heading text-3xl font-semibold">
+            You may also consider
+          </h2>
+          <div className="mt-6 grid gap-5 md:grid-cols-3">
+            {similar.map((item: { listing_id: string }) => (
+              <PublicListingCard
+                key={item.listing_id}
+                listing={item as never}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
     </PageShell>
   );
 }
