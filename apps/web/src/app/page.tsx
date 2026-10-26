@@ -33,7 +33,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
 
   return <>
     <CinematicHero categories={categories} />
-    <PageShell className="flex flex-col pb-20 !pt-2 sm:!pt-3 md:!pt-4">
+    <PageShell className="home-page-shell flex flex-col pb-20 !pt-0">
       <CategoryShowcase categories={categories} feed={feed} />
 
       <CategoryListingRails categories={categories} listings={feed} />

@@ -404,7 +404,7 @@ p {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  min-height: 300px;
+  min-height: 360px;
   background: var(--navy);
 }
 .cinematic-slide {
@@ -431,6 +431,43 @@ p {
       rgba(16, 36, 56, 0.12) 100%
     ),
     linear-gradient(0deg, rgba(8, 24, 37, 0.28), transparent 50%);
+}
+.hero-content {
+  filter: drop-shadow(0 12px 30px rgba(4, 19, 28, 0.2));
+}
+.hero-search-form {
+  max-width: 620px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+}
+.hero-search-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  place-items: center;
+  color: var(--navy);
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+.hero-search-button {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  place-items: center;
+  border-radius: 999px;
+  background: linear-gradient(145deg, var(--green), #075969);
+  color: #fff;
+  font-size: 1.2rem;
+  font-weight: 900;
+  box-shadow: 0 8px 20px rgba(8, 91, 103, 0.28);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.hero-search-button:hover,
+.hero-search-button:focus-visible {
+  transform: translateX(2px) scale(1.03);
+  box-shadow: 0 10px 24px rgba(8, 91, 103, 0.38);
+  outline: none;
 }
 .hero-kicker,
 .premium-kicker {
@@ -504,20 +541,42 @@ p {
   letter-spacing: -0.035em;
   line-height: 1.05;
 }
+.home-page-shell {
+  border-radius: 28px 28px 0 0;
+  background: var(--background);
+}
+.home-category-section {
+  position: relative;
+}
+.home-category-title {
+  font-family: var(--font-headline), sans-serif;
+  color: var(--navy);
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  font-weight: 850;
+  letter-spacing: -0.035em;
+}
+.home-category-all {
+  flex: 0 0 auto;
+  color: var(--green-strong);
+  font-size: 0.78rem;
+  font-weight: 850;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
 .category-compact-grid {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 0.65rem;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.75rem;
 }
 .category-compact-grid > .reveal {
-  height: 108px;
+  height: 132px;
 }
 .category-card {
   --card-x: 50%;
   --card-y: 50%;
   position: relative;
   display: block;
-  height: 108px;
+  height: 132px;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -555,17 +614,18 @@ p {
 }
 @media (max-width: 900px) {
   .category-compact-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 @media (max-width: 520px) {
   .category-compact-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.6rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
   }
   .category-compact-grid > .reveal,
   .category-card {
-    height: 102px;
+    height: 112px;
+    border-radius: 12px;
   }
 }
 .listing-card {
@@ -980,7 +1040,7 @@ p {
 }
 @media (max-width: 640px) {
   .cinematic-hero {
-    min-height: 350px;
+    min-height: 410px;
   }
   .cinematic-overlay {
     background: linear-gradient(
@@ -990,36 +1050,27 @@ p {
     );
   }
   .hero-search-form {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.3rem;
-    border-radius: 14px;
+    width: 100%;
+    border-radius: 999px;
     padding: 0.3rem;
   }
   .hero-search-input {
-    grid-column: 1/-1;
-    height: 36px;
-    padding-inline: 0.7rem;
-    font-size: 0.78rem;
-  }
-  .hero-search-category {
-    height: 36px;
-    min-width: 0;
-    padding-inline: 0.65rem;
-    font-size: 0.72rem;
+    height: 42px;
+    padding-inline: 0.2rem;
+    font-size: 0.8rem;
   }
   .hero-search-button {
-    min-height: 36px !important;
-    height: 36px;
-    padding: 0.35rem 0.85rem !important;
-    font-size: 0.72rem;
+    width: 42px;
+    height: 42px;
+    min-height: 42px !important;
   }
   .hero-tabs {
     margin-top: 0.4rem;
   }
   .hero-tab {
-    min-height: 27px;
-    padding: 0.25rem 0.55rem;
-    font-size: 0.63rem;
+    min-height: 31px;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.66rem;
   }
   .hero-pause {
     min-height: 30px;

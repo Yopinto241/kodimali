@@ -40,17 +40,17 @@ export function CinematicHero({ categories }: { categories: Category[] }) {
   return <section className="cinematic-hero" aria-roledescription="carousel">
     <div className="absolute inset-0 -z-20">{slides.map((item, index) => <Image key={item.slug} src={item.src} alt="" fill priority={index === 0} sizes="100vw" style={{ objectPosition: item.position }} className={`cinematic-slide object-cover ${index === active ? "is-active" : ""}`} />)}</div>
     <div className="cinematic-overlay" />
-    <div className="app-shell relative z-10 flex min-h-[300px] items-center py-5"><div className="w-full max-w-4xl text-white">
+    <div className="app-shell relative z-10 flex min-h-[360px] items-center py-7"><div className="hero-content w-full max-w-3xl text-white">
       <p className="hero-kicker">{copy.label}</p>
-      <h1 key={`${activeSlide.slug}-${language}`} className="hero-slide-copy mt-1 font-heading text-3xl font-semibold leading-tight tracking-[-0.035em] sm:text-4xl">{copy.title}</h1>
-      <p className="mt-1 max-w-xl text-sm text-white/85 sm:text-base">{copy.body}</p>
-      <form action="/listings" className="hero-search-form mt-3 grid gap-1.5 rounded-2xl bg-white p-1.5 shadow-2xl sm:grid-cols-[1fr_180px_auto]">
-        <input name="q" aria-label={language === "sw" ? "Unatafuta nini?" : "What are you looking for?"} className="hero-search-input h-11 rounded-xl px-4 text-brand-ink outline-none" placeholder={language === "sw" ? "Nyumba, gari, ofisi..." : "House, car, office..."} />
-        <select name="category" aria-label={language === "sw" ? "Aina ya mali" : "Asset type"} defaultValue={activeSlide.slug} key={activeSlide.slug} className="hero-search-category h-11 rounded-xl bg-brand-card-soft px-4 text-brand-ink outline-none"><option value="">{language === "sw" ? "Aina zote" : "All categories"}</option>{categories.map((category) => <option value={category.slug} key={category.id}>{localizedCategory(category)}</option>)}</select>
-        <button className="hero-search-button btn btn-success min-h-11 px-6">{language === "sw" ? "Tafuta" : "Search"}</button>
+      <h1 key={`${activeSlide.slug}-${language}`} className="hero-slide-copy mt-2 max-w-2xl font-heading text-4xl font-extrabold leading-[1.02] tracking-[-0.045em] sm:text-5xl">{copy.title}</h1>
+      <p className="mt-3 max-w-xl text-sm leading-6 text-white/85 sm:text-base">{copy.body}</p>
+      <form action="/listings" className="hero-search-form mt-5 flex items-center rounded-full bg-white p-1.5 shadow-2xl">
+        <span className="hero-search-icon" aria-hidden="true">⌕</span>
+        <input name="q" aria-label={language === "sw" ? "Unatafuta nini?" : "What are you looking for?"} className="hero-search-input h-12 min-w-0 flex-1 bg-transparent px-2 text-brand-ink outline-none" placeholder={language === "sw" ? "Nyumba, gari, ofisi..." : "House, car, office..."} />
+        <button className="hero-search-button" aria-label={language === "sw" ? "Tafuta" : "Search"}>→</button>
       </form>
-      <div className="hero-tabs mt-2 flex items-center gap-1.5 overflow-x-auto pb-1" role="tablist">{slides.map((item, index) => <button key={item.slug} type="button" role="tab" aria-selected={index === active} onClick={() => { setActive(index); setPaused(true); }} className={`hero-tab ${index === active ? "is-active" : ""}`}>{item[language].label}</button>)}<button type="button" className="hero-pause" onClick={() => setPaused((value) => !value)}>{paused ? (language === "sw" ? "Endelea" : "Resume") : (language === "sw" ? "Sitisha" : "Pause")}</button></div>
-      <Link className="mt-1 inline-flex text-xs font-bold text-white underline decoration-white/35 underline-offset-4" href={href}>{language === "sw" ? `Angalia ${copy.label}` : `View ${copy.label}`} →</Link>
+      <div className="hero-tabs mt-4 flex items-center gap-2 overflow-x-auto pb-1" role="tablist">{slides.slice(0, 8).map((item, index) => <button key={item.slug} type="button" role="tab" aria-selected={index === active} onClick={() => { setActive(index); setPaused(true); }} className={`hero-tab ${index === active ? "is-active" : ""}`}>{item[language].label}</button>)}</div>
+      <div className="mt-3 flex items-center gap-4"><Link className="inline-flex text-xs font-bold text-white underline decoration-white/35 underline-offset-4" href={href}>{language === "sw" ? `Angalia ${copy.label}` : `View ${copy.label}`} →</Link><button type="button" className="hero-pause" onClick={() => setPaused((value) => !value)}>{paused ? (language === "sw" ? "Endelea" : "Resume") : (language === "sw" ? "Sitisha" : "Pause")}</button></div>
     </div></div>
   </section>;
 }
