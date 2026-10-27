@@ -3,7 +3,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 
 import { GoogleAdSlot } from "@/components/google-ad-slot";
-import { LocationBanner } from "@/components/location-banner";
+import { ListingLocationFilter } from "@/components/listing-location-filter";
 import { PageShell } from "@/components/page-shell";
 import { PromotionStrip } from "@/components/promotion-strip";
 import { PublicListingGrid } from "@/components/public-listing-grid";
@@ -88,7 +88,7 @@ export default async function ListingsPage({
     ? (requestedSort as "recommended" | "newest" | "price_low" | "price_high")
     : "recommended";
   const countryId = await fetchCountryId();
-  const [categories, rawFeed, promotions, featuredRows, regions] = await Promise.all([
+  const [categories, rawFeed, promotions, featuredRows, regions, selectedDistricts] = await Promise.all([
     fetchCategories(),
     fetchPublicListings({
       limit: pageSize,
@@ -110,6 +110,7 @@ export default async function ListingsPage({
     fetchPromotions({ surface: "website", placement: "website", limit: 2 }),
     fetchActiveFeaturedListingIds(),
     countryId ? fetchLocations({ locationType: "region", parentId: countryId }) : Promise.resolve([]),
+    regionId ? fetchLocations({ locationType: "district", parentId: regionId }) : Promise.resolve([]),
   ]);
   const featured = new Map(
     featuredRows.map((row) => [row.listing_id, row.placement]),
@@ -155,12 +156,13 @@ export default async function ListingsPage({
               ),
             )}
           </select>
-          <details className="search-location-filter">
-            <summary>{regionId || districtId || wardId || areaId ? (sw ? "Eneo limechaguliwa" : "Location selected") : (sw ? "Eneo lote" : "Any location")}</summary>
-            <div className="search-location-popover">
-              <LocationBanner visibleByDefault persistent regions={regions.map((item: { id: string; name: string }) => ({ id: item.id, name: item.name }))} />
-            </div>
-          </details>
+          <ListingLocationFilter
+            regions={regions.map((item: { id: string; name: string }) => ({ id: item.id, name: item.name }))}
+            initialRegionId={regionId}
+            initialDistrictId={districtId}
+            initialRegionName={regions.find((item: { id: string }) => item.id === regionId)?.name}
+            initialDistrictName={selectedDistricts.find((item: { id: string }) => item.id === districtId)?.name}
+          />
           <details className="search-price-filter">
             <summary>{sw ? "Bei" : "Price"}</summary>
             <div className="search-price-popover">

@@ -858,17 +858,24 @@ p {
   border: 1px solid var(--border); border-radius: 18px; background: var(--card); padding: 1rem;
   box-shadow: var(--shadow-lifted);
 }
-.search-location-popover {
-  position: absolute;
-  z-index: 34;
-  right: 0.8rem;
-  left: 0.8rem;
-  margin-top: 0.5rem;
-  max-height: min(72vh, 540px);
-  overflow-y: auto;
-  border-radius: 18px;
-  box-shadow: var(--shadow-lifted);
+.listing-location-filter { position: relative; flex: 0 0 auto; }
+.listing-location-trigger {
+  display: inline-flex; min-height: 36px; max-width: 210px; align-items: center; gap: .4rem;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--card-soft);
+  padding: .5rem .75rem; color: var(--navy); font-size: .7rem; font-weight: 800;
 }
+.listing-location-trigger > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.listing-location-trigger[aria-expanded="true"] { border-color: #4c848d; background: #dcebea; color: #183d34; }
+.listing-location-menu {
+  position: fixed; z-index: 80; right: 1rem; left: 1rem; display: grid; gap: .8rem;
+  margin-top: .55rem; border: 1px solid #b9d1cc; border-radius: 18px; background: #f7faf9;
+  padding: 1rem; color: #183d34; box-shadow: 0 22px 55px rgba(15,35,32,.22);
+}
+.listing-location-menu-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.listing-location-menu-head button { color: #176b55; font-size: .78rem; font-weight: 800; text-decoration: underline; }
+.listing-location-menu label { display: grid; gap: .35rem; color: #31564c; font-size: .72rem; font-weight: 800; }
+.listing-location-menu select { min-height: 44px; width: 100%; border: 1px solid #c2d5d0; border-radius: 12px; background: #fff; padding: .65rem .75rem; color: #183d34; }
+.listing-location-apply { min-height: 44px; border-radius: 12px; background: #176b55; color: #fff; font-weight: 850; }
 .location-picker { border: 1px solid #b9e5d5; background: #f8fcfa; color: #183d34; box-shadow: 0 12px 32px rgba(21,74,59,.12); }
 .location-picker .field-label { color: #31564c; }
 .location-picker .field-input { min-height: 44px; border: 1px solid #c8ded5; background: #fff; color: #183d34; }
@@ -885,7 +892,7 @@ p {
 @media (min-width: 720px) {
   .search-results-head { padding: 1rem; }
   .search-price-popover { right: auto; left: 12rem; width: 430px; }
-  .search-location-popover { right: auto; left: 7rem; width: min(430px, calc(100vw - 3rem)); }
+  .listing-location-menu { position: absolute; right: auto; left: 0; width: 340px; }
 }
 .listing-card:hover {
   transform: translateY(-4px);
