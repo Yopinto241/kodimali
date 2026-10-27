@@ -181,21 +181,21 @@ export function CustomerAccountPortal({
     const applyUser = (nextUser: User | null) => {
       setUser(nextUser);
       if (nextUser) {
-        void loadBookings().catch((error: unknown) =>
-          setMessage(readError(error)),
-        );
-        void loadRentalAgreements().catch((error: unknown) =>
-          setMessage(readError(error)),
-        );
-        void loadEventPlans().catch((error: unknown) =>
-          setMessage(readError(error)),
-        );
-        void loadIndividualEventBookings().catch((error: unknown) =>
-          setMessage(readError(error)),
-        );
-        void loadConversations().catch((error: unknown) => setMessage(readError(error)));
+        // Account sections are independent. An optional empty/unavailable
+        // section must not look like a failed customer action.
+        void Promise.allSettled([
+          loadBookings(),
+          loadRentalAgreements(),
+          loadEventPlans(),
+          loadIndividualEventBookings(),
+          loadConversations(),
+        ]);
       } else {
         setBookings([]);
+        setRentalAgreements([]);
+        setEventPlans([]);
+        setIndividualEventBookings([]);
+        setConversations([]);
       }
     };
     void supabase.auth.getUser().then(({ data }) => applyUser(data.user));
