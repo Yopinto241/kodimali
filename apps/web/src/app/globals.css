@@ -1873,7 +1873,27 @@ video {
 .password-field button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .auth-forgot-link { justify-self: start; color: #9ddfd4; font-size: .85rem; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
 .auth-panel { max-width: 720px; margin-inline: auto; }
-.auth-form input { min-height: 50px; }
+.auth-panel.surface-card { border-color: rgba(23,50,58,.16); background: linear-gradient(145deg,#f4f6f5,#e2e8e6); color: #17323a; }
+.auth-panel.surface-card h1,
+.auth-panel.surface-card h2,
+.auth-panel.surface-card h3,
+.auth-panel.surface-card label { color: #17323a; }
+.auth-panel .btn-outline { border-color: rgba(23,50,58,.25); background: #d4dedb; color: #17323a; }
+.auth-form input { min-height: 50px; border: 1px solid rgba(23,50,58,.28); background: #cbd7d4 !important; color: #102f37 !important; -webkit-text-fill-color: #102f37; caret-color: #102f37; }
+.auth-form input::placeholder { color: #536d70; -webkit-text-fill-color: #536d70; }
+.auth-forgot-link { color: #286467; }
+.referral-secondary-action,
+.referral-account-link,
+.referral-page-hero a[href="/account"] { border: 1px solid rgba(255,255,255,.5); background: #f2f4f3; color: #17323a !important; box-shadow: 0 8px 22px rgba(0,0,0,.14); }
+.referral-secondary-action:hover,
+.referral-account-link:hover,
+.referral-page-hero a[href="/account"]:hover { border-color: #fff; background: #fff; color: #102f37 !important; }
+.search-price-popover { border-color: rgba(255,255,255,.14); background: #203b3b; color: #fff; }
+.search-price-popover label { color: rgba(255,255,255,.82); }
+.search-price-popover input,
+.search-price-popover select { border-color: rgba(255,255,255,.18); background: #c7d2d0; color: #102f37; }
+.search-price-popover option { background: #203b3b; color: #fff; }
+.search-price-popover button { background: #4c848d; color: #fff; }
 
 .mobile-bottom-nav { display: none; }
 @media (max-width: 1023px) {
@@ -1901,6 +1921,14 @@ video {
   .auth-page .page-hero-card { padding: 1.1rem; border-radius: 18px; }
   .auth-page .page-hero-card h1 { font-size: 1.8rem; }
   .auth-page .page-hero-card .section-copy { display: none; }
+}
+@media (max-width: 719px) {
+  .search-filter-chips { overflow: visible; flex-wrap: wrap; }
+  .search-filter-chips > details { position: relative; }
+  .search-price-filter { margin-left: auto; }
+  .search-price-popover { right: 0; left: auto; width: min(360px, calc(100vw - 40px)); grid-template-columns: minmax(0,1fr); }
+  .search-price-popover select,
+  .search-price-popover button { grid-column: 1; min-height: 44px; }
 }
 
 @media (max-width: 640px) {

@@ -161,7 +161,7 @@ export default async function ListingsPage({
               <LocationBanner visibleByDefault persistent regions={regions.map((item: { id: string; name: string }) => ({ id: item.id, name: item.name }))} />
             </div>
           </details>
-          <details>
+          <details className="search-price-filter">
             <summary>{sw ? "Bei" : "Price"}</summary>
             <div className="search-price-popover">
               <label>{sw ? "Bei ya chini" : "Minimum price"}<input name="minPrice" type="number" min="0" defaultValue={minPrice ?? ""} /></label>

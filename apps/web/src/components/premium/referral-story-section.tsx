@@ -21,7 +21,7 @@ export function ReferralStorySection() {
               <h2 className="max-w-2xl font-heading text-3xl font-semibold tracking-tight text-white sm:text-4xl">{sw ? "Unaijua mali inayopatikana?" : "Know an available property?"}</h2>
               <p className="mt-3 max-w-xl text-sm text-white/70">{sw ? "Tutumie taarifa. Tutathibitisha mali na kukuarifu hatua inayofuata." : "Send the details. We will verify the property and update you."}</p>
             </div>
-            <div className="flex flex-wrap gap-2"><Link href="/toa-taarifa" className="btn btn-gold">{sw ? "Toa taarifa" : "Send details"}</Link><Link href="/toa-taarifa#taarifa-zangu" className="btn border border-white/20 bg-white/8 text-white">{sw ? "Taarifa zangu" : "My submissions"}</Link></div>
+            <div className="flex flex-wrap gap-2"><Link href="/toa-taarifa" className="btn btn-gold">{sw ? "Toa taarifa" : "Send details"}</Link><Link href="/toa-taarifa#taarifa-zangu" className="btn referral-secondary-action">{sw ? "Taarifa zangu" : "My submissions"}</Link></div>
           </div>
         </RevealOnScroll>
         <div className="relative z-10 mt-7 grid gap-2 sm:grid-cols-3">
