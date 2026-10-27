@@ -23,10 +23,12 @@ export function BackNavButton({
         }
         router.push(fallbackHref);
       }}
-      className="inline-flex items-center gap-2 rounded-full border border-brand-border-strong bg-brand-card-soft px-4 py-2 text-sm font-semibold text-brand-navy transition hover:border-brand-navy hover:bg-white hover:text-brand-ink"
+      className="back-nav-button"
+      aria-label={label}
+      title={label}
     >
-      <span aria-hidden>&larr;</span>
-      <span>{label}</span>
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      <span className="sr-only">{label}</span>
     </button>
   );
 }

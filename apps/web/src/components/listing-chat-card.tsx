@@ -17,12 +17,23 @@ export function ListingChatCard({ listingId }: { listingId: string }) {
   const [phone, setPhone] = useState("");
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [chatPrice, setChatPrice] = useState<number | null>(null);
   const [notice, setNotice] = useState("Chat directly with the listing agent.");
 
   useEffect(() => {
-    void supabase.auth
-      .getUser()
-      .then(({ data }) => setSignedIn(Boolean(data.user)));
+    void Promise.all([
+      supabase.auth.getUser(),
+      supabase.rpc("paid_chat_unlock_price"),
+    ]).then(([auth, price]) => {
+      const priceResult = price as unknown as {
+        data: unknown;
+        error: unknown;
+      };
+      setSignedIn(Boolean(auth.data.user));
+      if (!priceResult.error && typeof priceResult.data === "number") {
+        setChatPrice(priceResult.data);
+      }
+    });
   }, [supabase]);
 
   async function openConversation() {
@@ -105,6 +116,13 @@ export function ListingChatCard({ listingId }: { listingId: string }) {
       <p className="mt-2 text-sm text-muted" role="status">
         {notice}
       </p>
+      {chatPrice !== null ? (
+        <p className="mt-2 text-sm font-semibold">
+          {sw
+            ? `Ada ya chat: TZS ${chatPrice.toLocaleString()}`
+            : `Chat fee: TZS ${chatPrice.toLocaleString()}`}
+        </p>
+      ) : null}
       {signedIn === false ? (
         <Link
           className="btn btn-success mt-5"

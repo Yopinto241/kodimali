@@ -18,6 +18,7 @@ import { PromotionStrip } from "@/components/promotion-strip";
 import { StatusPill } from "@/components/status-pill";
 import {
   fetchListingDetail,
+  fetchListingBookingCapability,
   fetchPromotions,
   fetchPublicListings,
 } from "@/lib/supabase-public";
@@ -122,13 +123,14 @@ export default async function ListingPage({
   const adsenseClientId = process.env.ADSENSE_CLIENT_ID ?? "";
   const adsenseDetailSlot = process.env.ADSENSE_SLOT_DETAIL ?? "";
   const { id } = await params;
-  const [listing, promotions] = await Promise.all([
+  const [listing, promotions, bookingCapability] = await Promise.all([
     fetchListingDetail(id),
     fetchPromotions({
       surface: "website",
       placement: "listing_detail",
       limit: 1,
     }),
+    fetchListingBookingCapability(id),
   ]);
 
   if (!listing) {
@@ -328,6 +330,7 @@ export default async function ListingPage({
             listingTitle={listing.title}
             categorySlug={listing.asset_categories?.slug}
             availableServices={services}
+            bookingMode={bookingCapability.effective_mode}
           />
           <PromotionStrip promotions={promotions as never} />
           <GoogleAdSlot

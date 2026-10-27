@@ -617,7 +617,8 @@ class ManageRepository {
           )
           .eq("id", true)
           .maybeSingle();
-      return row ??
+      final JsonMap settings =
+          row ??
           <String, dynamic>{
             "contact_payments_enabled": false,
             "agent_listing_payments_enabled": false,
@@ -627,6 +628,15 @@ class ManageRepository {
             "booking_payments_enabled": false,
             "event_payments_enabled": false,
           };
+      try {
+        settings["paid_chat_unlock_amount_tzs"] = await _client.rpc(
+          "paid_chat_unlock_price",
+        );
+      } on PostgrestException catch (error) {
+        if (!_isOptionalWorkflowCompatibilityError(error)) rethrow;
+        settings["paid_chat_unlock_amount_tzs"] = 500;
+      }
+      return settings;
     } on PostgrestException catch (error) {
       if (_isManageIdentifierCompatibilityError(error)) {
         throw StateError(
@@ -671,6 +681,45 @@ class ManageRepository {
       "chat_payments_enabled": enabled,
       "updated_by": user.id,
     });
+  }
+
+  Future<void> updatePaidChatUnlockPrice(int amountTzs) async {
+    await _client.rpc(
+      "set_paid_chat_unlock_price",
+      params: <String, dynamic>{"p_amount_tzs": amountTzs},
+    );
+  }
+
+  Future<List<JsonMap>> fetchKodimaliRolloutFlags() async {
+    try {
+      return _decodeListRows(
+        _client
+            .from("kodimali_feature_flags")
+            .select(
+              "key, enabled, configuration, approved_at, approved_by, updated_at, updated_by",
+            )
+            .order("key"),
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) return <JsonMap>[];
+      rethrow;
+    }
+  }
+
+  Future<void> updateKodimaliRolloutFlag({
+    required String key,
+    required bool enabled,
+    required String approvalNote,
+  }) async {
+    await _client.rpc(
+      "set_kodimali_feature_flag",
+      params: <String, dynamic>{
+        "p_key": key,
+        "p_enabled": enabled,
+        "p_approval_note": approvalNote.trim(),
+        "p_configuration": <String, dynamic>{},
+      },
+    );
   }
 
   Future<void> updateSubscriptionPaymentsEnabled(bool enabled) async {
@@ -2304,6 +2353,141 @@ class ManageRepository {
     }
   }
 
+  Future<JsonMap?> fetchAcceptedBookingTerms(String bookingId) async {
+    try {
+      return await _client
+          .from("booking_terms_snapshots")
+          .select(
+            "id, version, currency, agreed_total_minor, deposit_percent, deposit_minor, balance_minor, balance_due_at, agreement_version, status, accepted_at",
+          )
+          .eq("booking_request_id", bookingId)
+          .eq("status", "accepted")
+          .maybeSingle();
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) return null;
+      rethrow;
+    }
+  }
+
+  Future<List<JsonMap>> fetchBookingPaymentIntents(String bookingId) async {
+    try {
+      return _decodeListRows(
+        _client
+            .from("payment_intents")
+            .select(
+              "id, product, amount_minor, currency, status, expires_at, verified_at, created_at",
+            )
+            .eq("resource_type", "booking_request")
+            .eq("resource_id", bookingId)
+            .order("created_at", ascending: false),
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) return <JsonMap>[];
+      rethrow;
+    }
+  }
+
+  Future<List<JsonMap>> fetchBookingFulfillmentMilestones(
+    String bookingId,
+  ) async {
+    try {
+      return _decodeListRows(
+        _client
+            .from("fulfillment_milestones")
+            .select(
+              "id, milestone_kind, due_at, status, provider_confirmed_at, customer_confirmed_at, verified_at, updated_at",
+            )
+            .eq("booking_request_id", bookingId)
+            .order("due_at"),
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) return <JsonMap>[];
+      rethrow;
+    }
+  }
+
+  Future<List<JsonMap>> fetchBookingIncidents(String bookingId) async {
+    try {
+      return _decodeListRows(
+        _client
+            .from("booking_incidents")
+            .select(
+              "id, incident_kind, severity, summary, status, settlement_suspended, resolution, created_at, resolved_at",
+            )
+            .eq("booking_request_id", bookingId)
+            .order("created_at", ascending: false),
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) return <JsonMap>[];
+      rethrow;
+    }
+  }
+
+  Future<List<JsonMap>> fetchBookingCancellations(String bookingId) async {
+    try {
+      return _decodeListRows(
+        _client
+            .from("booking_cancellation_cases")
+            .select(
+              "id, party, reason, paid_minor, customer_refund_minor, provider_compensation_minor, platform_fee_minor, booking_status, refund_status, provider_compensation_status, inventory_release_status, commission_adjustment_status, referral_adjustment_status, settlement_status, resolution_notes, created_at, reviewed_at",
+            )
+            .eq("booking_request_id", bookingId)
+            .order("created_at", ascending: false),
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) return <JsonMap>[];
+      rethrow;
+    }
+  }
+
+  Future<void> reviewBookingCancellation({
+    required String caseId,
+    required bool approve,
+    String? notes,
+  }) async {
+    await _client.rpc(
+      "review_booking_cancellation",
+      params: <String, dynamic>{
+        "p_case_id": caseId,
+        "p_approve": approve,
+        "p_notes": notes?.trim().isEmpty == true ? null : notes?.trim(),
+      },
+    );
+  }
+
+  Future<List<JsonMap>> fetchBookingProviderPayables(String bookingId) async {
+    try {
+      return _decodeListRows(
+        _client
+            .from("provider_payables")
+            .select(
+              "id, amount_minor, currency, status, eligible_at, created_at, updated_at",
+            )
+            .eq("booking_request_id", bookingId)
+            .order("created_at", ascending: false),
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) return <JsonMap>[];
+      rethrow;
+    }
+  }
+
+  Future<void> confirmFulfillmentMilestone(String milestoneId) async {
+    try {
+      await _client.rpc(
+        "confirm_provider_fulfillment_milestone",
+        params: <String, dynamic>{"p_milestone_id": milestoneId},
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) {
+        throw StateError(
+          "Fulfillment confirmation needs the latest server update.",
+        );
+      }
+      rethrow;
+    }
+  }
+
   Future<List<JsonMap>> fetchAdminPaymentOperations({
     String? paymentStatus,
     int limit = 30,
@@ -2326,6 +2510,254 @@ class ManageRepository {
       }
       rethrow;
     }
+  }
+
+  Future<JsonMap> fetchAdminFinancialOverview() async {
+    try {
+      final dynamic response = await _client.rpc(
+        "get_admin_financial_overview",
+      );
+      return response is Map
+          ? Map<String, dynamic>.from(response)
+          : <String, dynamic>{};
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) {
+        return <String, dynamic>{};
+      }
+      rethrow;
+    }
+  }
+
+  Future<List<JsonMap>> fetchAdminFinancialActivity({
+    DateTime? from,
+    DateTime? until,
+    String? product,
+    String? status,
+    String? bookingId,
+    String? providerProfileId,
+    String? category,
+    String? paymentProvider,
+    int limit = 200,
+  }) async {
+    try {
+      return _decodeListRows(
+        _client.rpc(
+          "get_admin_financial_activity",
+          params: <String, dynamic>{
+            "p_from": from?.toUtc().toIso8601String(),
+            "p_until": until?.toUtc().toIso8601String(),
+            "p_product": product,
+            "p_status": status,
+            "p_booking_id": bookingId?.trim().isEmpty == true
+                ? null
+                : bookingId?.trim(),
+            "p_provider_profile_id": providerProfileId?.trim().isEmpty == true
+                ? null
+                : providerProfileId?.trim(),
+            "p_category": category,
+            "p_payment_provider": paymentProvider,
+            "p_limit": limit,
+          },
+        ),
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) return <JsonMap>[];
+      rethrow;
+    }
+  }
+
+  Future<List<JsonMap>> fetchRefundObligations() async {
+    try {
+      return _decodeListRows(
+        _client
+            .from("refund_obligations")
+            .select(
+              "id, booking_request_id, customer_id, amount_minor, currency, reason, status, provider, provider_transaction_id, approved_at, created_at, updated_at",
+            )
+            .order("created_at", ascending: false)
+            .limit(200),
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) return <JsonMap>[];
+      rethrow;
+    }
+  }
+
+  Future<List<JsonMap>> fetchProviderPayables() async {
+    try {
+      return _decodeListRows(
+        _client
+            .from("provider_payables")
+            .select(
+              "id, booking_request_id, provider_profile_id, amount_minor, currency, status, eligible_at, created_at, updated_at, settlement_batch_items(status)",
+            )
+            .order("created_at", ascending: false)
+            .limit(200),
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) return <JsonMap>[];
+      rethrow;
+    }
+  }
+
+  Future<List<JsonMap>> fetchSettlementBatches() async {
+    try {
+      return _decodeListRows(
+        _client
+            .from("settlement_batches")
+            .select(
+              "id, reference, status, approved_by, approved_at, provider_reference, created_by, created_at, updated_at, settlement_batch_items(id, payable_id, amount_minor, status, provider, provider_transaction_id)",
+            )
+            .order("created_at", ascending: false)
+            .limit(100),
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) return <JsonMap>[];
+      rethrow;
+    }
+  }
+
+  Future<List<JsonMap>> fetchFinancialReconciliationCases() async {
+    try {
+      return _decodeListRows(
+        _client
+            .from("financial_reconciliation_cases")
+            .select(
+              "id, provider, provider_transaction_id, provider_order_id, payment_intent_id, expected_amount_minor, reported_amount_minor, currency, reason, status, resolution, resolved_by, resolved_at, created_at, updated_at",
+            )
+            .order("created_at", ascending: false)
+            .limit(200),
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) return <JsonMap>[];
+      rethrow;
+    }
+  }
+
+  Future<void> prepareRefundExecution({
+    required String refundId,
+    required String note,
+  }) async {
+    await _client.rpc(
+      "prepare_refund_execution",
+      params: <String, dynamic>{"p_refund_id": refundId, "p_note": note},
+    );
+  }
+
+  Future<void> createProviderSettlementBatch({
+    required List<String> payableIds,
+    required String note,
+  }) async {
+    await _client.rpc(
+      "create_provider_settlement_batch",
+      params: <String, dynamic>{"p_payable_ids": payableIds, "p_note": note},
+    );
+  }
+
+  Future<void> approveProviderSettlementBatch({
+    required String batchId,
+    required String note,
+  }) async {
+    await _client.rpc(
+      "approve_provider_settlement_batch",
+      params: <String, dynamic>{"p_batch_id": batchId, "p_note": note},
+    );
+  }
+
+  Future<void> releaseFailedSettlementPayable({
+    required String payableId,
+    required String note,
+  }) async {
+    await _client.rpc(
+      "release_failed_settlement_payable",
+      params: <String, dynamic>{"p_payable_id": payableId, "p_note": note},
+    );
+  }
+
+  Future<void> reviewFinancialReconciliation({
+    required String caseId,
+    required String status,
+    required String resolution,
+  }) async {
+    await _client.rpc(
+      "review_financial_reconciliation",
+      params: <String, dynamic>{
+        "p_case_id": caseId,
+        "p_status": status,
+        "p_resolution": resolution,
+      },
+    );
+  }
+
+  Future<List<JsonMap>> fetchAdminExternalDeals() async {
+    try {
+      return _decodeListRows(
+        _client
+            .from("external_deal_declarations")
+            .select(
+              "id, listing_id, referral_submission_id, declared_by, other_party_id, claimed_value_minor, currency, transaction_date, evidence_paths, status, notes, created_at, updated_at",
+            )
+            .order("created_at", ascending: false)
+            .limit(100),
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) return <JsonMap>[];
+      rethrow;
+    }
+  }
+
+  Future<void> reviewExternalDeal({
+    required String dealId,
+    required String status,
+    String? notes,
+  }) async {
+    await _client.rpc(
+      "review_external_deal",
+      params: <String, dynamic>{
+        "p_deal_id": dealId,
+        "p_status": status,
+        "p_notes": notes?.trim().isEmpty == true ? null : notes?.trim(),
+      },
+    );
+  }
+
+  Future<List<JsonMap>> fetchMyExternalDeals() async {
+    try {
+      return _decodeListRows(
+        _client
+            .from("external_deal_declarations")
+            .select(
+              "id, listing_id, referral_submission_id, claimed_value_minor, currency, transaction_date, status, notes, created_at",
+            )
+            .order("created_at", ascending: false),
+      );
+    } on PostgrestException catch (error) {
+      if (_isOptionalWorkflowCompatibilityError(error)) return <JsonMap>[];
+      rethrow;
+    }
+  }
+
+  Future<void> declareExternalListingDeal({
+    required String listingId,
+    required int claimedValueTzs,
+    required DateTime transactionDate,
+    String? notes,
+  }) async {
+    await _client.rpc(
+      "declare_external_deal",
+      params: <String, dynamic>{
+        "p_listing_id": listingId,
+        "p_referral_submission_id": null,
+        "p_other_party_id": null,
+        "p_claimed_value_minor": claimedValueTzs,
+        "p_transaction_date": transactionDate
+            .toIso8601String()
+            .split("T")
+            .first,
+        "p_evidence_paths": <dynamic>[],
+        "p_notes": notes?.trim().isEmpty == true ? null : notes?.trim(),
+      },
+    );
   }
 
   Future<List<JsonMap>> fetchNotifications() async {

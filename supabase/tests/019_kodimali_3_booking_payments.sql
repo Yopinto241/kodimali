@@ -1,0 +1,12 @@
+begin;
+select plan(8);
+select has_function('public','prepare_booking_payment_intent',array['uuid','text','text'],'typed booking payment preparation exists');
+select has_function('public','finalize_platform_payment',array['uuid','text','jsonb'],'server-only payment finalization exists');
+select col_is_fk('public','platform_payment_orders','payment_intent_id','provider orders link to typed intent');
+select col_has_check('public','platform_payment_orders','purpose','provider order products are constrained');
+select is(public.kodimali_feature_enabled('booking_deposit_payments'),false,'deposit collection remains disabled');
+select is(public.kodimali_feature_enabled('booking_balance_payments'),false,'balance collection remains disabled');
+select is((select deposit_minor from public.calculate_booking_split(101,25)),25::bigint,'deposit rounding is deterministic');
+select is((select balance_minor from public.calculate_booking_split(101,25)),76::bigint,'balance absorbs deterministic remainder');
+select * from finish();
+rollback;

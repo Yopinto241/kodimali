@@ -1,0 +1,10 @@
+begin;
+select plan(6);
+select has_function('public','declare_external_deal',array['uuid','uuid','uuid','bigint','date','jsonb','text'],'authorized external deal declaration exists');
+select function_is_definer('public','declare_external_deal',array['uuid','uuid','uuid','bigint','date','jsonb','text'],'external deal authorization is server-side');
+select is(has_function_privilege('anon','public.declare_external_deal(uuid,uuid,uuid,bigint,date,jsonb,text)','EXECUTE'),false,'anonymous users cannot declare external deals');
+select policies_are('public','external_deal_declarations',array['external_deal_participant_read'],'external deal table has no broad direct insert policy');
+select has_function('public','review_external_deal',array['uuid','text','text'],'permission-controlled external deal review exists');
+select is(has_function_privilege('anon','public.review_external_deal(uuid,text,text)','EXECUTE'),false,'anonymous users cannot review external deals');
+select * from finish();
+rollback;

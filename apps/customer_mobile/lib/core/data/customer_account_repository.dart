@@ -388,10 +388,169 @@ class CustomerAccountRepository {
             )
             .eq('id', bookingRequestId)
             .maybeSingle();
-        return <String, dynamic>{...request, ...?paymentState};
+        CustomerJson? terms;
+        List<CustomerJson> v3Payments = <CustomerJson>[];
+        try {
+          terms = await _client
+              .from('booking_terms_snapshots')
+              .select(
+                'id,version,agreed_total_minor,deposit_minor,balance_minor,balance_due_at,agreement_version,cancellation_policy_snapshot,provider_obligations_snapshot,status',
+              )
+              .eq('booking_request_id', bookingRequestId)
+              .eq('status', 'accepted')
+              .maybeSingle();
+          v3Payments =
+              (await _client
+                      .from('payment_intents')
+                      .select('id,product,amount_minor,status,verified_at')
+                      .eq('resource_type', 'booking_request')
+                      .eq('resource_id', bookingRequestId))
+                  .cast<CustomerJson>();
+        } on PostgrestException catch (error) {
+          if (!_isCompatibilityError(error)) rethrow;
+        }
+        return <String, dynamic>{
+          ...request,
+          ...?paymentState,
+          'booking_terms_snapshot': terms,
+          'v3_payment_intents': v3Payments,
+        };
       }
     }
     return null;
+  }
+
+  Future<List<CustomerJson>> fetchBookingCancellations(
+    String bookingRequestId,
+  ) async {
+    _requireUser();
+    try {
+      return (await _client
+              .from('booking_cancellation_cases')
+              .select(
+                'id,party,reason,paid_minor,customer_refund_minor,provider_compensation_minor,platform_fee_minor,booking_status,refund_status,inventory_release_status,settlement_status,resolution_notes,created_at,updated_at',
+              )
+              .eq('booking_request_id', bookingRequestId)
+              .order('created_at', ascending: false))
+          .cast<CustomerJson>();
+    } on PostgrestException catch (error) {
+      if (_isCompatibilityError(error)) return <CustomerJson>[];
+      rethrow;
+    }
+  }
+
+  Future<List<CustomerJson>> fetchBookingIncidents(
+    String bookingRequestId,
+  ) async {
+    _requireUser();
+    try {
+      return (await _client
+              .from('booking_incidents')
+              .select(
+                'id,milestone_id,incident_kind,severity,summary,status,settlement_suspended,resolution,created_at,resolved_at',
+              )
+              .eq('booking_request_id', bookingRequestId)
+              .order('created_at', ascending: false))
+          .cast<CustomerJson>();
+    } on PostgrestException catch (error) {
+      if (_isCompatibilityError(error)) return <CustomerJson>[];
+      rethrow;
+    }
+  }
+
+  Future<List<CustomerJson>> fetchBookingMilestones(
+    String bookingRequestId,
+  ) async {
+    _requireUser();
+    try {
+      return (await _client
+              .from('fulfillment_milestones')
+              .select(
+                'id,milestone_kind,due_at,status,provider_confirmed_at,customer_confirmed_at,verified_at',
+              )
+              .eq('booking_request_id', bookingRequestId)
+              .order('due_at'))
+          .cast<CustomerJson>();
+    } on PostgrestException catch (error) {
+      if (_isCompatibilityError(error)) return <CustomerJson>[];
+      rethrow;
+    }
+  }
+
+  Future<List<CustomerJson>> fetchBookingSubstitutions(
+    List<String> incidentIds,
+  ) async {
+    _requireUser();
+    if (incidentIds.isEmpty) return <CustomerJson>[];
+    try {
+      return (await _client
+              .from('booking_substitution_proposals')
+              .select(
+                'id,incident_id,proposed_listing_id,description,price_difference_minor,status,expires_at,created_at',
+              )
+              .inFilter('incident_id', incidentIds)
+              .order('created_at', ascending: false))
+          .cast<CustomerJson>();
+    } on PostgrestException catch (error) {
+      if (_isCompatibilityError(error)) return <CustomerJson>[];
+      rethrow;
+    }
+  }
+
+  Future<void> requestBookingCancellation({
+    required String bookingRequestId,
+    required String reason,
+  }) async {
+    _requireUser();
+    await _client.rpc(
+      'request_booking_cancellation',
+      params: <String, dynamic>{
+        'p_booking_request_id': bookingRequestId,
+        'p_reason': reason.trim(),
+      },
+    );
+  }
+
+  Future<void> reportBookingIncident({
+    required String bookingRequestId,
+    required String kind,
+    required String severity,
+    required String summary,
+    String? milestoneId,
+  }) async {
+    _requireUser();
+    await _client.rpc(
+      'report_booking_incident',
+      params: <String, dynamic>{
+        'p_booking_request_id': bookingRequestId,
+        'p_incident_kind': kind,
+        'p_severity': severity,
+        'p_summary': summary.trim(),
+        'p_milestone_id': milestoneId,
+      },
+    );
+  }
+
+  Future<void> respondBookingSubstitution({
+    required String proposalId,
+    required bool accept,
+  }) async {
+    _requireUser();
+    await _client.rpc(
+      'respond_booking_substitution',
+      params: <String, dynamic>{
+        'p_proposal_id': proposalId,
+        'p_accept': accept,
+      },
+    );
+  }
+
+  Future<void> confirmCustomerFulfillmentMilestone(String milestoneId) async {
+    _requireUser();
+    await _client.rpc(
+      'confirm_customer_fulfillment_milestone',
+      params: <String, dynamic>{'p_milestone_id': milestoneId},
+    );
   }
 
   Future<CustomerJson> createBookingPayment({
@@ -413,6 +572,34 @@ class CustomerAccountRepository {
       );
     }
     return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<CustomerJson> createV3BookingPayment({
+    required String bookingRequestId,
+    required String phoneNumber,
+    required String product,
+    required String idempotencyKey,
+  }) async {
+    _requireUser();
+    if (product != 'booking_deposit' && product != 'booking_balance') {
+      throw StateError('Unsupported booking payment product.');
+    }
+    final FunctionResponse response = await _client.functions.invoke(
+      'create-booking-payment',
+      body: <String, dynamic>{
+        'booking_id': bookingRequestId,
+        'phone_number': phoneNumber.trim(),
+        'product': product,
+        'idempotency_key': idempotencyKey,
+      },
+    );
+    if (response.status >= 400 || response.data is! Map) {
+      throw StateError(
+        (response.data as Map?)?['error']?.toString() ??
+            'Could not start booking payment.',
+      );
+    }
+    return CustomerJson.from(response.data as Map);
   }
 
   Future<CustomerJson> checkBookingPayment(String paymentId) async {
@@ -636,6 +823,11 @@ class CustomerAccountRepository {
   Future<bool> fetchChatPaymentsEnabled() async {
     final dynamic response = await _client.rpc('chat_payments_enabled');
     return response as bool? ?? true;
+  }
+
+  Future<int> fetchPaidChatUnlockPrice() async {
+    final dynamic response = await _client.rpc('paid_chat_unlock_price');
+    return (response as num?)?.toInt() ?? 500;
   }
 
   Future<void> markListingChatRead(String conversationId) async {

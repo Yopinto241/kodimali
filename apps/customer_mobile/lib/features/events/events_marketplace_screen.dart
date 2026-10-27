@@ -771,6 +771,9 @@ class _MyEventPlansScreenState extends State<_MyEventPlansScreen> {
                 final agreement = agreements
                     .where((row) => row['status'] == 'sent')
                     .firstOrNull;
+                final payment = Map<String, dynamic>.from(
+                  plan['payment_summary'] as Map? ?? const <String, dynamic>{},
+                );
                 return Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -837,9 +840,37 @@ class _MyEventPlansScreenState extends State<_MyEventPlansScreen> {
                           FilledButton.icon(
                             onPressed: busy
                                 ? null
-                                : () => pay(plan['id'].toString()),
+                                : () => pay(
+                                    plan['id'].toString(),
+                                    purpose: 'event_deposit',
+                                  ),
                             icon: const Icon(Icons.payments_outlined),
                             label: Text(sw ? 'Lipa deposit' : 'Pay deposit'),
+                          ),
+                        ],
+                        if ((payment['total'] as num? ?? 0) > 0) ...<Widget>[
+                          const SizedBox(height: 10),
+                          Text(
+                            '${sw ? 'Deposit iliyobaki' : 'Deposit remaining'}: TZS ${payment['deposit_remaining']} · Balance: TZS ${payment['balance_remaining']}',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                        if (plan['status'] == 'confirmed' &&
+                            (payment['deposit_remaining'] as num? ?? 0) == 0 &&
+                            (payment['balance_remaining'] as num? ?? 0) >
+                                0) ...<Widget>[
+                          const SizedBox(height: 10),
+                          FilledButton.icon(
+                            onPressed: busy
+                                ? null
+                                : () => pay(
+                                    plan['id'].toString(),
+                                    purpose: 'event_balance',
+                                  ),
+                            icon: const Icon(
+                              Icons.account_balance_wallet_outlined,
+                            ),
+                            label: Text(sw ? 'Lipa balance' : 'Pay balance'),
                           ),
                         ],
                         if (sent == null &&
@@ -898,7 +929,7 @@ class _MyEventPlansScreenState extends State<_MyEventPlansScreen> {
     }
   }
 
-  Future<void> pay(String planId) async {
+  Future<void> pay(String planId, {required String purpose}) async {
     final sw = context.isSwahili;
     final controller = TextEditingController();
     final phone = await showDialog<String>(
@@ -928,7 +959,7 @@ class _MyEventPlansScreenState extends State<_MyEventPlansScreen> {
     setState(() => busy = true);
     try {
       final started = await widget.repository.createPlatformPayment(
-        purpose: 'event_deposit',
+        purpose: purpose,
         resourceId: planId,
         phoneNumber: phone,
       );

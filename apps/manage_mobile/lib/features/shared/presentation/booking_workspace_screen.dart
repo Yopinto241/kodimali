@@ -65,13 +65,19 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
       repository.fetchBookingStatusHistory(_bookingId),
       repository.fetchViewingAppointments(_bookingId),
       repository.fetchBookingReview(_bookingId),
+      repository.fetchAcceptedBookingTerms(_bookingId),
+      repository.fetchBookingPaymentIntents(_bookingId),
+      repository.fetchBookingFulfillmentMilestones(_bookingId),
+      repository.fetchBookingIncidents(_bookingId),
+      repository.fetchBookingProviderPayables(_bookingId),
+      repository.fetchBookingCancellations(_bookingId),
       if (_hasCustomerAccount)
         repository.getOrCreateBookingConversation(_bookingId)
       else
         Future<Map<String, dynamic>?>.value(null),
     ]);
     final Map<String, dynamic>? conversation =
-        primary[3] as Map<String, dynamic>?;
+        primary[9] as Map<String, dynamic>?;
     final String? conversationId = conversation?["id"] as String?;
     final List<Map<String, dynamic>> messages = conversationId == null
         ? <Map<String, dynamic>>[]
@@ -83,6 +89,12 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
       "history": primary[0],
       "appointments": primary[1],
       "review": primary[2],
+      "terms": primary[3],
+      "paymentIntents": primary[4],
+      "milestones": primary[5],
+      "incidents": primary[6],
+      "payables": primary[7],
+      "cancellations": primary[8],
       "conversation": conversation,
       "messages": messages,
     };
@@ -243,6 +255,50 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
     );
   }
 
+  Future<void> _confirmMilestone(String milestoneId) async {
+    await _run(
+      () => AppScope.of(
+        context,
+      ).repository.confirmFulfillmentMilestone(milestoneId),
+    );
+  }
+
+  Future<void> _reviewCancellation(String caseId, bool approve) async {
+    final controller = TextEditingController();
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(approve ? "Approve cancellation" : "Decline cancellation"),
+        content: TextField(
+          controller: controller,
+          minLines: 2,
+          maxLines: 5,
+          decoration: const InputDecoration(labelText: "Review notes"),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text("Back"),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(approve ? "Approve" : "Decline"),
+          ),
+        ],
+      ),
+    );
+    final notes = controller.text;
+    controller.dispose();
+    if (confirmed != true || !mounted) return;
+    await _run(
+      () => AppScope.of(context).repository.reviewBookingCancellation(
+        caseId: caseId,
+        approve: approve,
+        notes: notes,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final Map<String, dynamic>? listing =
@@ -314,6 +370,12 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                   _buildOwnershipPanel(context),
                   const SizedBox(height: 16),
                   _buildStatusActions(context),
+                  const SizedBox(height: 16),
+                  _buildFinancialPanel(context, data),
+                  const SizedBox(height: 16),
+                  _buildFulfillmentPanel(context, data),
+                  const SizedBox(height: 16),
+                  _buildCancellationPanel(context, data),
                   const SizedBox(height: 16),
                   _buildViewingPanel(context, appointments),
                   const SizedBox(height: 16),
@@ -481,6 +543,287 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFinancialPanel(BuildContext context, Map<String, dynamic> data) {
+    final Map<String, dynamic>? terms = data["terms"] is Map
+        ? (data["terms"] as Map).cast<String, dynamic>()
+        : null;
+    final List<Map<String, dynamic>> intents =
+        (data["paymentIntents"] as List<dynamic>? ?? <dynamic>[])
+            .whereType<Map>()
+            .map((Map item) => item.cast<String, dynamic>())
+            .toList(growable: false);
+    final List<Map<String, dynamic>> payables =
+        (data["payables"] as List<dynamic>? ?? <dynamic>[])
+            .whereType<Map>()
+            .map((Map item) => item.cast<String, dynamic>())
+            .toList(growable: false);
+
+    if (terms == null && intents.isEmpty && payables.isEmpty) {
+      return const ManagePanel(
+        title: "Booking payment",
+        subtitle: "No confirmed price yet.",
+        child: Text(
+          "Payment starts only after the customer accepts a clear booking price and terms.",
+        ),
+      );
+    }
+
+    return ManagePanel(
+      title: "Booking payment",
+      subtitle:
+          "See what the customer agreed and paid. Financial records are controlled by the platform.",
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          if (terms != null)
+            ManageMetaWrap(
+              items: <String>[
+                "Total ${DateFormatters.formatCurrency(terms["agreed_total_minor"] as num?)}",
+                "Deposit ${DateFormatters.formatCurrency(terms["deposit_minor"] as num?)} (${terms["deposit_percent"] ?? 25}%)",
+                "Balance ${DateFormatters.formatCurrency(terms["balance_minor"] as num?)}",
+                "Agreement ${terms["agreement_version"] ?? "-"}",
+                if (terms["balance_due_at"] != null)
+                  "Balance due ${DateFormatters.formatDateTime(terms["balance_due_at"] as String?)}",
+              ],
+            ),
+          if (intents.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 14),
+            ...intents.map(
+              (Map<String, dynamic> intent) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  intent["status"] == "verified_paid"
+                      ? Icons.verified_rounded
+                      : Icons.payments_outlined,
+                ),
+                title: Text(
+                  intent["product"] == "booking_deposit"
+                      ? "Booking deposit"
+                      : "Booking balance",
+                ),
+                subtitle: Text(
+                  DateFormatters.formatCurrency(intent["amount_minor"] as num?),
+                ),
+                trailing: KodimaliStatusChip(
+                  label: intent["status"] as String? ?? "created",
+                  highlight: intent["status"] == "verified_paid",
+                ),
+              ),
+            ),
+          ],
+          if (payables.isNotEmpty) ...<Widget>[
+            const Divider(height: 28),
+            Text(
+              "Provider settlement",
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: 8),
+            ...payables.map(
+              (Map<String, dynamic> payable) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  DateFormatters.formatCurrency(
+                    payable["amount_minor"] as num?,
+                  ),
+                ),
+                subtitle: const Text(
+                  "Released only after fulfillment and protection checks.",
+                ),
+                trailing: KodimaliStatusChip(
+                  label: payable["status"] as String? ?? "pending_fulfillment",
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFulfillmentPanel(
+    BuildContext context,
+    Map<String, dynamic> data,
+  ) {
+    final List<Map<String, dynamic>> milestones =
+        (data["milestones"] as List<dynamic>? ?? <dynamic>[])
+            .whereType<Map>()
+            .map((Map item) => item.cast<String, dynamic>())
+            .toList(growable: false);
+    final List<Map<String, dynamic>> incidents =
+        (data["incidents"] as List<dynamic>? ?? <dynamic>[])
+            .whereType<Map>()
+            .map((Map item) => item.cast<String, dynamic>())
+            .toList(growable: false);
+    return ManagePanel(
+      title: "Fulfillment",
+      subtitle: milestones.isEmpty
+          ? "Fulfillment steps appear after booking terms are confirmed."
+          : "Confirm only a step you have actually completed. Customer or admin verification remains separate.",
+      child: Column(
+        children: <Widget>[
+          if (milestones.isEmpty)
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text("No fulfillment step is due yet."),
+            )
+          else
+            ...milestones.map((Map<String, dynamic> milestone) {
+              final String status = milestone["status"] as String? ?? "pending";
+              final bool canConfirm =
+                  !widget.isAdmin &&
+                  <String>{"pending", "ready"}.contains(status);
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.task_alt_rounded),
+                title: Text(
+                  (milestone["milestone_kind"] as String? ?? "milestone")
+                      .replaceAll("_", " "),
+                ),
+                subtitle: milestone["due_at"] == null
+                    ? null
+                    : Text(
+                        "Due ${DateFormatters.formatDateTime(milestone["due_at"] as String?)}",
+                      ),
+                trailing: canConfirm
+                    ? FilledButton.tonal(
+                        onPressed: _busy
+                            ? null
+                            : () =>
+                                  _confirmMilestone(milestone["id"] as String),
+                        child: const Text("Confirm done"),
+                      )
+                    : KodimaliStatusChip(
+                        label: status,
+                        highlight: status == "verified",
+                      ),
+              );
+            }),
+          if (incidents.isNotEmpty) ...<Widget>[
+            const Divider(height: 28),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Protection cases",
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+            ...incidents.map(
+              (Map<String, dynamic> incident) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.report_problem_outlined),
+                title: Text(incident["summary"] as String? ?? "Issue reported"),
+                subtitle: Text(
+                  "${incident["incident_kind"] ?? "issue"} · ${incident["severity"] ?? "-"}",
+                ),
+                trailing: KodimaliStatusChip(
+                  label: incident["status"] as String? ?? "open",
+                  highlight: incident["settlement_suspended"] == true,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCancellationPanel(
+    BuildContext context,
+    Map<String, dynamic> data,
+  ) {
+    final List<Map<String, dynamic>> cases =
+        (data["cancellations"] as List<dynamic>? ?? <dynamic>[])
+            .whereType<Map>()
+            .map((Map item) => item.cast<String, dynamic>())
+            .toList(growable: false);
+    if (cases.isEmpty) {
+      return const ManagePanel(
+        title: "Cancellation and refund",
+        subtitle: "No cancellation has been requested.",
+        child: Text(
+          "Booking, refund and settlement remain active independently.",
+        ),
+      );
+    }
+    return ManagePanel(
+      title: "Cancellation and refund",
+      subtitle:
+          "Review the calculated allocation. Approval releases inventory and creates liabilities; it does not send money automatically.",
+      child: Column(
+        children: cases
+            .map((item) {
+              final String status =
+                  item["booking_status"] as String? ?? "requested";
+              final bool reviewable = widget.isAdmin && status == "requested";
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            item["reason"] as String? ??
+                                "Cancellation requested",
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                        KodimaliStatusChip(
+                          label: status,
+                          highlight: reviewable,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    ManageMetaWrap(
+                      items: <String>[
+                        "Paid ${DateFormatters.formatCurrency(item["paid_minor"] as num?)}",
+                        "Customer refund ${DateFormatters.formatCurrency(item["customer_refund_minor"] as num?)}",
+                        "Provider ${DateFormatters.formatCurrency(item["provider_compensation_minor"] as num?)}",
+                        "KODIMALI ${DateFormatters.formatCurrency(item["platform_fee_minor"] as num?)}",
+                        "Refund ${item["refund_status"] ?? "not_started"}",
+                        "Inventory ${item["inventory_release_status"] ?? "retained"}",
+                        "Settlement ${item["settlement_status"] ?? "not_started"}",
+                      ],
+                    ),
+                    if (reviewable) ...<Widget>[
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 10,
+                        children: <Widget>[
+                          FilledButton.icon(
+                            onPressed: _busy
+                                ? null
+                                : () => _reviewCancellation(
+                                    item["id"] as String,
+                                    true,
+                                  ),
+                            icon: const Icon(Icons.check_rounded),
+                            label: const Text("Approve"),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _busy
+                                ? null
+                                : () => _reviewCancellation(
+                                    item["id"] as String,
+                                    false,
+                                  ),
+                            icon: const Icon(Icons.close_rounded),
+                            label: const Text("Decline"),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            })
+            .toList(growable: false),
       ),
     );
   }

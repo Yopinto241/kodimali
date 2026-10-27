@@ -3,12 +3,15 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 
 import { GoogleAdSlot } from "@/components/google-ad-slot";
+import { LocationBanner } from "@/components/location-banner";
 import { PageShell } from "@/components/page-shell";
 import { PromotionStrip } from "@/components/promotion-strip";
 import { PublicListingGrid } from "@/components/public-listing-grid";
 import { SaveSearchButton } from "@/components/save-search-button";
 import {
   fetchCategories,
+  fetchCountryId,
+  fetchLocations,
   fetchPromotions,
   fetchPublicListings,
   fetchActiveFeaturedListingIds,
@@ -84,7 +87,8 @@ export default async function ListingsPage({
   ).includes(requestedSort as never)
     ? (requestedSort as "recommended" | "newest" | "price_low" | "price_high")
     : "recommended";
-  const [categories, rawFeed, promotions, featuredRows] = await Promise.all([
+  const countryId = await fetchCountryId();
+  const [categories, rawFeed, promotions, featuredRows, regions] = await Promise.all([
     fetchCategories(),
     fetchPublicListings({
       limit: pageSize,
@@ -105,6 +109,7 @@ export default async function ListingsPage({
     }),
     fetchPromotions({ surface: "website", placement: "website", limit: 2 }),
     fetchActiveFeaturedListingIds(),
+    countryId ? fetchLocations({ locationType: "region", parentId: countryId }) : Promise.resolve([]),
   ]);
   const featured = new Map(
     featuredRows.map((row) => [row.listing_id, row.placement]),
@@ -127,7 +132,7 @@ export default async function ListingsPage({
       >
         <div className="search-results-bar">
           <BackNavButton fallbackHref="/" label={sw ? "Nyuma" : "Back"} />
-          <span aria-hidden="true">⌕</span>
+          <svg className="search-field-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="2"/><path d="m16 16 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
           <input
             name="q"
             defaultValue={searchText}
@@ -150,9 +155,14 @@ export default async function ListingsPage({
               ),
             )}
           </select>
-          <span>⌖ {regionId || districtId || wardId || areaId ? (sw ? "Eneo limechaguliwa" : "Location selected") : (sw ? "Eneo lote" : "Any location")}</span>
+          <details className="search-location-filter">
+            <summary>{regionId || districtId || wardId || areaId ? (sw ? "Eneo limechaguliwa" : "Location selected") : (sw ? "Eneo lote" : "Any location")}</summary>
+            <div className="search-location-popover">
+              <LocationBanner visibleByDefault persistent regions={regions.map((item: { id: string; name: string }) => ({ id: item.id, name: item.name }))} />
+            </div>
+          </details>
           <details>
-            <summary>{sw ? "Bei" : "Price"}⌄</summary>
+            <summary>{sw ? "Bei" : "Price"}</summary>
             <div className="search-price-popover">
               <label>{sw ? "Bei ya chini" : "Minimum price"}<input name="minPrice" type="number" min="0" defaultValue={minPrice ?? ""} /></label>
               <label>{sw ? "Bei ya juu" : "Maximum price"}<input name="maxPrice" type="number" min="0" defaultValue={maxPrice ?? ""} /></label>
@@ -163,7 +173,6 @@ export default async function ListingsPage({
               <button>{sw ? "Tumia" : "Apply"}</button>
             </div>
           </details>
-          <span>☷ {sw ? "Chuja" : "Filters"}</span>
         </div>
         <div className="search-results-meta">
           <strong>{sw ? `Matokeo ${totalCount}` : `${totalCount} results`}</strong>
@@ -183,6 +192,7 @@ export default async function ListingsPage({
             </option>
           </select>
           </label>
+          <button className="search-sort-apply">{sw ? "Tumia" : "Apply"}</button>
         </div>
       </form>
       <div className="mt-4">

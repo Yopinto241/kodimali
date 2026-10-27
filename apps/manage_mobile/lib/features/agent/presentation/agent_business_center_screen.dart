@@ -28,12 +28,116 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
       r.fetchMyReceipts(),
       r.fetchAgentBookings(),
       r.fetchMyWalletTransactions(),
+      r.fetchMyExternalDeals(),
     ]);
   }
 
   Future<void> _refresh() async {
     setState(() => _future = _load());
     await _future;
+  }
+
+  Future<void> _declareExternalDeal(List<Map<String, dynamic>> listings) async {
+    if (listings.isEmpty) return;
+    String listingId = listings.first['id'].toString();
+    final amount = TextEditingController();
+    final notes = TextEditingController();
+    DateTime transactionDate = DateTime.now();
+    final bool? save = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialog) => AlertDialog(
+          title: const Text('Report an external deal'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const Text(
+                  'Use this only for a deal completed outside KODIMALI. It is not recorded as money collected by KODIMALI.',
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: listingId,
+                  decoration: const InputDecoration(labelText: 'Listing'),
+                  items: listings
+                      .map(
+                        (row) => DropdownMenuItem<String>(
+                          value: row['id'].toString(),
+                          child: Text(row['title']?.toString() ?? 'Listing'),
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: (value) => setDialog(() => listingId = value!),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: amount,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Declared value (TZS)',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Transaction date'),
+                  subtitle: Text(
+                    transactionDate.toIso8601String().split('T').first,
+                  ),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: transactionDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null) {
+                      setDialog(() => transactionDate = picked);
+                    }
+                  },
+                ),
+                TextField(
+                  controller: notes,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(labelText: 'Notes'),
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Submit declaration'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final value = int.tryParse(amount.text.trim());
+    final note = notes.text;
+    amount.dispose();
+    notes.dispose();
+    if (save != true || value == null || value < 0 || !mounted) return;
+    try {
+      await AppScope.of(context).repository.declareExternalListingDeal(
+        listingId: listingId,
+        claimedValueTzs: value,
+        transactionDate: transactionDate,
+        notes: note,
+      );
+      await _refresh();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    }
   }
 
   String _money(dynamic n) =>
@@ -327,6 +431,7 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
           receipts = (d[5] as List).cast<Map<String, dynamic>>(),
           bookings = (d[6] as List).cast<Map<String, dynamic>>(),
           walletTransactions = (d[7] as List).cast<Map<String, dynamic>>();
+      final externalDeals = (d[8] as List).cast<Map<String, dynamic>>();
       final current = (dash['plan'] as Map?)?.cast<String, dynamic>() ?? {};
       return ManagePageScrollView(
         onRefresh: _refresh,
@@ -486,6 +591,36 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
               ),
             ),
           ],
+          const SizedBox(height: 16),
+          ManagePanel(
+            title: 'Deals completed outside KODIMALI',
+            subtitle:
+                'Declare an authorized deal for verification. The value remains separate from KODIMALI collections.',
+            action: FilledButton.icon(
+              onPressed: listings.isEmpty
+                  ? null
+                  : () => _declareExternalDeal(listings),
+              icon: const Icon(Icons.add_business_outlined),
+              label: const Text('Report deal'),
+            ),
+            child: externalDeals.isEmpty
+                ? const Text('No external deals declared.')
+                : Column(
+                    children: externalDeals
+                        .map(
+                          (deal) => ListTile(
+                            leading: const Icon(Icons.handshake_outlined),
+                            title: Text(
+                              '${_money(deal['claimed_value_minor'])} · ${deal['status']}',
+                            ),
+                            subtitle: Text(
+                              '${deal['transaction_date']} · Listing ${deal['listing_id'] ?? '-'}',
+                            ),
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+          ),
           const SizedBox(height: 90),
         ],
       );

@@ -10,9 +10,11 @@ const comparisonKey = "kodimali-comparison-listings";
 export function ListingActions({
   listingId,
   bookingHref,
+  bookingMode,
 }: {
   listingId: string;
   bookingHref?: string;
+  bookingMode?: "not_bookable" | "request_booking" | "instant_booking";
 }) {
   const supabase = useMemo(() => getBrowserSupabase(), []);
   const { language } = useLanguage();
@@ -99,7 +101,13 @@ export function ListingActions({
             href={bookingHref}
             className="btn btn-success !min-h-9 !px-3 !py-2 text-xs"
           >
-            Book
+            {bookingMode === "instant_booking"
+              ? sw
+                ? "Book sasa"
+                : "Book Now"
+              : sw
+                ? "Tuma booking"
+                : "Request Booking"}
           </Link>
         ) : null}
         <button

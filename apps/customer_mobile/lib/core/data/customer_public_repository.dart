@@ -267,14 +267,79 @@ class CustomerPublicRepository {
               as List)
           .cast<JsonMap>();
 
-  Future<List<JsonMap>> fetchMyEventPlans() async =>
-      (await _client
-              .from('event_plans')
-              .select(
-                'id,reference,title,event_period,attendance,budget_tzs,status,created_at,event_types(name_sw,name_en),event_quote_revisions!event_quote_revisions_plan_id_fkey(id,revision,total_tzs,status,expires_at),event_agreements(id,version,terms,status,sent_at)',
-              )
-              .order('created_at'))
-          .cast<JsonMap>();
+  Future<List<JsonMap>> fetchMyEventPlans() async {
+    final plans =
+        (await _client
+                .from('event_plans')
+                .select(
+                  'id,reference,title,event_period,attendance,budget_tzs,status,created_at,event_types(name_sw,name_en),event_quote_revisions!event_quote_revisions_plan_id_fkey(id,revision,total_tzs,status,expires_at),event_agreements(id,version,terms,status,sent_at)',
+                )
+                .order('created_at'))
+            .cast<JsonMap>();
+    if (plans.isEmpty) return plans;
+    List<JsonMap> intents = <JsonMap>[];
+    try {
+      intents =
+          (await _client
+                  .from('payment_intents')
+                  .select('resource_id,product,amount_minor,status')
+                  .eq('resource_type', 'event_plan')
+                  .inFilter(
+                    'resource_id',
+                    plans.map((plan) => plan['id']).toList(growable: false),
+                  ))
+              .cast<JsonMap>();
+    } on PostgrestException catch (error) {
+      if (!_isMissingRpcSignature(error) &&
+          error.code != '42P01' &&
+          error.code != 'PGRST205') {
+        rethrow;
+      }
+    }
+    return plans
+        .map((plan) {
+          final quotes = (plan['event_quote_revisions'] as List? ?? const [])
+              .whereType<Map>()
+              .map((value) => Map<String, dynamic>.from(value))
+              .toList(growable: false);
+          final accepted = quotes.where(
+            (quote) => quote['status'] == 'accepted',
+          );
+          final total = accepted.isEmpty
+              ? 0
+              : (accepted.first['total_tzs'] as num?)?.round() ?? 0;
+          final deposit = ((total * 25) + 50) ~/ 100;
+          final balance = total - deposit;
+          final paid = intents.where(
+            (intent) =>
+                intent['resource_id'].toString() == plan['id'].toString() &&
+                intent['status'] == 'verified_paid',
+          );
+          final paidDeposit = paid
+              .where((intent) => intent['product'] == 'event_deposit')
+              .fold<int>(
+                0,
+                (sum, intent) =>
+                    sum + ((intent['amount_minor'] as num?)?.round() ?? 0),
+              );
+          final paidBalance = paid
+              .where((intent) => intent['product'] == 'event_balance')
+              .fold<int>(
+                0,
+                (sum, intent) =>
+                    sum + ((intent['amount_minor'] as num?)?.round() ?? 0),
+              );
+          return <String, dynamic>{
+            ...plan,
+            'payment_summary': <String, dynamic>{
+              'total': total,
+              'deposit_remaining': (deposit - paidDeposit).clamp(0, deposit),
+              'balance_remaining': (balance - paidBalance).clamp(0, balance),
+            },
+          };
+        })
+        .toList(growable: false);
+  }
 
   Future<void> acceptEventQuote(String quoteRevisionId) async {
     await _client.rpc(
@@ -434,10 +499,17 @@ class CustomerPublicRepository {
           // The regular feed remains available if ranking is temporarily unavailable.
         }
       }
+      final Map<String, JsonMap> capabilities = await _fetchBookingCapabilities(
+        rows.map((JsonMap row) => row['listing_id']?.toString() ?? ''),
+      );
       final List<JsonMap> feed = await Future.wait(
         rows.map(
           (JsonMap row) async => <String, dynamic>{
             ...row,
+            "booking_mode":
+                capabilities[row['listing_id']
+                    ?.toString()]?['effective_mode'] ??
+                'request_booking',
             "cover_media_type": _isVideoPath(row["cover_storage_path"])
                 ? "video"
                 : "image",
@@ -641,10 +713,17 @@ class CustomerPublicRepository {
         pricePeriod: pricePeriod,
         sort: sort,
       );
+      final Map<String, JsonMap> capabilities = await _fetchBookingCapabilities(
+        rows.map((JsonMap row) => row['listing_id']?.toString() ?? ''),
+      );
       final List<JsonMap> listings = await Future.wait(
         rows.map(
           (JsonMap row) async => <String, dynamic>{
             ...row,
+            "booking_mode":
+                capabilities[row['listing_id']
+                    ?.toString()]?['effective_mode'] ??
+                'request_booking',
             "cover_url": await _signListingMediaPath(
               row["cover_storage_path"] as String?,
             ),
@@ -838,6 +917,50 @@ class CustomerPublicRepository {
         error.message.contains("Could not find the function");
   }
 
+  Future<Map<String, JsonMap>> _fetchBookingCapabilities(
+    Iterable<String> listingIds,
+  ) async {
+    final List<String> ids = listingIds
+        .where((String id) => id.isNotEmpty)
+        .toSet()
+        .take(100)
+        .toList(growable: false);
+    if (ids.isEmpty) return <String, JsonMap>{};
+    try {
+      final List<JsonMap> rows = (await _client.rpc(
+        'get_public_listing_booking_capabilities',
+        params: <String, dynamic>{'p_listing_ids': ids},
+      )).cast<JsonMap>();
+      return <String, JsonMap>{
+        for (final JsonMap row in rows)
+          if (row['listing_id'] != null && row['capability'] is Map)
+            row['listing_id'].toString(): Map<String, dynamic>.from(
+              row['capability'] as Map,
+            ),
+      };
+    } on PostgrestException catch (error) {
+      if (!_isMissingRpcSignature(error)) rethrow;
+      return <String, JsonMap>{};
+    }
+  }
+
+  Future<JsonMap> fetchBookingQuote({
+    required String listingId,
+    required DateTime startsAt,
+    required DateTime endsAt,
+  }) async {
+    final dynamic value = await _client.rpc(
+      'get_public_listing_booking_quote',
+      params: <String, dynamic>{
+        'p_listing_id': listingId,
+        'p_start_at': startsAt.toUtc().toIso8601String(),
+        'p_end_at': endsAt.toUtc().toIso8601String(),
+      },
+    );
+    if (value is! Map) throw StateError('Booking quote is unavailable.');
+    return Map<String, dynamic>.from(value);
+  }
+
   bool _isPromotionRpcCompatibilityError(PostgrestException error) {
     return _isMissingRpcSignature(error) ||
         error.code == "PGRST203" ||
@@ -867,6 +990,18 @@ class CustomerPublicRepository {
         throw StateError("Listing not found.");
       }
       final JsonMap row = (rows.first as Map).cast<String, dynamic>();
+      JsonMap capability = <String, dynamic>{
+        'effective_mode': 'request_booking',
+      };
+      try {
+        final dynamic value = await _client.rpc(
+          'get_public_listing_booking_capability',
+          params: <String, dynamic>{'p_listing_id': listingId},
+        );
+        if (value is Map) capability = Map<String, dynamic>.from(value);
+      } on PostgrestException catch (error) {
+        if (!_isMissingRpcSignature(error)) rethrow;
+      }
       JsonMap trust = <String, dynamic>{};
       try {
         final dynamic value = await _client.rpc(
@@ -922,6 +1057,7 @@ class CustomerPublicRepository {
           ),
         },
         "listing_media": signedMedia,
+        "booking_mode": capability['effective_mode'] ?? 'request_booking',
       };
       _listingDetailCache[listingId] = _MapCacheEntry<JsonMap>(
         item: detail,
@@ -1145,7 +1281,7 @@ class CustomerPublicRepository {
         message.contains("not available");
   }
 
-  Future<String> submitGuestRequest({
+  Future<JsonMap> submitGuestRequest({
     required String listingId,
     required String customerName,
     String? customerEmail,
@@ -1155,42 +1291,44 @@ class CustomerPublicRepository {
     int? guestCount,
     String? requestMessage,
     List<String> requestedServiceCodes = const <String>[],
+    JsonMap? acceptedQuote,
+    bool termsAccepted = false,
   }) async {
     try {
       final String normalizedPhone = customerPhoneNumber?.trim() ?? "";
       final String normalizedEmail = customerEmail?.trim() ?? "";
       final String normalizedMessage = requestMessage?.trim() ?? "";
       if (_client.auth.currentUser != null) {
-        final dynamic authenticatedResponse = await _client.rpc(
-          'create_authenticated_booking_request',
-          params: <String, dynamic>{
-            'p_listing_id': listingId,
-            'p_customer_name': customerName,
-            'p_customer_phone_number': normalizedPhone.isEmpty
-                ? null
-                : normalizedPhone,
-            'p_customer_email': normalizedEmail.isEmpty
-                ? null
-                : normalizedEmail,
-            'p_requested_start_at': requestedStartAt?.toUtc().toIso8601String(),
-            'p_requested_end_at': requestedEndAt?.toUtc().toIso8601String(),
-            'p_guest_count': guestCount,
-            'p_request_message': normalizedMessage.isEmpty
-                ? null
-                : normalizedMessage,
-            'p_requested_service_codes': requestedServiceCodes,
+        final FunctionResponse response = await _client.functions.invoke(
+          'create-booking-request',
+          body: <String, dynamic>{
+            'listingId': listingId,
+            'customerName': customerName,
+            if (normalizedPhone.isNotEmpty)
+              'customerPhoneNumber': normalizedPhone,
+            if (normalizedEmail.isNotEmpty) 'customerEmail': normalizedEmail,
+            if (requestedStartAt != null)
+              'requestedStartAt': requestedStartAt.toUtc().toIso8601String(),
+            if (requestedEndAt != null)
+              'requestedEndAt': requestedEndAt.toUtc().toIso8601String(),
+            'guestCount': ?guestCount,
+            if (normalizedMessage.isNotEmpty)
+              'requestMessage': normalizedMessage,
+            'requestedServiceCodes': requestedServiceCodes,
+            'expectedTotalTzs': ?acceptedQuote?['total_tzs'],
+            'quoteFingerprint': ?acceptedQuote?['quote_fingerprint'],
+            'termsAccepted': termsAccepted,
           },
         );
-        final JsonMap? authenticatedBooking = switch (authenticatedResponse) {
-          final Map<dynamic, dynamic> row => row.cast<String, dynamic>(),
-          final List<dynamic> rows when rows.isNotEmpty && rows.first is Map =>
-            (rows.first as Map).cast<String, dynamic>(),
-          _ => null,
-        };
-        if (authenticatedBooking == null) {
-          throw StateError('Request failed.');
+        if (response.status >= 400 || response.data is! Map) {
+          throw StateError(
+            _responseErrorMessage(
+              response.data,
+              fallbackMessage: 'Request failed.',
+            ),
+          );
         }
-        return authenticatedBooking['request_reference']?.toString() ?? '-';
+        return Map<String, dynamic>.from(response.data as Map);
       }
       final FunctionResponse response = await _client.functions.invoke(
         "create-guest-booking-request",
@@ -1223,7 +1361,7 @@ class CustomerPublicRepository {
 
       final Map<String, dynamic> payload =
           response.data as Map<String, dynamic>;
-      return payload["requestReference"] as String? ?? "-";
+      return payload;
     } catch (error) {
       if (_isListingUnavailableError(error)) {
         await _clearListingDetailCache(listingId);

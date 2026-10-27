@@ -1,0 +1,11 @@
+begin;
+select plan(7);
+select col_has_check('public','payment_webhook_events','processing_status','webhook processing state is constrained');
+select has_column('public','payment_webhook_events','attempt_count','webhook attempts are tracked');
+select has_column('public','payment_webhook_events','last_attempt_at','webhook retry time is tracked');
+select has_function('public','claim_payment_webhook_event',array['text','text','text','boolean'],'webhook claim function exists');
+select has_function('public','finish_payment_webhook_event',array['text','text','text','text'],'webhook finish function exists');
+select col_has_check('public','platform_payment_orders','status','payment order reconciliation state is constrained');
+select index_is_unique('public','platform_payment_orders_provider_transaction_idx','provider transaction identity is unique');
+select * from finish();
+rollback;

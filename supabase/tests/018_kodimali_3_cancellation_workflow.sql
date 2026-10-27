@@ -1,0 +1,12 @@
+begin;
+select plan(8);
+select has_table('public','booking_cancellation_cases','independent cancellation outcomes exist');
+select col_is_fk('public','booking_terms_snapshots','cancellation_policy_version_id','accepted terms reference versioned cancellation policy');
+select has_function('public','request_booking_cancellation',array['uuid','text'],'participant cancellation request exists');
+select has_function('public','review_booking_cancellation',array['uuid','boolean','text'],'permissioned cancellation review exists');
+select col_has_check('public','booking_cancellation_cases','booking_status','booking cancellation state is constrained');
+select col_has_check('public','booking_cancellation_cases','refund_status','refund state is independent and constrained');
+select col_has_check('public','booking_cancellation_cases','inventory_release_status','inventory release is independently tracked');
+select policies_are('public','booking_cancellation_cases',array['cancellation_case_participants_read'],'cancellation cases are participant-readable');
+select * from finish();
+rollback;

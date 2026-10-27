@@ -96,7 +96,51 @@ export function CustomerAccountPortal({
       if (error.code === "42P01" || error.code === "PGRST205") return;
       throw error;
     }
-    setEventPlans((data ?? []) as unknown as Array<Record<string, unknown>>);
+    const plans = (data ?? []) as unknown as Array<Record<string, unknown>>;
+    const planIds = plans.map((plan) => String(plan.id));
+    let intents: Array<Record<string, unknown>> = [];
+    if (planIds.length > 0) {
+      const result = await supabase
+        .from("payment_intents")
+        .select("resource_id,product,amount_minor,status")
+        .eq("resource_type", "event_plan")
+        .in("resource_id", planIds);
+      if (!result.error) {
+        intents = (result.data ?? []) as unknown as Array<
+          Record<string, unknown>
+        >;
+      }
+    }
+    setEventPlans(
+      plans.map((plan) => {
+        const quotes =
+          (plan.event_quote_revisions as Array<Record<string, unknown>> | null) ??
+          [];
+        const accepted = quotes.find((quote) => quote.status === "accepted");
+        const total = Math.round(Number(accepted?.total_tzs ?? 0));
+        const deposit = Math.floor((total * 25 + 50) / 100);
+        const balance = total - deposit;
+        const paid = intents.filter(
+          (intent) =>
+            String(intent.resource_id) === String(plan.id) &&
+            intent.status === "verified_paid",
+        );
+        const paidDeposit = paid
+          .filter((intent) => intent.product === "event_deposit")
+          .reduce((sum, intent) => sum + Number(intent.amount_minor ?? 0), 0);
+        const paidBalance = paid
+          .filter((intent) => intent.product === "event_balance")
+          .reduce((sum, intent) => sum + Number(intent.amount_minor ?? 0), 0);
+        return {
+          ...plan,
+          payment_summary: {
+            total,
+            depositRemaining: Math.max(0, deposit - paidDeposit),
+            balanceRemaining: Math.max(0, balance - paidBalance),
+          },
+        };
+      }),
+    );
   }, [supabase]);
 
   const loadIndividualEventBookings = useCallback(async () => {
@@ -776,6 +820,10 @@ export function CustomerAccountPortal({
                 > | null) ?? [];
               const sent = quotes.find((quote) => quote.status === "sent");
               const agreement = agreements.find((row) => row.status === "sent");
+              const payment = (plan.payment_summary ?? {}) as Record<
+                string,
+                number
+              >;
               return (
                 <article className="soft-panel p-4" key={String(plan.id)}>
                   <div className="flex flex-wrap justify-between gap-3">
@@ -838,6 +886,25 @@ export function CustomerAccountPortal({
                       onClick={() => void pay("event_deposit", String(plan.id))}
                     >
                       Lipa deposit na thibitisha tukio
+                    </button>
+                  ) : null}
+                  {Number(payment.total ?? 0) > 0 ? (
+                    <p className="mt-3 text-sm font-semibold text-brand-navy">
+                      Deposit iliyobaki: TZS{" "}
+                      {Number(payment.depositRemaining ?? 0).toLocaleString()} ·
+                      Balance: TZS{" "}
+                      {Number(payment.balanceRemaining ?? 0).toLocaleString()}
+                    </p>
+                  ) : null}
+                  {plan.status === "confirmed" &&
+                  Number(payment.depositRemaining ?? 0) === 0 &&
+                  Number(payment.balanceRemaining ?? 0) > 0 ? (
+                    <button
+                      className="btn btn-success mt-4"
+                      disabled={busy}
+                      onClick={() => void pay("event_balance", String(plan.id))}
+                    >
+                      Lipa balance
                     </button>
                   ) : null}
                   {!sent &&

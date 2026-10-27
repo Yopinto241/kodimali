@@ -1787,6 +1787,10 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
   bool _isSearching = false;
   String? _errorMessage;
   int _requestSequence = 0;
+  late String? _searchRegionId = widget.regionId;
+  late String? _searchDistrictId = widget.districtId;
+  late String? _searchWardId = widget.wardId;
+  late String? _searchAreaId = widget.areaId;
 
   @override
   void initState() {
@@ -1805,6 +1809,10 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
         oldWidget.latitude != widget.latitude ||
         oldWidget.longitude != widget.longitude ||
         oldWidget.refreshTick != widget.refreshTick) {
+      _searchRegionId = widget.regionId;
+      _searchDistrictId = widget.districtId;
+      _searchWardId = widget.wardId;
+      _searchAreaId = widget.areaId;
       if (oldWidget.refreshTick != widget.refreshTick) {
         widget.repository.invalidatePublicDataCache();
       }
@@ -1827,10 +1835,10 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
     return widget.repository.fetchPublicListings(
       limit: 20,
       searchText: query.isEmpty ? null : query,
-      regionId: widget.regionId,
-      districtId: widget.districtId,
-      wardId: widget.wardId,
-      areaId: widget.areaId,
+      regionId: _searchRegionId,
+      districtId: _searchDistrictId,
+      wardId: _searchWardId,
+      areaId: _searchAreaId,
       latitude: widget.latitude,
       longitude: widget.longitude,
       sessionSeed: query.isEmpty ? "search" : "search:$query",
@@ -1936,6 +1944,30 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
     _searchDebounce?.cancel();
     _searchController.clear();
     unawaited(_refreshSearch());
+  }
+
+  Future<void> _chooseSearchLocation() async {
+    final Map<String, String?>? result =
+        await showModalBottomSheet<Map<String, String?>>(
+          context: context,
+          isScrollControlled: true,
+          showDragHandle: true,
+          builder: (_) => LocationSelectorSheet(
+            repository: widget.repository,
+            initialRegionId: _searchRegionId,
+            initialDistrictId: _searchDistrictId,
+            initialWardId: _searchWardId,
+            initialAreaId: _searchAreaId,
+          ),
+        );
+    if (result == null || !mounted) return;
+    setState(() {
+      _searchRegionId = result['regionId'];
+      _searchDistrictId = result['districtId'];
+      _searchWardId = result['wardId'];
+      _searchAreaId = result['areaId'];
+    });
+    await _refreshSearch();
   }
 
   Future<void> _openFilters() async {
@@ -2151,11 +2183,11 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
                     ActionChip(
                       avatar: const Icon(Icons.location_on_outlined, size: 17),
                       label: Text(
-                        widget.regionId != null || widget.latitude != null
+                        _searchRegionId != null || widget.latitude != null
                             ? 'Eneo limechaguliwa'
                             : 'Eneo lote',
                       ),
-                      onPressed: _openFilters,
+                      onPressed: _chooseSearchLocation,
                     ),
                     const SizedBox(width: 8),
                     ActionChip(
@@ -3397,6 +3429,9 @@ class PublicListingCard extends StatelessWidget {
       "meeting-hall",
       "ceremony-hall",
     }.contains(categorySlug);
+    final String bookingMode =
+        listing['booking_mode']?.toString() ?? 'request_booking';
+    final bool canBook = reservable && bookingMode != 'not_bookable';
     final String agentName =
         listing["agent_display_name"] as String? ?? "Agent";
     final String? agentPhotoUrl = listing["agent_profile_photo_url"] as String?;
@@ -3672,7 +3707,7 @@ class PublicListingCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  if (reservable) ...<Widget>[
+                  if (canBook) ...<Widget>[
                     const SizedBox(height: KodimaliSpacing.sm),
                     SizedBox(
                       width: double.infinity,
@@ -3686,6 +3721,7 @@ class PublicListingCard extends StatelessWidget {
                                 listingId: listing["listing_id"].toString(),
                                 listingTitle: title,
                                 categorySlug: categorySlug,
+                                bookingMode: bookingMode,
                                 availableServices:
                                     const <Map<String, String>>[],
                               ),
@@ -3693,7 +3729,13 @@ class PublicListingCard extends StatelessWidget {
                           );
                         },
                         icon: const Icon(Icons.calendar_month_outlined),
-                        label: Text("Book"),
+                        label: Text(
+                          bookingMode == 'instant_booking'
+                              ? (context.isSwahili ? 'Book sasa' : 'Book Now')
+                              : (context.isSwahili
+                                    ? 'Tuma booking'
+                                    : 'Request Booking'),
+                        ),
                       ),
                     ),
                   ],
@@ -3981,6 +4023,8 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     final List<Map<String, String>> apartmentServices =
         _apartmentServiceOptions(context, attributes);
     final String? categorySlug = category?["slug"] as String?;
+    final String bookingMode =
+        listing['booking_mode']?.toString() ?? 'request_booking';
 
     return RefreshIndicator(
       onRefresh: _refreshListing,
@@ -4034,26 +4078,34 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
             ),
           ),
           const SizedBox(height: KodimaliSpacing.md),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              style: KodimaliButtonStyles.success(context),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => GuestRequestScreen(
-                      repository: widget.repository,
-                      listingId: widget.listingId,
-                      listingTitle: listing["title"] as String? ?? "",
-                      categorySlug: categorySlug,
-                      availableServices: apartmentServices,
+          if (bookingMode != 'not_bookable')
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: KodimaliButtonStyles.success(context),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => GuestRequestScreen(
+                        repository: widget.repository,
+                        listingId: widget.listingId,
+                        listingTitle: listing["title"] as String? ?? "",
+                        categorySlug: categorySlug,
+                        bookingMode: bookingMode,
+                        availableServices: apartmentServices,
+                      ),
                     ),
-                  ),
-                );
-              },
-              child: Text(context.tr("listing.request")),
+                  );
+                },
+                child: Text(
+                  bookingMode == 'instant_booking'
+                      ? (context.isSwahili ? 'Book sasa' : 'Book Now')
+                      : (context.isSwahili
+                            ? 'Tuma booking'
+                            : 'Request Booking'),
+                ),
+              ),
             ),
-          ),
           const SizedBox(height: KodimaliSpacing.md),
           Row(
             children: <Widget>[
@@ -4629,6 +4681,7 @@ class GuestRequestScreen extends StatefulWidget {
     required this.listingTitle,
     required this.availableServices,
     this.categorySlug,
+    this.bookingMode = 'request_booking',
   });
 
   final CustomerPublicRepository repository;
@@ -4636,6 +4689,7 @@ class GuestRequestScreen extends StatefulWidget {
   final String listingTitle;
   final String? categorySlug;
   final List<Map<String, String>> availableServices;
+  final String bookingMode;
 
   @override
   State<GuestRequestScreen> createState() => _GuestRequestScreenState();
@@ -4652,6 +4706,9 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
   DateTime? _checkInDate;
   DateTime? _checkOutDate;
   bool _submitting = false;
+  bool _quoteLoading = false;
+  bool _termsAccepted = false;
+  Map<String, dynamic>? _quote;
 
   bool get _isApartment => widget.categorySlug == "apartment";
   bool get _isVehicle =>
@@ -4757,6 +4814,41 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
         _checkOutDate = selected;
       }
     });
+    await _refreshQuote();
+  }
+
+  Future<void> _refreshQuote() async {
+    if (widget.bookingMode != 'instant_booking' ||
+        _checkInDate == null ||
+        _checkOutDate == null ||
+        !_checkOutDate!.isAfter(_checkInDate!)) {
+      if (mounted) setState(() => _quote = null);
+      return;
+    }
+    setState(() {
+      _quoteLoading = true;
+      _quote = null;
+      _termsAccepted = false;
+    });
+    try {
+      final Map<String, dynamic> value = await widget.repository
+          .fetchBookingQuote(
+            listingId: widget.listingId,
+            startsAt: _checkInDate!,
+            endsAt: _checkOutDate!,
+          );
+      if (!mounted) return;
+      setState(() {
+        _quote = value['booking_mode'] == 'instant_booking' ? value : null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_readableErrorMessage(error))));
+    } finally {
+      if (mounted) setState(() => _quoteLoading = false);
+    }
   }
 
   String _formatSelectedDate(DateTime? value) {
@@ -4786,6 +4878,32 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
       ).showSnackBar(SnackBar(content: Text(context.tr("request.dateError"))));
       return;
     }
+    if (widget.bookingMode == 'instant_booking') {
+      if (Supabase.instance.client.auth.currentUser == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.isSwahili
+                  ? 'Ingia ili kukamilisha booking.'
+                  : 'Sign in to complete the booking.',
+            ),
+          ),
+        );
+        return;
+      }
+      if (_quote == null || !_termsAccepted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.isSwahili
+                  ? 'Kagua bei na ukubali masharti kwanza.'
+                  : 'Review the price and accept the terms first.',
+            ),
+          ),
+        );
+        return;
+      }
+    }
     setState(() => _submitting = true);
     try {
       if (_isReservable) {
@@ -4802,28 +4920,31 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
           );
         }
       }
-      final String reference = await widget.repository.submitGuestRequest(
-        listingId: widget.listingId,
-        customerName: _nameController.text.trim(),
-        customerEmail: _emailController.text.trim(),
-        customerPhoneNumber: _phoneController.text.trim(),
-        requestedStartAt: _checkInDate,
-        requestedEndAt: _checkOutDate,
-        guestCount: int.tryParse(_guestCountController.text.trim()),
-        requestMessage: _messageController.text.trim(),
-        requestedServiceCodes: _selectedServiceKeys.toList(),
-      );
+      final Map<String, dynamic> result = await widget.repository
+          .submitGuestRequest(
+            listingId: widget.listingId,
+            customerName: _nameController.text.trim(),
+            customerEmail: _emailController.text.trim(),
+            customerPhoneNumber: _phoneController.text.trim(),
+            requestedStartAt: _checkInDate,
+            requestedEndAt: _checkOutDate,
+            guestCount: int.tryParse(_guestCountController.text.trim()),
+            requestMessage: _messageController.text.trim(),
+            requestedServiceCodes: _selectedServiceKeys.toList(),
+            acceptedQuote: _quote,
+            termsAccepted: _termsAccepted,
+          );
       if (!mounted) {
         return;
       }
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
           builder: (_) => RequestSuccessScreen(
-            reference: reference,
+            reference: result['requestReference']?.toString() ?? '-',
             publicRepository: widget.repository,
             instantReservation:
-                _isReservable &&
-                Supabase.instance.client.auth.currentUser != null,
+                result['bookingMode'] == 'instant_booking' &&
+                result['paymentRequired'] == true,
           ),
         ),
       );
@@ -4864,9 +4985,13 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                   ),
                   const SizedBox(height: KodimaliSpacing.sm),
                   Text(
-                    context.isSwahili
-                        ? "Chagua muda unaohitaji. Ukiwa umeingia, muda ulio wazi utahifadhiwa kwa dakika 30 ili ulipe. Viewing si lazima na huhitaji kusubiri agent."
-                        : "Choose the required period. When signed in, an open period is held for 30 minutes so you can pay. Viewing is optional and no agent wait is required.",
+                    widget.bookingMode == 'instant_booking'
+                        ? (context.isSwahili
+                              ? "Chagua muda, kagua bei, kisha book."
+                              : "Choose the period, review the price, then book.")
+                        : (context.isSwahili
+                              ? "Chagua muda na utume booking request."
+                              : "Choose the period and send a booking request."),
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   if (widget.listingTitle.trim().isNotEmpty) ...<Widget>[
@@ -5020,6 +5145,51 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                     ),
                   ],
                   const SizedBox(height: KodimaliSpacing.md),
+                  if (widget.bookingMode == 'instant_booking') ...<Widget>[
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(KodimaliSpacing.md),
+                        child: _quoteLoading
+                            ? const Center(child: CircularProgressIndicator())
+                            : _quote == null
+                            ? Text(
+                                context.isSwahili
+                                    ? 'Chagua tarehe kuona bei.'
+                                    : 'Choose dates to see the price.',
+                              )
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    'TZS ${_quote!['total_tzs']}',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleLarge,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    '${context.isSwahili ? 'Deposit sasa' : 'Deposit now'}: TZS ${_quote!['deposit_tzs']} · ${context.isSwahili ? 'Baadaye' : 'Later'}: TZS ${_quote!['balance_tzs']}',
+                                  ),
+                                  CheckboxListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    value: _termsAccepted,
+                                    onChanged: (bool? value) => setState(
+                                      () => _termsAccepted = value ?? false,
+                                    ),
+                                    title: Text(
+                                      context.isSwahili
+                                          ? 'Nakubali bei na masharti ya cancellation.'
+                                          : 'I accept the price and cancellation terms.',
+                                    ),
+                                    controlAffinity:
+                                        ListTileControlAffinity.leading,
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: KodimaliSpacing.md),
+                  ],
                   TextFormField(
                     controller: _messageController,
                     maxLines: 3,
@@ -5034,7 +5204,15 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                   child: FilledButton(
                     style: KodimaliButtonStyles.success(context),
                     onPressed: _submitting ? null : _submit,
-                    child: Text(_submitting ? "Inatuma booking..." : "Book"),
+                    child: Text(
+                      _submitting
+                          ? "Inatuma booking..."
+                          : widget.bookingMode == 'instant_booking'
+                          ? (context.isSwahili ? 'Book sasa' : 'Book Now')
+                          : (context.isSwahili
+                                ? 'Tuma booking'
+                                : 'Request Booking'),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -5061,28 +5239,6 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                           child: _PromotionBlock(promotions: promotions),
                         );
                       },
-                ),
-                const SizedBox(height: KodimaliSpacing.md),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(KodimaliSpacing.md),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          "Kinachofuata",
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: KodimaliSpacing.xs),
-                        Text(
-                          context.isSwahili
-                              ? "Ukiwa umeingia, mfumo hukagua muda papo hapo na kuushikilia kwa dakika 30 ukamilishe malipo. Booking inathibitishwa baada ya malipo; viewing ni hiari."
-                              : "When signed in, the system checks the period immediately and holds it for 30 minutes while you pay. The booking is confirmed after payment; viewing is optional.",
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ],
-                    ),
-                  ),
                 ),
               ],
             ),
@@ -5126,8 +5282,8 @@ class RequestSuccessScreen extends StatelessWidget {
                     Text(
                       instantReservation
                           ? (context.isSwahili
-                                ? "Muda wako umehifadhiwa kwa dakika 30"
-                                : "Your period is held for 30 minutes")
+                                ? "Kamilisha deposit"
+                                : "Complete the deposit")
                           : context.tr("request.successTitle"),
                       style: Theme.of(context).textTheme.headlineSmall,
                       textAlign: TextAlign.center,
@@ -5136,8 +5292,8 @@ class RequestSuccessScreen extends StatelessWidget {
                     Text(
                       instantReservation
                           ? (context.isSwahili
-                                ? "Endelea kwenye bookings zako ukamilishe malipo na kuthibitisha reservation."
-                                : "Open your bookings to complete payment and confirm the reservation.")
+                                ? "Lipa deposit kuthibitisha booking yako."
+                                : "Pay the deposit to confirm your booking.")
                           : context.tr("request.successBody"),
                       textAlign: TextAlign.center,
                     ),

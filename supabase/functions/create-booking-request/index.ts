@@ -25,6 +25,9 @@ const allowedKeys = [
   "guestCount",
   "requestMessage",
   "requestedServiceCodes",
+  "expectedTotalTzs",
+  "quoteFingerprint",
+  "termsAccepted",
 ] as const;
 
 function hasOnlyAllowedKeys(payload: unknown) {
@@ -32,7 +35,9 @@ function hasOnlyAllowedKeys(payload: unknown) {
     return false;
   }
   const keys = Object.keys(payload);
-  return keys.every((key) => allowedKeys.includes(key as (typeof allowedKeys)[number]));
+  return keys.every((key) =>
+    allowedKeys.includes(key as (typeof allowedKeys)[number])
+  );
 }
 
 function readCategorySlug(value: unknown) {
@@ -99,10 +104,15 @@ Deno.serve(async (request) => {
     guestCount,
     requestMessage,
     requestedServiceCodes,
+    expectedTotalTzs,
+    quoteFingerprint,
+    termsAccepted,
   } = payload as Record<string, unknown>;
 
   const listing_id = typeof listingId === "string" ? listingId.trim() : "";
-  const customer_name = typeof customerName === "string" ? customerName.trim() : "";
+  const customer_name = typeof customerName === "string"
+    ? customerName.trim()
+    : "";
   const customer_phone_number = typeof customerPhoneNumber === "string"
     ? normalizePhone(customerPhoneNumber)
     : "";
@@ -115,11 +125,12 @@ Deno.serve(async (request) => {
   const requested_end_at = typeof requestedEndAt === "string"
     ? requestedEndAt.trim()
     : "";
-  const guest_count = typeof guestCount === "number" && Number.isFinite(guestCount)
-    ? Math.trunc(guestCount)
-    : typeof guestCount === "string" && guestCount.trim().length > 0
-    ? Number.parseInt(guestCount.trim(), 10)
-    : null;
+  const guest_count =
+    typeof guestCount === "number" && Number.isFinite(guestCount)
+      ? Math.trunc(guestCount)
+      : typeof guestCount === "string" && guestCount.trim().length > 0
+      ? Number.parseInt(guestCount.trim(), 10)
+      : null;
   const request_message = typeof requestMessage === "string"
     ? requestMessage.trim()
     : "";
@@ -129,6 +140,13 @@ Deno.serve(async (request) => {
       .map((value) => value.trim())
       .filter((value) => value.length > 0)
     : [];
+  const expected_total_tzs = typeof expectedTotalTzs === "number" &&
+      Number.isSafeInteger(expectedTotalTzs)
+    ? expectedTotalTzs
+    : null;
+  const quote_fingerprint = typeof quoteFingerprint === "string"
+    ? quoteFingerprint.trim()
+    : "";
 
   if (!listing_id || customer_name.length < 2) {
     return json(
@@ -137,7 +155,10 @@ Deno.serve(async (request) => {
     );
   }
   if (!customer_phone_number && !customer_email) {
-    return json({ error: "Provide at least an email address or phone number" }, 400);
+    return json(
+      { error: "Provide at least an email address or phone number" },
+      400,
+    );
   }
   if (customer_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer_email)) {
     return json({ error: "Enter a valid email address" }, 400);
@@ -193,7 +214,8 @@ Deno.serve(async (request) => {
   }
   if (
     isReservable &&
-    new Date(requested_end_at).getTime() <= new Date(requested_start_at).getTime()
+    new Date(requested_end_at).getTime() <=
+      new Date(requested_start_at).getTime()
   ) {
     return json({ error: "Booking end must be after its start" }, 400);
   }
@@ -211,7 +233,30 @@ Deno.serve(async (request) => {
     return json({ error: "Listing is not accepting public requests" }, 400);
   }
 
-  const duplicateWindowStart = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const { data: capability, error: capabilityError } = await supabase.rpc(
+    "get_public_listing_booking_capability",
+    { p_listing_id: listing_id },
+  );
+  if (capabilityError) {
+    return json({ error: capabilityError.message }, 500);
+  }
+  const bookingMode = String(
+    (capability as Record<string, unknown> | null)?.effective_mode ??
+      "request_booking",
+  );
+  if (bookingMode === "not_bookable") {
+    return json({ error: "This listing is not accepting bookings" }, 400);
+  }
+  if (
+    bookingMode === "instant_booking" &&
+    (termsAccepted !== true || expected_total_tzs === null ||
+      !quote_fingerprint)
+  ) {
+    return json({ error: "Review and accept the current booking quote" }, 400);
+  }
+
+  const duplicateWindowStart = new Date(Date.now() - 10 * 60 * 1000)
+    .toISOString();
   let duplicateQuery = supabase
     .from("booking_requests")
     .select("id, request_reference")
@@ -231,7 +276,8 @@ Deno.serve(async (request) => {
     duplicateQuery = duplicateQuery.or(duplicateFilters.join(","));
   }
 
-  const { data: recentDuplicates, error: duplicateError } = await duplicateQuery;
+  const { data: recentDuplicates, error: duplicateError } =
+    await duplicateQuery;
 
   if (duplicateError) {
     return json({ error: duplicateError.message }, 500);
@@ -240,16 +286,33 @@ Deno.serve(async (request) => {
   if ((recentDuplicates ?? []).length > 0) {
     return json(
       {
-        error: "A recent request from this contact already exists for this listing",
+        error:
+          "A recent request from this contact already exists for this listing",
         requestReference: recentDuplicates[0]?.request_reference ?? null,
       },
       409,
     );
   }
 
-  const { data: bookingRows, error: bookingError } = await userClient.rpc(
-    "create_authenticated_booking_request",
-    {
+  const rpcName = bookingMode === "instant_booking"
+    ? "create_instant_booking_checkout"
+    : "create_authenticated_booking_request";
+  const rpcArguments = bookingMode === "instant_booking"
+    ? {
+      p_listing_id: listing_id,
+      p_customer_name: customer_name,
+      p_customer_phone_number: customer_phone_number || null,
+      p_customer_email: customer_email || null,
+      p_requested_start_at: requested_start_at,
+      p_requested_end_at: requested_end_at,
+      p_guest_count: guest_count,
+      p_request_message: request_message || null,
+      p_requested_service_codes: requested_service_codes,
+      p_expected_total_tzs: expected_total_tzs,
+      p_quote_fingerprint: quote_fingerprint,
+      p_terms_accepted: true,
+    }
+    : {
       p_listing_id: listing_id,
       p_customer_name: customer_name,
       p_customer_phone_number: customer_phone_number || null,
@@ -259,9 +322,16 @@ Deno.serve(async (request) => {
       p_guest_count: guest_count,
       p_request_message: request_message || null,
       p_requested_service_codes: requested_service_codes,
-    },
+    };
+  const { data: bookingResult, error: bookingError } = await userClient.rpc(
+    rpcName,
+    rpcArguments,
   );
-  const booking = Array.isArray(bookingRows) ? bookingRows[0] : null;
+  const booking = bookingMode === "instant_booking"
+    ? bookingResult as Record<string, unknown> | null
+    : Array.isArray(bookingResult)
+    ? bookingResult[0]
+    : null;
 
   if (bookingError || !booking) {
     const conflict = bookingError?.code === "23P01" ||
@@ -277,5 +347,10 @@ Deno.serve(async (request) => {
     bookingId: booking.booking_request_id,
     requestReference: booking.request_reference,
     status: booking.booking_status,
+    bookingMode,
+    paymentRequired: bookingMode === "instant_booking",
+    totalTzs: booking.total_tzs ?? null,
+    depositTzs: booking.deposit_tzs ?? null,
+    balanceTzs: booking.balance_tzs ?? null,
   });
 });

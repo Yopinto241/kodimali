@@ -12,6 +12,64 @@ export type PublicCategory = {
   home_feed_weight?: number | null;
 };
 
+export type ListingBookingCapability = {
+  configured_mode: "not_bookable" | "request_booking" | "instant_booking";
+  effective_mode: "not_bookable" | "request_booking" | "instant_booking";
+  deposit_payments_enabled: boolean;
+};
+
+export async function fetchListingBookingCapability(
+  listingId: string,
+): Promise<ListingBookingCapability> {
+  try {
+    const value = await supabaseFetch(
+      "/rest/v1/rpc/get_public_listing_booking_capability",
+      {
+        method: "POST",
+        body: JSON.stringify({ p_listing_id: listingId }),
+      },
+      { revalidate: 15, tags: [`listing-booking-${listingId}`] },
+    );
+    if (value && typeof value === "object") {
+      return value as ListingBookingCapability;
+    }
+  } catch (error) {
+    if (!isMissingRpcSignature(error)) throw error;
+  }
+  return {
+    configured_mode: "request_booking",
+    effective_mode: "request_booking",
+    deposit_payments_enabled: false,
+  };
+}
+
+async function fetchListingBookingCapabilities(
+  listingIds: string[],
+): Promise<Map<string, ListingBookingCapability>> {
+  const uniqueIds = [...new Set(listingIds.filter(Boolean))].slice(0, 100);
+  if (uniqueIds.length === 0) return new Map();
+
+  try {
+    const rows = (await supabaseFetch(
+      "/rest/v1/rpc/get_public_listing_booking_capabilities",
+      {
+        method: "POST",
+        body: JSON.stringify({ p_listing_ids: uniqueIds }),
+      },
+      { revalidate: 15, tags: ["public-listings"] },
+    )) as Array<{ listing_id: string; capability: ListingBookingCapability }>;
+
+    return new Map(
+      rows
+        .filter((row) => row?.listing_id && row?.capability)
+        .map((row) => [row.listing_id, row.capability]),
+    );
+  } catch (error) {
+    if (!isMissingRpcSignature(error)) throw error;
+    return new Map();
+  }
+}
+
 const supabaseUrl =
   process.env.SUPABASE_URL ?? "https://tlhoajedyaeaaqtrjqqh.supabase.co";
 const supabasePublishableKey =
@@ -298,9 +356,15 @@ export async function fetchPublicHomeFeed(params: {
         );
       }
 
+      const capabilities = await fetchListingBookingCapabilities(
+        rows.map((row: Record<string, unknown>) => String(row.listing_id ?? "")),
+      );
       return Promise.all(
         rows.map(async (row: Record<string, unknown>) => ({
           ...row,
+          booking_mode:
+            capabilities.get(String(row.listing_id))?.effective_mode ??
+            "request_booking",
           cover_media_type: isVideoPath(row.cover_storage_path)
             ? "video"
             : "image",
@@ -487,9 +551,15 @@ export async function fetchPublicListings(params: {
         );
       }
 
+      const capabilities = await fetchListingBookingCapabilities(
+        rows.map((row: Record<string, unknown>) => String(row.listing_id ?? "")),
+      );
       return Promise.all(
         rows.map(async (row: Record<string, unknown>) => ({
           ...row,
+          booking_mode:
+            capabilities.get(String(row.listing_id))?.effective_mode ??
+            "request_booking",
           cover_media_type: isVideoPath(row.cover_storage_path)
             ? "video"
             : "image",

@@ -124,6 +124,7 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
   bool _busy = false;
   String? _message;
   bool? _paymentsEnabled;
+  int? _chatPrice;
 
   @override
   void initState() {
@@ -133,10 +134,23 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
 
   Future<void> _loadPaymentMode() async {
     try {
-      final enabled = await widget.repository.fetchChatPaymentsEnabled();
-      if (mounted) setState(() => _paymentsEnabled = enabled);
+      final values = await Future.wait<dynamic>(<Future<dynamic>>[
+        widget.repository.fetchChatPaymentsEnabled(),
+        widget.repository.fetchPaidChatUnlockPrice(),
+      ]);
+      if (mounted) {
+        setState(() {
+          _paymentsEnabled = values[0] as bool;
+          _chatPrice = values[1] as int;
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() => _paymentsEnabled = true);
+      if (mounted) {
+        setState(() {
+          _paymentsEnabled = true;
+          _chatPrice = 500;
+        });
+      }
     }
   }
 
@@ -166,8 +180,8 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
       final id = result['paymentId']?.toString();
       if (required && id != null && status != 'paid') {
         setState(
-          () =>
-              _message = 'Payment prompt sent. Confirm TSh 500 on your phone.',
+          () => _message =
+              'Payment prompt sent. Confirm TSh ${result['amount'] ?? _chatPrice} on your phone.',
         );
         for (var i = 0; i < 30 && status != 'paid'; i++) {
           await Future<void>.delayed(const Duration(seconds: 3));
@@ -222,7 +236,7 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
         Text(
           _paymentsEnabled == false
               ? 'Private chat with this listing’s assigned agent is currently free and stays active for 7 days. Each participant may send 10 messages per Tanzania day.'
-              : 'Private chat with this listing’s assigned agent costs TSh 500 and stays active for 7 days. Each participant may send 10 messages per Tanzania day.',
+              : 'Private chat with this listing’s assigned agent costs TSh ${_chatPrice ?? '-'} and stays active for 7 days. Each participant may send 10 messages per Tanzania day.',
         ),
         const SizedBox(height: 20),
         if (!widget.repository.isSignedIn)
@@ -279,7 +293,7 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
                   ? 'Checking access…'
                   : _paymentsEnabled == false
                   ? 'Open free private chat'
-                  : 'Pay TSh 500 and open chat',
+                  : 'Pay TSh ${_chatPrice ?? '-'} and open chat',
             ),
           ),
       ],

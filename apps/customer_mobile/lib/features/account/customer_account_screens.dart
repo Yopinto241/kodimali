@@ -1883,13 +1883,134 @@ class _CustomerRequestDetailScreenState
         widget.repository.fetchMyReview(widget.bookingRequestId)
       else
         Future<Map<String, dynamic>?>.value(null),
+      widget.repository.fetchBookingCancellations(widget.bookingRequestId),
+      widget.repository.fetchBookingIncidents(widget.bookingRequestId),
+      widget.repository.fetchBookingMilestones(widget.bookingRequestId),
     ]);
+    final List<Map<String, dynamic>> incidents = (extras[4] as List)
+        .cast<Map<String, dynamic>>();
+    final List<Map<String, dynamic>> substitutions = await widget.repository
+        .fetchBookingSubstitutions(
+          incidents.map((row) => row['id'].toString()).toList(growable: false),
+        );
     return _CustomerRequestDetailData(
       request: request,
       history: (extras[0] as List).cast<Map<String, dynamic>>(),
       appointments: (extras[1] as List).cast<Map<String, dynamic>>(),
       review: extras[2] as Map<String, dynamic>?,
+      cancellations: (extras[3] as List).cast<Map<String, dynamic>>(),
+      incidents: incidents,
+      milestones: (extras[5] as List).cast<Map<String, dynamic>>(),
+      substitutions: substitutions,
     );
+  }
+
+  Future<String?> _askForText({
+    required String title,
+    required String hint,
+    required String action,
+  }) async {
+    final controller = TextEditingController();
+    final String? result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          minLines: 3,
+          maxLines: 6,
+          decoration: InputDecoration(hintText: hint),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: Text(action),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return result?.trim().isEmpty == true ? null : result;
+  }
+
+  Future<void> _requestCancellation() async {
+    final reason = await _askForText(
+      title: 'Omba cancellation',
+      hint: 'Eleza sababu ya kusitisha booking hii.',
+      action: 'Tuma ombi',
+    );
+    if (reason == null || !mounted) return;
+    try {
+      await widget.repository.requestBookingCancellation(
+        bookingRequestId: widget.bookingRequestId,
+        reason: reason,
+      );
+      await _reload();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+      }
+    }
+  }
+
+  Future<void> _reportProblem() async {
+    final summary = await _askForText(
+      title: 'Ripoti tatizo',
+      hint: 'Eleza tatizo muhimu la asset au huduma.',
+      action: 'Tuma ripoti',
+    );
+    if (summary == null || !mounted) return;
+    try {
+      await widget.repository.reportBookingIncident(
+        bookingRequestId: widget.bookingRequestId,
+        kind: 'other_material_failure',
+        severity: 'medium',
+        summary: summary,
+      );
+      await _reload();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+      }
+    }
+  }
+
+  Future<void> _confirmMilestone(String milestoneId) async {
+    try {
+      await widget.repository.confirmCustomerFulfillmentMilestone(milestoneId);
+      await _reload();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+      }
+    }
+  }
+
+  Future<void> _respondSubstitution(String proposalId, bool accept) async {
+    try {
+      await widget.repository.respondBookingSubstitution(
+        proposalId: proposalId,
+        accept: accept,
+      );
+      await _reload();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+      }
+    }
   }
 
   Future<void> _openChat(Map<String, dynamic> request) async {
@@ -1922,7 +2043,14 @@ class _CustomerRequestDetailScreenState
     }
   }
 
-  Future<void> _payAndReserve() async {
+  Future<void> _payAndReserve(
+    Map<String, dynamic> request, {
+    String product = 'booking_deposit',
+  }) async {
+    final Map<String, dynamic> terms = _relatedMap(
+      request['booking_terms_snapshot'],
+    );
+    final bool usesV3 = terms.isNotEmpty;
     final TextEditingController controller = TextEditingController();
     final String? phone = await showDialog<String>(
       context: context,
@@ -1941,7 +2069,9 @@ class _CustomerRequestDetailScreenState
           FilledButton(
             onPressed: () =>
                 Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('Lipa na uhifadhi'),
+            child: Text(
+              product == 'booking_balance' ? 'Lipa salio' : 'Lipa deposit',
+            ),
           ),
         ],
       ),
@@ -1949,11 +2079,18 @@ class _CustomerRequestDetailScreenState
     controller.dispose();
     if (phone == null || phone.isEmpty || !mounted) return;
     try {
-      final Map<String, dynamic> started = await widget.repository
-          .createBookingPayment(
-            bookingRequestId: widget.bookingRequestId,
-            phoneNumber: phone,
-          );
+      final Map<String, dynamic> started = usesV3
+          ? await widget.repository.createV3BookingPayment(
+              bookingRequestId: widget.bookingRequestId,
+              phoneNumber: phone,
+              product: product,
+              idempotencyKey:
+                  '${widget.bookingRequestId}-$product-${terms['id']}',
+            )
+          : await widget.repository.createBookingPayment(
+              bookingRequestId: widget.bookingRequestId,
+              phoneNumber: phone,
+            );
       String status = started['paymentStatus']?.toString() ?? 'pending';
       if (status == 'free') {
         if (mounted) {
@@ -2106,6 +2243,23 @@ class _CustomerRequestDetailScreenState
     final Map<String, dynamic> listing = _relatedMap(request['listings']);
     final Map<String, dynamic> agent = _relatedMap(request['agents']);
     final String status = request['booking_status']?.toString() ?? 'new';
+    final Map<String, dynamic> terms = _relatedMap(
+      request['booking_terms_snapshot'],
+    );
+    final List<dynamic> v3Payments =
+        request['v3_payment_intents'] as List? ?? <dynamic>[];
+    final bool depositPaid = v3Payments.any(
+      (dynamic row) =>
+          row is Map &&
+          row['product'] == 'booking_deposit' &&
+          row['status'] == 'verified_paid',
+    );
+    final bool balancePaid = v3Payments.any(
+      (dynamic row) =>
+          row is Map &&
+          row['product'] == 'booking_balance' &&
+          row['status'] == 'verified_paid',
+    );
     final bool canSchedule = !<String>{
       'completed',
       'cancelled',
@@ -2164,22 +2318,92 @@ class _CustomerRequestDetailScreenState
                             'approved',
                             'not_required',
                           }.contains(request['owner_approval_status']) &&
-                          !((request['booking_payment_transactions'] as List? ??
-                                  <dynamic>[])
-                              .any(
-                                (dynamic row) =>
-                                    row is Map && row['status'] == 'paid',
-                              )))
+                          !(terms.isNotEmpty
+                              ? depositPaid
+                              : ((request['booking_payment_transactions']
+                                            as List? ??
+                                        <dynamic>[])
+                                    .any(
+                                      (dynamic row) =>
+                                          row is Map && row['status'] == 'paid',
+                                    ))))
                         FilledButton.icon(
-                          onPressed: _payAndReserve,
+                          onPressed: () => _payAndReserve(request),
                           icon: const Icon(Icons.payments_outlined),
-                          label: const Text('Lipa na uhifadhi'),
+                          label: Text(
+                            terms.isNotEmpty
+                                ? 'Lipa deposit'
+                                : 'Lipa na uhifadhi',
+                          ),
+                        ),
+                      if (terms.isNotEmpty && depositPaid && !balancePaid)
+                        FilledButton.icon(
+                          onPressed: () => _payAndReserve(
+                            request,
+                            product: 'booking_balance',
+                          ),
+                          icon: const Icon(
+                            Icons.account_balance_wallet_outlined,
+                          ),
+                          label: const Text('Lipa salio'),
                         ),
                     ],
                   ),
                 ],
               ),
             ),
+          ),
+          if (terms.isNotEmpty) ...<Widget>[
+            const SizedBox(height: KodimaliSpacing.md),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(KodimaliSpacing.lg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Muhtasari wa malipo',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: KodimaliSpacing.md),
+                    _PaymentAmountRow(
+                      label: 'Jumla iliyokubaliwa',
+                      amount: terms['agreed_total_minor'],
+                    ),
+                    _PaymentAmountRow(
+                      label: 'Deposit ya sasa (25%)',
+                      amount: terms['deposit_minor'],
+                      complete: depositPaid,
+                    ),
+                    _PaymentAmountRow(
+                      label: 'Salio la baadaye (75%)',
+                      amount: terms['balance_minor'],
+                      complete: balancePaid,
+                    ),
+                    if (terms['balance_due_at'] != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: KodimaliSpacing.sm),
+                        child: Text(
+                          'Mwisho wa salio: ${terms['balance_due_at']}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: KodimaliSpacing.md),
+          _BookingProtectionCard(
+            bookingStatus: status,
+            cancellations: data.cancellations,
+            incidents: data.incidents,
+            milestones: data.milestones,
+            substitutions: data.substitutions,
+            onCancel: _requestCancellation,
+            onReportProblem: _reportProblem,
+            onConfirmMilestone: _confirmMilestone,
+            onRespondSubstitution: _respondSubstitution,
           ),
           const SizedBox(height: KodimaliSpacing.md),
           Card(
@@ -2977,16 +3201,234 @@ class _AccountLanguageButton extends StatelessWidget {
   }
 }
 
+class _PaymentAmountRow extends StatelessWidget {
+  const _PaymentAmountRow({
+    required this.label,
+    required this.amount,
+    this.complete = false,
+  });
+
+  final String label;
+  final dynamic amount;
+  final bool complete;
+
+  @override
+  Widget build(BuildContext context) {
+    final String raw =
+        (amount is num ? (amount as num).round() : int.tryParse('$amount') ?? 0)
+            .toString();
+    final String formatted = raw.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => ',',
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: KodimaliSpacing.xs),
+      child: Row(
+        children: <Widget>[
+          if (complete) ...<Widget>[
+            const Icon(Icons.check_circle_rounded, size: 18),
+            const SizedBox(width: KodimaliSpacing.xs),
+          ],
+          Expanded(child: Text(label)),
+          Text('TZS $formatted', style: Theme.of(context).textTheme.titleSmall),
+        ],
+      ),
+    );
+  }
+}
+
+class _BookingProtectionCard extends StatelessWidget {
+  const _BookingProtectionCard({
+    required this.bookingStatus,
+    required this.cancellations,
+    required this.incidents,
+    required this.milestones,
+    required this.substitutions,
+    required this.onCancel,
+    required this.onReportProblem,
+    required this.onConfirmMilestone,
+    required this.onRespondSubstitution,
+  });
+
+  final String bookingStatus;
+  final List<Map<String, dynamic>> cancellations;
+  final List<Map<String, dynamic>> incidents;
+  final List<Map<String, dynamic>> milestones;
+  final List<Map<String, dynamic>> substitutions;
+  final VoidCallback onCancel;
+  final VoidCallback onReportProblem;
+  final Future<void> Function(String milestoneId) onConfirmMilestone;
+  final Future<void> Function(String proposalId, bool accept)
+  onRespondSubstitution;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool terminal = <String>{
+      'completed',
+      'cancelled',
+      'rejected',
+      'no_response',
+    }.contains(bookingStatus);
+    final bool canReportProblem = !<String>{
+      'cancelled',
+      'rejected',
+      'no_response',
+    }.contains(bookingStatus);
+    final bool hasOpenCancellation = cancellations.any(
+      (row) =>
+          <String>{'requested', 'approved'}.contains(row['booking_status']),
+    );
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(KodimaliSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              'Utekelezaji na ulinzi',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: KodimaliSpacing.xs),
+            const Text(
+              'Thibitisha huduma iliyotolewa, ripoti tatizo au fuatilia cancellation na refund.',
+            ),
+            if (milestones.isNotEmpty) ...<Widget>[
+              const Divider(height: 28),
+              ...milestones.map((milestone) {
+                final status = milestone['status']?.toString() ?? 'pending';
+                final canConfirm = <String>{
+                  'ready',
+                  'provider_confirmed',
+                }.contains(status);
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.task_alt_outlined),
+                  title: Text(
+                    milestone['milestone_kind']?.toString().replaceAll(
+                          '_',
+                          ' ',
+                        ) ??
+                        'Hatua ya huduma',
+                  ),
+                  subtitle: Text(status.replaceAll('_', ' ')),
+                  trailing: canConfirm
+                      ? TextButton(
+                          onPressed: () =>
+                              onConfirmMilestone(milestone['id'].toString()),
+                          child: const Text('Thibitisha'),
+                        )
+                      : null,
+                );
+              }),
+            ],
+            if (cancellations.isNotEmpty) ...<Widget>[
+              const Divider(height: 28),
+              ...cancellations.map(
+                (item) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.event_busy_outlined),
+                  title: Text(
+                    'Cancellation: ${item['booking_status'] ?? 'requested'}',
+                  ),
+                  subtitle: Text(
+                    'Refund ${item['customer_refund_minor'] ?? 0} TZS · ${item['refund_status'] ?? 'not started'}\n${item['reason'] ?? ''}',
+                  ),
+                  isThreeLine: true,
+                ),
+              ),
+            ],
+            if (incidents.isNotEmpty) ...<Widget>[
+              const Divider(height: 28),
+              ...incidents.map(
+                (item) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.report_problem_outlined),
+                  title: Text(item['summary']?.toString() ?? 'Tatizo'),
+                  subtitle: Text(
+                    '${item['incident_kind'] ?? 'issue'} · ${item['status'] ?? 'open'}',
+                  ),
+                ),
+              ),
+            ],
+            if (substitutions.isNotEmpty) ...<Widget>[
+              const Divider(height: 28),
+              ...substitutions.map((proposal) {
+                final pending = proposal['status'] == 'proposed';
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.swap_horiz_rounded),
+                  title: Text(
+                    proposal['description']?.toString() ??
+                        'Mbadala uliopendekezwa',
+                  ),
+                  subtitle: Text(
+                    'Tofauti ya bei: ${proposal['price_difference_minor'] ?? 0} TZS',
+                  ),
+                  trailing: pending
+                      ? Wrap(
+                          children: <Widget>[
+                            TextButton(
+                              onPressed: () => onRespondSubstitution(
+                                proposal['id'].toString(),
+                                false,
+                              ),
+                              child: const Text('Kataa'),
+                            ),
+                            FilledButton.tonal(
+                              onPressed: () => onRespondSubstitution(
+                                proposal['id'].toString(),
+                                true,
+                              ),
+                              child: const Text('Kubali'),
+                            ),
+                          ],
+                        )
+                      : Text(proposal['status']?.toString() ?? ''),
+                );
+              }),
+            ],
+            const SizedBox(height: KodimaliSpacing.md),
+            Wrap(
+              spacing: KodimaliSpacing.sm,
+              runSpacing: KodimaliSpacing.sm,
+              children: <Widget>[
+                OutlinedButton.icon(
+                  onPressed: canReportProblem ? onReportProblem : null,
+                  icon: const Icon(Icons.shield_outlined),
+                  label: const Text('Ripoti tatizo'),
+                ),
+                TextButton.icon(
+                  onPressed: terminal || hasOpenCancellation ? null : onCancel,
+                  icon: const Icon(Icons.cancel_outlined),
+                  label: const Text('Omba cancellation'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _CustomerRequestDetailData {
   const _CustomerRequestDetailData({
     required this.request,
     required this.history,
     required this.appointments,
     required this.review,
+    required this.cancellations,
+    required this.incidents,
+    required this.milestones,
+    required this.substitutions,
   });
 
   final Map<String, dynamic> request;
   final List<Map<String, dynamic>> history;
   final List<Map<String, dynamic>> appointments;
   final Map<String, dynamic>? review;
+  final List<Map<String, dynamic>> cancellations;
+  final List<Map<String, dynamic>> incidents;
+  final List<Map<String, dynamic>> milestones;
+  final List<Map<String, dynamic>> substitutions;
 }

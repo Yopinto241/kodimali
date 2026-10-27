@@ -40,8 +40,8 @@ export default async function TermsPage() {
         >
           <p>
             {sw
-              ? "Kwa listing inayoruhusu instant booking, mfumo hukagua muda uliochagua na kuushikilia kwa dakika 30. Hold si booking iliyolipwa; booking inathibitishwa baada ya malipo kukamilika. Hold huisha ikiwa malipo hayajakamilika kwa muda ulioonyeshwa."
-              : "For an instant-bookable listing, the system checks the selected period and holds it for 30 minutes. A hold is not a paid booking; the booking is confirmed after payment succeeds. The hold expires when payment is not completed within the displayed time."}
+              ? "Kwa listing inayoruhusu instant booking, booking inathibitishwa baada ya deposit kuthibitishwa. Reservation ambayo haijalipiwa inaweza kuisha ili muda urudi kupatikana."
+              : "For an instant-bookable listing, the booking is confirmed after the deposit is verified. An unpaid reservation may expire so the period becomes available again."}
           </p>
           <p>
             {sw

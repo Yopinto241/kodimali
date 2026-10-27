@@ -15,6 +15,7 @@ type Listing = {
   cover_media_type?: string | null;
   featured?: boolean;
   featured_placement?: string | null;
+  booking_mode?: "not_bookable" | "request_booking" | "instant_booking";
 };
 
 const reservableCategories = new Set([
@@ -37,7 +38,9 @@ export function PublicListingCard({
   const category = String(listing.category_slug ?? listing.category_name ?? "")
     .toLowerCase()
     .replaceAll(" ", "-");
-  const canBook = reservableCategories.has(category);
+  const bookingMode = listing.booking_mode ?? "request_booking";
+  const canBook =
+    reservableCategories.has(category) && bookingMode !== "not_bookable";
   const price = Number(listing.price_amount);
   const formattedPrice = Number.isFinite(price)
     ? new Intl.NumberFormat("sw-TZ", { maximumFractionDigits: 0 }).format(price)
@@ -81,6 +84,7 @@ export function PublicListingCard({
         bookingHref={
           canBook ? `/listing/${listing.listing_id}#booking` : undefined
         }
+        bookingMode={bookingMode}
       />
     </article>
   );

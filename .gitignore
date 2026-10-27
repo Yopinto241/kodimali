@@ -26,6 +26,5 @@ ios/Pods/
 *.log
 .env
 *.hprof
-android\.gradle\
-build\
-.dart_tool\
+# Local browser profile created only for UI previewing.
+design-previews/edge-profile/

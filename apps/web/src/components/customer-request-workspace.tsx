@@ -16,12 +16,20 @@ export function CustomerRequestWorkspace({
   const { language } = useLanguage();
   const sw = language === "sw";
   const [booking, setBooking] = useState<DataRow | null>(null);
+  const [terms, setTerms] = useState<DataRow | null>(null);
+  const [v3Payments, setV3Payments] = useState<DataRow[]>([]);
+  const [cancellations, setCancellations] = useState<DataRow[]>([]);
+  const [incidents, setIncidents] = useState<DataRow[]>([]);
+  const [milestones, setMilestones] = useState<DataRow[]>([]);
+  const [substitutions, setSubstitutions] = useState<DataRow[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<DataRow[]>([]);
   const [paymentPhone, setPaymentPhone] = useState("");
   const [viewingStart, setViewingStart] = useState("");
   const [rating, setRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
+  const [cancellationReason, setCancellationReason] = useState("");
+  const [problemSummary, setProblemSummary] = useState("");
   const [acceptedPaymentTerms, setAcceptedPaymentTerms] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("Loading request...");
@@ -47,6 +55,28 @@ export function CustomerRequestWorkspace({
       return;
     }
     setBooking(request as DataRow);
+    const [termsResult, paymentsResult, cancellationsResult, incidentsResult, milestonesResult] = await Promise.all([
+      supabase.from("booking_terms_snapshots").select("id,version,agreed_total_minor,deposit_minor,balance_minor,tax_minor,service_fee_minor,price_breakdown,cancellation_policy_snapshot,provider_obligations_snapshot,agreement_version,balance_due_at,status").eq("booking_request_id", bookingRequestId).eq("status", "accepted").maybeSingle(),
+      supabase.from("payment_intents").select("id,product,amount_minor,status,verified_at").eq("resource_type", "booking_request").eq("resource_id", bookingRequestId).order("created_at", { ascending: false }),
+      supabase.from("booking_cancellation_cases").select("id,reason,customer_refund_minor,booking_status,refund_status,inventory_release_status,settlement_status,created_at").eq("booking_request_id", bookingRequestId).order("created_at", { ascending: false }),
+      supabase.from("booking_incidents").select("id,incident_kind,severity,summary,status,settlement_suspended,resolution,created_at").eq("booking_request_id", bookingRequestId).order("created_at", { ascending: false }),
+      supabase.from("fulfillment_milestones").select("id,milestone_kind,due_at,status,provider_confirmed_at,customer_confirmed_at,verified_at").eq("booking_request_id", bookingRequestId).order("due_at"),
+    ]);
+    if (!termsResult.error) setTerms((termsResult.data as DataRow | null) ?? null);
+    else if (!["42P01", "PGRST205"].includes(termsResult.error.code ?? "")) throw termsResult.error;
+    if (!paymentsResult.error) setV3Payments((paymentsResult.data ?? []) as DataRow[]);
+    else if (!["42P01", "PGRST205"].includes(paymentsResult.error.code ?? "")) throw paymentsResult.error;
+    if (!cancellationsResult.error) setCancellations((cancellationsResult.data ?? []) as DataRow[]);
+    if (!incidentsResult.error) {
+      const nextIncidents = (incidentsResult.data ?? []) as DataRow[];
+      setIncidents(nextIncidents);
+      const incidentIds = nextIncidents.map((item) => String(item.id));
+      if (incidentIds.length > 0) {
+        const substitutionResult = await supabase.from("booking_substitution_proposals").select("id,incident_id,description,price_difference_minor,status,expires_at").in("incident_id", incidentIds).order("created_at", { ascending: false });
+        if (!substitutionResult.error) setSubstitutions((substitutionResult.data ?? []) as DataRow[]);
+      } else setSubstitutions([]);
+    }
+    if (!milestonesResult.error) setMilestones((milestonesResult.data ?? []) as DataRow[]);
     setNotice("");
     const { data: conversations, error: conversationError } =
       await supabase.rpc("get_or_create_booking_conversation", {
@@ -121,20 +151,22 @@ export function CustomerRequestWorkspace({
     }
   }
 
-  async function reserveAndPay() {
+  async function reserveAndPay(product: "booking_deposit" | "booking_balance" = "booking_deposit") {
     setBusy(true);
     setNotice("Tunaandaa reservation yako...");
     try {
-      const { data, error } = await supabase.functions.invoke(
-        "create-platform-payment",
-        {
-          body: {
-            purpose: "booking_reservation",
-            resource_id: bookingRequestId,
-            phone_number: paymentPhone,
-          },
-        },
-      );
+      const v3 = Boolean(terms);
+      const idempotencyStorageKey = `kodimali-payment-${bookingRequestId}-${product}`;
+      let idempotencyKey = window.localStorage.getItem(idempotencyStorageKey);
+      if (!idempotencyKey) {
+        idempotencyKey = crypto.randomUUID();
+        window.localStorage.setItem(idempotencyStorageKey, idempotencyKey);
+      }
+      const { data, error } = await supabase.functions.invoke(v3 ? "create-booking-payment" : "create-platform-payment", {
+        body: v3
+          ? { booking_id: bookingRequestId, product, phone_number: paymentPhone, idempotency_key: idempotencyKey }
+          : { purpose: "booking_reservation", resource_id: bookingRequestId, phone_number: paymentPhone },
+      });
       if (error) throw error;
       if (data?.error) throw new Error(String(data.error));
       let status = String(data?.paymentStatus ?? "pending");
@@ -162,6 +194,7 @@ export function CustomerRequestWorkspace({
         status = String(checked.data?.paymentStatus ?? status);
       }
       if (status !== "paid") throw new Error(`Payment status: ${status}`);
+      window.localStorage.removeItem(idempotencyStorageKey);
       setNotice("Malipo yamethibitishwa. Reservation yako iko salama.");
       await load();
     } catch (error) {
@@ -211,6 +244,57 @@ export function CustomerRequestWorkspace({
     }
   }
 
+  async function requestCancellation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      const { error } = await supabase.rpc("request_booking_cancellation", {
+        p_booking_request_id: bookingRequestId,
+        p_reason: cancellationReason.trim(),
+      } as never);
+      if (error) throw error;
+      setCancellationReason("");
+      setNotice(sw ? "Ombi la cancellation limepokelewa." : "Cancellation request received.");
+      await load();
+    } catch (error) { setNotice(readError(error)); } finally { setBusy(false); }
+  }
+
+  async function reportProblem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      const { error } = await supabase.rpc("report_booking_incident", {
+        p_booking_request_id: bookingRequestId,
+        p_incident_kind: "other_material_failure",
+        p_severity: "medium",
+        p_summary: problemSummary.trim(),
+        p_milestone_id: null,
+      } as never);
+      if (error) throw error;
+      setProblemSummary("");
+      setNotice(sw ? "Tatizo limeripotiwa kwa timu ya usaidizi." : "The problem was reported to support.");
+      await load();
+    } catch (error) { setNotice(readError(error)); } finally { setBusy(false); }
+  }
+
+  async function confirmMilestone(id: string) {
+    setBusy(true);
+    try {
+      const { error } = await supabase.rpc("confirm_customer_fulfillment_milestone", { p_milestone_id: id } as never);
+      if (error) throw error;
+      await load();
+    } catch (error) { setNotice(readError(error)); } finally { setBusy(false); }
+  }
+
+  async function respondSubstitution(id: string, accept: boolean) {
+    setBusy(true);
+    try {
+      const { error } = await supabase.rpc("respond_booking_substitution", { p_proposal_id: id, p_accept: accept } as never);
+      if (error) throw error;
+      await load();
+    } catch (error) { setNotice(readError(error)); } finally { setBusy(false); }
+  }
+
   if (!booking) {
     return (
       <section className="surface-card p-6 sm:p-8">
@@ -229,11 +313,17 @@ export function CustomerRequestWorkspace({
     ? booking.booking_payment_transactions
     : [];
   const paid = payments.some((item) => relation(item)?.status === "paid");
+  const depositPaid = v3Payments.some((item) => item.product === "booking_deposit" && item.status === "verified_paid");
+  const balancePaid = v3Payments.some((item) => item.product === "booking_balance" && item.status === "verified_paid");
   const ownerReady = ["approved", "not_required"].includes(
     String(booking.owner_approval_status ?? "not_required"),
   );
   const canReserve =
-    Boolean(booking.accepted_at) && ownerReady && !paid && !completed;
+    (Boolean(terms) || Boolean(booking.accepted_at)) && ownerReady && !(terms ? depositPaid : paid) && !completed;
+  const canPayBalance = Boolean(terms) && depositPaid && !balancePaid && !completed;
+  const terminal = ["completed", "cancelled", "rejected", "no_response"].includes(String(booking.booking_status));
+  const canReportProblem = !["cancelled", "rejected", "no_response"].includes(String(booking.booking_status));
+  const hasOpenCancellation = cancellations.some((item) => ["requested", "approved"].includes(String(item.booking_status)));
   return (
     <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
       <div className="space-y-6">
@@ -262,7 +352,7 @@ export function CustomerRequestWorkspace({
             <Progress done label="Booking imetumwa" />
             <Progress
               done={Boolean(booking.accepted_at)}
-              label="Muda umekaguliwa na kushikiliwa kwa dakika 30"
+              label="Muda umekaguliwa"
             />
             <Progress
               done={ownerReady}
@@ -275,16 +365,28 @@ export function CustomerRequestWorkspace({
             <Progress done={completed} label="Huduma imekamilika" />
           </div>
         </section>
+        {terms ? (
+          <section className="surface-card p-6">
+            <p className="eyebrow">{sw ? "Muhtasari wa malipo" : "Payment summary"}</p>
+            <h2 className="mt-2 font-heading text-2xl font-semibold">{sw ? "Bei iliyokubaliwa" : "Agreed price"}</h2>
+            <div className="mt-4 grid gap-3 text-sm">
+              <MoneyRow label={sw ? "Jumla" : "Total"} value={Number(terms.agreed_total_minor)} />
+              <MoneyRow label={sw ? "Deposit ya kulipa sasa (25%)" : "Deposit due now (25%)"} value={Number(terms.deposit_minor)} />
+              <MoneyRow label={sw ? "Salio la kulipa baadaye (75%)" : "Balance due later (75%)"} value={Number(terms.balance_minor)} />
+              {terms.balance_due_at ? <p className="text-muted">{sw ? "Mwisho wa kulipa salio" : "Balance deadline"}: {new Date(String(terms.balance_due_at)).toLocaleString()}</p> : null}
+              <p className="text-muted">{sw ? "Toleo la makubaliano" : "Agreement version"}: {String(terms.agreement_version)}</p>
+            </div>
+          </section>
+        ) : null}
         {canReserve ? (
           <section className="surface-card p-6">
             <p className="eyebrow">Hatua yako sasa</p>
             <h2 className="mt-2 font-heading text-2xl font-semibold">
-              Reserve na ulipe
+              {terms ? (sw ? "Lipa deposit" : "Pay deposit") : (sw ? "Reserve na ulipe" : "Reserve and pay")}
             </h2>
             <p className="mt-2 text-sm text-muted">
-              Malipo yakithibitishwa, muda uliochagua unahifadhiwa kwenye
-              inventory na booking inakuwa confirmed. Hold ya dakika 30 si
-              booking iliyolipwa na itaisha usipokamilisha malipo.
+              Lipa deposit. Malipo yakithibitishwa, booking yako inakuwa
+              confirmed.
             </p>
             <label className="mt-4 grid gap-2 font-semibold">
               Namba ya malipo
@@ -321,12 +423,35 @@ export function CustomerRequestWorkspace({
             <button
               className="btn btn-success mt-4 w-full"
               disabled={busy || !acceptedPaymentTerms || !paymentPhone.trim()}
-              onClick={() => void reserveAndPay()}
+              onClick={() => void reserveAndPay("booking_deposit")}
             >
-              {sw ? "Reserve na ulipe" : "Reserve and pay"}
+              {terms ? (sw ? `Lipa deposit — TZS ${Number(terms.deposit_minor).toLocaleString()}` : `Pay deposit — TZS ${Number(terms.deposit_minor).toLocaleString()}`) : (sw ? "Reserve na ulipe" : "Reserve and pay")}
             </button>
           </section>
         ) : null}
+        {canPayBalance ? (
+          <section className="surface-card p-6">
+            <p className="eyebrow">{sw ? "Salio" : "Outstanding balance"}</p>
+            <h2 className="mt-2 font-heading text-2xl font-semibold">TZS {Number(terms?.balance_minor ?? 0).toLocaleString()}</h2>
+            <p className="mt-2 text-sm text-muted">{sw ? "Lipa kabla ya handover au huduma kulingana na makubaliano yako." : "Pay before handover or service according to your agreement."}</p>
+            <label className="mt-4 grid gap-2 font-semibold">{sw ? "Namba ya malipo" : "Payment phone"}<input className="field-input" type="tel" inputMode="tel" value={paymentPhone} onChange={(event) => setPaymentPhone(event.target.value)} /></label>
+            <button className="btn btn-success mt-4 w-full" disabled={busy || !paymentPhone.trim()} onClick={() => void reserveAndPay("booking_balance")}>{sw ? "Lipa salio" : "Pay balance"}</button>
+          </section>
+        ) : null}
+        <section className="surface-card p-6">
+          <p className="eyebrow">{sw ? "Ulinzi wa booking" : "Booking protection"}</p>
+          <h2 className="mt-2 font-heading text-2xl font-semibold">{sw ? "Utekelezaji, matatizo na cancellation" : "Fulfillment, problems and cancellation"}</h2>
+          {milestones.length > 0 ? <div className="mt-4 grid gap-2">{milestones.map((item) => {
+            const status = String(item.status ?? "pending");
+            const canConfirm = ["ready", "provider_confirmed"].includes(status);
+            return <div className="soft-panel flex items-center justify-between gap-3 p-3" key={String(item.id)}><div><p className="font-semibold capitalize">{String(item.milestone_kind ?? "service step").replaceAll("_", " ")}</p><p className="text-sm text-muted">{status.replaceAll("_", " ")}</p></div>{canConfirm ? <button className="btn btn-outline" disabled={busy} onClick={() => void confirmMilestone(String(item.id))}>{sw ? "Thibitisha" : "Confirm"}</button> : null}</div>;
+          })}</div> : null}
+          {cancellations.length > 0 ? <div className="mt-4 grid gap-2">{cancellations.map((item) => <div className="soft-panel p-3" key={String(item.id)}><p className="font-semibold">Cancellation: {String(item.booking_status)}</p><p className="text-sm text-muted">{sw ? "Refund" : "Refund"}: TZS {Number(item.customer_refund_minor ?? 0).toLocaleString()} · {String(item.refund_status)}</p><p className="mt-1 text-sm">{String(item.reason ?? "")}</p></div>)}</div> : null}
+          {incidents.length > 0 ? <div className="mt-4 grid gap-2">{incidents.map((item) => <div className="soft-panel p-3" key={String(item.id)}><p className="font-semibold">{String(item.summary)}</p><p className="text-sm text-muted">{String(item.incident_kind).replaceAll("_", " ")} · {String(item.status)}</p></div>)}</div> : null}
+          {substitutions.length > 0 ? <div className="mt-4 grid gap-2">{substitutions.map((item) => <div className="soft-panel p-3" key={String(item.id)}><p className="font-semibold">{String(item.description)}</p><p className="text-sm text-muted">{sw ? "Tofauti ya bei" : "Price difference"}: TZS {Number(item.price_difference_minor ?? 0).toLocaleString()}</p>{item.status === "proposed" ? <div className="mt-3 flex gap-2"><button className="btn btn-outline" disabled={busy} onClick={() => void respondSubstitution(String(item.id), false)}>{sw ? "Kataa" : "Decline"}</button><button className="btn btn-success" disabled={busy} onClick={() => void respondSubstitution(String(item.id), true)}>{sw ? "Kubali" : "Accept"}</button></div> : <p className="mt-2 text-sm">{String(item.status)}</p>}</div>)}</div> : null}
+          {canReportProblem ? <form className="mt-5" onSubmit={reportProblem}><label className="grid gap-2 font-semibold">{sw ? "Ripoti tatizo" : "Report a problem"}<textarea className="field-input min-h-24" required value={problemSummary} onChange={(event) => setProblemSummary(event.target.value)} /></label><button className="btn btn-outline mt-3" disabled={busy || !problemSummary.trim()}>{sw ? "Tuma ripoti" : "Send report"}</button></form> : null}
+          {!terminal && !hasOpenCancellation ? <form className="mt-5 border-t border-white/10 pt-5" onSubmit={requestCancellation}><label className="grid gap-2 font-semibold">{sw ? "Sababu ya cancellation" : "Cancellation reason"}<textarea className="field-input min-h-20" required value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} /></label><button className="btn btn-outline mt-3" disabled={busy || !cancellationReason.trim()}>{sw ? "Omba cancellation" : "Request cancellation"}</button></form> : null}
+        </section>
         <form className="surface-card p-6" onSubmit={proposeViewing}>
           <h2 className="font-heading text-xl font-semibold">
             {sw ? "Panga viewing (si lazima)" : "Propose a viewing (optional)"}
@@ -480,4 +605,8 @@ function Progress({ done, label }: { done: boolean; label: string }) {
       {done ? "✓" : "○"} {label}
     </div>
   );
+}
+
+function MoneyRow({ label, value }: { label: string; value: number }) {
+  return <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-2"><span className="text-muted">{label}</span><strong>TZS {Number.isFinite(value) ? value.toLocaleString() : "0"}</strong></div>;
 }

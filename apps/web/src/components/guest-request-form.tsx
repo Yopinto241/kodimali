@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { getBrowserSupabase } from "@/lib/supabase-browser";
 
@@ -9,16 +9,28 @@ type ServiceOption = {
   label: string;
 };
 
+type BookingQuote = {
+  booking_mode: string;
+  total_tzs: number;
+  deposit_tzs: number;
+  balance_tzs: number;
+  quote_fingerprint: string;
+  price_breakdown: { units?: number; price_period?: string };
+  cancellation_policy?: { title?: string; body?: string };
+};
+
 export function GuestRequestForm({
   listingId,
   listingTitle,
   categorySlug,
   availableServices,
+  bookingMode,
 }: {
   listingId: string;
   listingTitle: string;
   categorySlug?: string;
   availableServices: ServiceOption[];
+  bookingMode: "not_bookable" | "request_booking" | "instant_booking";
 }) {
   const isApartment = categorySlug === "apartment";
   const isVehicle = categorySlug === "car" || categorySlug === "motorcycle";
@@ -61,13 +73,65 @@ export function GuestRequestForm({
   const [requestReference, setRequestReference] = useState<string | null>(null);
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [instantReservation, setInstantReservation] = useState(false);
+  const [quote, setQuote] = useState<BookingQuote | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const supabase = useMemo(() => getBrowserSupabase(), []);
   const [errors, setErrors] = useState<{
     customerName?: string;
     customerEmail?: string;
     customerPhoneNumber?: string;
     requestedDates?: string;
     form?: string;
+    terms?: string;
   }>({});
+
+  useEffect(() => {
+    setTermsAccepted(false);
+    if (
+      bookingMode !== "instant_booking" ||
+      !requestedStartAt ||
+      !requestedEndAt
+    ) {
+      setQuote(null);
+      return;
+    }
+    const start = new Date(
+      usesTime ? requestedStartAt : `${requestedStartAt}T00:00:00`,
+    );
+    const end = new Date(
+      usesTime ? requestedEndAt : `${requestedEndAt}T00:00:00`,
+    );
+    if (!Number.isFinite(start.getTime()) || end <= start) {
+      setQuote(null);
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      void (async () => {
+        setQuoteLoading(true);
+        try {
+          const { data, error } = await supabase.rpc(
+            "get_public_listing_booking_quote",
+            {
+          p_listing_id: listingId,
+          p_start_at: start.toISOString(),
+          p_end_at: end.toISOString(),
+            } as never,
+          );
+          if (error) {
+            setQuote(null);
+            setErrors((current) => ({ ...current, form: error.message }));
+            return;
+          }
+          const value = data as BookingQuote | null;
+          setQuote(value?.booking_mode === "instant_booking" ? value : null);
+        } finally {
+          setQuoteLoading(false);
+        }
+      })();
+    }, 350);
+    return () => window.clearTimeout(timeout);
+  }, [bookingMode, listingId, requestedEndAt, requestedStartAt, supabase, usesTime]);
 
   function validateForm() {
     const nextErrors: {
@@ -75,6 +139,7 @@ export function GuestRequestForm({
       customerEmail?: string;
       customerPhoneNumber?: string;
       requestedDates?: string;
+      terms?: string;
     } = {};
 
     if (!customerName.trim()) {
@@ -109,6 +174,10 @@ export function GuestRequestForm({
           "Tarehe ya kutoka lazima iwe baada ya kuingia.";
       }
     }
+    if (bookingMode === "instant_booking") {
+      if (!quote) nextErrors.requestedDates = "Subiri bei ya booking ikokotolewe.";
+      if (!termsAccepted) nextErrors.terms = "Kubali bei na masharti ya booking.";
+    }
 
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
@@ -119,6 +188,20 @@ export function GuestRequestForm({
       current.includes(key)
         ? current.filter((item) => item !== key)
         : [...current, key],
+    );
+  }
+
+  if (bookingMode === "not_bookable") {
+    return (
+      <div id="booking" className="surface-card scroll-mt-28 rounded-[20px] p-6">
+        <p className="eyebrow">Booking</p>
+        <h2 className="mt-3 font-heading text-2xl font-semibold text-brand-ink">
+          Booking haijawashwa
+        </h2>
+        <p className="section-copy mt-3 text-sm">
+          Mali hii haipokei booking kwa sasa.
+        </p>
+      </div>
     );
   }
 
@@ -181,7 +264,6 @@ export function GuestRequestForm({
         request_message: requestMessage || undefined,
         requested_service_codes: requestedServiceCodes,
       };
-      const supabase = getBrowserSupabase();
       const { data: sessionData } = await supabase.auth.getSession();
       let payload: Record<string, unknown>;
       if (sessionData.session) {
@@ -198,6 +280,9 @@ export function GuestRequestForm({
               guestCount: guestPayload.guest_count,
               requestMessage: guestPayload.request_message,
               requestedServiceCodes: guestPayload.requested_service_codes,
+              expectedTotalTzs: quote?.total_tzs,
+              quoteFingerprint: quote?.quote_fingerprint,
+              termsAccepted,
             },
           },
         );
@@ -206,7 +291,10 @@ export function GuestRequestForm({
         setBookingId(
           typeof payload.bookingId === "string" ? payload.bookingId : null,
         );
-        setInstantReservation(isReservable);
+        setInstantReservation(
+          payload.bookingMode === "instant_booking" &&
+            payload.paymentRequired === true,
+        );
       } else {
         const response = await fetch("/api/guest-requests", {
           method: "POST",
@@ -240,16 +328,16 @@ export function GuestRequestForm({
         className="surface-card scroll-mt-28 rounded-[20px] p-6"
       >
         <span className="status-badge status-active">
-          {instantReservation ? "Muda umehifadhiwa" : "Booking imetumwa"}
+          {instantReservation ? "Malipo yanahitajika" : "Booking imetumwa"}
         </span>
         <p className="mt-4 font-heading text-2xl font-semibold text-brand-ink">
           {instantReservation
-            ? "Muda uliochagua umehifadhiwa kwa dakika 30."
+            ? "Kamilisha deposit kuthibitisha booking yako."
             : "Booking yako imetumwa kwa wakala."}
         </p>
         <p className="section-copy mt-3 text-base">
           {instantReservation
-            ? "Kamilisha malipo ya reservation sasa kuthibitisha booking. Huhitaji viewing wala kusubiri agent."
+            ? "Lipa deposit sasa. Booking itathibitishwa malipo yakihakikiwa."
             : "Wakala atakujibu kwa email au simu."}
         </p>
         <p className="mt-4 text-sm font-bold text-brand-navy">
@@ -260,7 +348,7 @@ export function GuestRequestForm({
             className="button-primary mt-5 inline-flex"
             href={`/account/request/${bookingId}`}
           >
-            Reserve na ulipe sasa
+            Lipa deposit
           </a>
         ) : null}
       </div>
@@ -271,11 +359,12 @@ export function GuestRequestForm({
     <div id="booking" className="surface-card scroll-mt-28 rounded-[20px] p-6">
       <p className="eyebrow">Booking</p>
       <h2 className="mt-3 font-heading text-2xl font-semibold text-brand-ink">
-        Book {listingTitle}
+        {bookingMode === "instant_booking" ? "Book Now" : "Request Booking"}: {listingTitle}
       </h2>
       <p className="section-copy mt-3 text-sm">
-        Chagua muda unaohitaji. Ikiwa muda huo uko wazi, tutauhifadhi kwa dakika
-        30 ili ukamilishe malipo. Viewing si lazima na huhitaji kusubiri agent.
+        {bookingMode === "instant_booking"
+          ? "Chagua muda, tuma booking na ulipe deposit. Viewing ni hiari."
+          : "Chagua muda na utume booking request. Utapata jibu kwenye akaunti yako."}
       </p>
       <p className="mt-3 text-sm font-semibold text-brand-ink">
         {listingTitle}
@@ -399,6 +488,48 @@ export function GuestRequestForm({
             {errors.requestedDates ? (
               <span className="field-error">{errors.requestedDates}</span>
             ) : null}
+            {bookingMode === "instant_booking" ? (
+              <div className="rounded-2xl border border-brand-border-strong bg-brand-card-soft p-4">
+                {quoteLoading ? (
+                  <p className="text-sm font-semibold">Inakokotoa bei…</p>
+                ) : quote ? (
+                  <>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="field-label">Jumla</p>
+                        <p className="mt-1 text-xl font-bold text-brand-ink">
+                          TZS {Number(quote.total_tzs).toLocaleString("sw-TZ")}
+                        </p>
+                      </div>
+                      <div className="text-right text-sm">
+                        <p>Deposit: TZS {Number(quote.deposit_tzs).toLocaleString("sw-TZ")}</p>
+                        <p>Baadaye: TZS {Number(quote.balance_tzs).toLocaleString("sw-TZ")}</p>
+                      </div>
+                    </div>
+                    <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={termsAccepted}
+                        onChange={(event) => {
+                          setTermsAccepted(event.target.checked);
+                          setErrors((current) => ({ ...current, terms: undefined }));
+                        }}
+                        className="mt-1"
+                      />
+                      <span>
+                        Nakubali bei hii na masharti ya cancellation
+                        {quote.cancellation_policy?.title
+                          ? `: ${quote.cancellation_policy.title}`
+                          : "."}
+                      </span>
+                    </label>
+                    {errors.terms ? <span className="field-error mt-2 block">{errors.terms}</span> : null}
+                  </>
+                ) : (
+                  <p className="text-sm">Chagua muda sahihi kuona bei.</p>
+                )}
+              </div>
+            ) : null}
             {isApartment ? (
               <label className="grid gap-2">
                 <span className="field-label">Idadi ya wageni (si lazima)</span>
@@ -456,17 +587,13 @@ export function GuestRequestForm({
           disabled={submitting}
           className="btn btn-success"
         >
-          {submitting ? "Inatuma booking..." : "Book"}
+          {submitting
+            ? "Inatuma booking..."
+            : bookingMode === "instant_booking"
+              ? "Book Now"
+              : "Request Booking"}
         </button>
         {errors.form ? <p className="field-error">{errors.form}</p> : null}
-        <div className="soft-panel p-4">
-          <p className="text-sm font-semibold text-brand-ink">Kinachofuata</p>
-          <p className="field-help mt-2">
-            Ukiwa umeingia, mfumo hukagua muda papo hapo. Ukiwa wazi,
-            unahifadhiwa kwa dakika 30 ukamilishe malipo. Booking inakuwa
-            confirmed baada ya malipo kuthibitishwa; viewing ni hiari.
-          </p>
-        </div>
       </div>
     </div>
   );

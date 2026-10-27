@@ -49,7 +49,10 @@ export function CinematicHero({ categories }: { categories: Category[] }) {
         <input name="q" aria-label={language === "sw" ? "Unatafuta nini?" : "What are you looking for?"} className="hero-search-input h-12 min-w-0 flex-1 bg-transparent px-2 text-brand-ink outline-none" placeholder={language === "sw" ? "Nyumba, gari, ofisi..." : "House, car, office..."} />
         <button className="hero-search-button" aria-label={language === "sw" ? "Tafuta" : "Search"}>→</button>
       </form>
-      <div className="hero-tabs mt-4 flex items-center gap-2 overflow-x-auto pb-1" role="tablist">{slides.slice(0, 8).map((item, index) => <button key={item.slug} type="button" role="tab" aria-selected={index === active} onClick={() => { setActive(index); setPaused(true); }} className={`hero-tab ${index === active ? "is-active" : ""}`}>{item[language].label}</button>)}</div>
+      <nav className="hero-tabs mt-4 flex items-center gap-2 overflow-x-auto pb-1" aria-label={language === "sw" ? "Aina za mali" : "Categories"}>{slides.slice(0, 8).map((item, index) => {
+        const categoryHref = item.slug === "events" ? "/events" : `/category/${item.slug}`;
+        return <Link key={item.slug} href={categoryHref} aria-current={index === active ? "page" : undefined} onPointerEnter={() => setActive(index)} onFocus={() => setActive(index)} className={`hero-tab ${index === active ? "is-active" : ""}`}>{item[language].label}</Link>;
+      })}</nav>
       <div className="mt-3 flex items-center gap-4"><Link className="inline-flex text-xs font-bold text-white underline decoration-white/35 underline-offset-4" href={href}>{language === "sw" ? `Angalia ${copy.label}` : `View ${copy.label}`} →</Link><button type="button" className="hero-pause" onClick={() => setPaused((value) => !value)}>{paused ? (language === "sw" ? "Endelea" : "Resume") : (language === "sw" ? "Sitisha" : "Pause")}</button></div>
     </div></div>
   </section>;

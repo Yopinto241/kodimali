@@ -240,8 +240,76 @@ class _ContactPaymentSettingsPanelState
     _future = _load();
   }
 
-  Future<Map<String, dynamic>> _load() {
-    return AppScope.of(context).repository.fetchMarketplaceSettings();
+  Future<Map<String, dynamic>> _load() async {
+    final repository = AppScope.of(context).repository;
+    final results = await Future.wait<dynamic>(<Future<dynamic>>[
+      repository.fetchMarketplaceSettings(),
+      repository.fetchKodimaliRolloutFlags(),
+    ]);
+    return <String, dynamic>{
+      ...(results[0] as Map<String, dynamic>),
+      "kodimali_rollout_flags": results[1],
+    };
+  }
+
+  Future<void> _setRolloutFlag(String key, bool enabled) async {
+    final controller = TextEditingController();
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.admin_panel_settings_outlined),
+        title: Text(enabled ? 'Activate $key?' : 'Pause $key?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              enabled
+                  ? 'Activation requires completed payment-provider, policy and operational approval. It does not change historical records.'
+                  : 'New operations will stop. Existing paid bookings and obligations remain valid.',
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: controller,
+              minLines: 2,
+              maxLines: 4,
+              decoration: InputDecoration(
+                labelText: enabled ? 'Approval note (required)' : 'Reason',
+              ),
+            ),
+          ],
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(enabled ? 'Activate' : 'Pause'),
+          ),
+        ],
+      ),
+    );
+    final note = controller.text.trim();
+    controller.dispose();
+    if (confirmed != true || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await AppScope.of(context).repository.updateKodimaliRolloutFlag(
+        key: key,
+        enabled: enabled,
+        approvalNote: note,
+      );
+      if (mounted) setState(() => _future = _load());
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(userFacingError(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<bool> _confirmToggle({
@@ -383,11 +451,14 @@ class _ContactPaymentSettingsPanelState
   }
 
   Future<void> _setChatEnabled(bool enabled) async {
+    final settings = await _future;
+    final int chatPrice =
+        (settings["paid_chat_unlock_amount_tzs"] as num?)?.toInt() ?? 500;
     final bool confirmed = await _confirmToggle(
       feature: 'private listing chat',
       enablePayment: enabled,
       paidWarning:
-          'Customers will be charged TSh 500 to open seven-day private chat access.',
+          'Customers will be charged TSh $chatPrice to open seven-day private chat access.',
       freeWarning:
           'Customers will open private listing chats without payment. KODIMALI will receive no chat-access revenue.',
     );
@@ -412,6 +483,54 @@ class _ContactPaymentSettingsPanelState
       if (mounted) {
         setState(() => _saving = false);
       }
+    }
+  }
+
+  Future<void> _editChatPrice(int currentPrice) async {
+    final controller = TextEditingController(text: currentPrice.toString());
+    final int? amount = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Paid chat price'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Amount (TZS)',
+            helperText:
+                'Confirm the provider minimum before enabling payments.',
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              int.tryParse(controller.text.trim()),
+            ),
+            child: const Text('Save price'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (amount == null || amount <= 0 || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      await AppScope.of(context).repository.updatePaidChatUnlockPrice(amount);
+      if (mounted) setState(() => _future = _load());
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(userFacingError(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -544,6 +663,9 @@ class _ContactPaymentSettingsPanelState
             snapshot.data?["agent_listing_payments_enabled"] as bool? ?? false;
         final bool chatEnabled =
             snapshot.data?["chat_payments_enabled"] as bool? ?? false;
+        final int chatPrice =
+            (snapshot.data?["paid_chat_unlock_amount_tzs"] as num?)?.toInt() ??
+            500;
         final bool subscriptionEnabled =
             snapshot.data?["subscription_payments_enabled"] as bool? ?? false;
         final bool boostEnabled =
@@ -552,6 +674,22 @@ class _ContactPaymentSettingsPanelState
             snapshot.data?["booking_payments_enabled"] as bool? ?? false;
         final bool eventPaymentsEnabled =
             snapshot.data?["event_payments_enabled"] as bool? ?? false;
+        final List<Map<String, dynamic>> rolloutFlags =
+            (snapshot.data?["kodimali_rollout_flags"] as List<dynamic>? ??
+                    <dynamic>[])
+                .whereType<Map>()
+                .map((row) => row.cast<String, dynamic>())
+                .where(
+                  (row) => <String>{
+                    "booking_deposit_payments",
+                    "booking_balance_payments",
+                    "event_deposit_payments",
+                    "event_balance_payments",
+                    "automated_refunds",
+                    "automated_provider_payouts",
+                  }.contains(row["key"]),
+                )
+                .toList(growable: false);
         final String? updatedAt = snapshot.data?["updated_at"] as String?;
         final String? updatedBy = snapshot.data?["updated_by"] as String?;
         return ManagePanel(
@@ -605,8 +743,13 @@ class _ContactPaymentSettingsPanelState
                       ? "Customer chat payment required"
                       : "Customer chat is free",
                 ),
-                subtitle: const Text(
-                  "Paid mode charges TSh 500 for 7 days of private listing chat. Each participant can send 10 messages per day.",
+                subtitle: Text(
+                  "Paid mode charges TSh $chatPrice for 7 days of private listing chat. Each participant can send 10 messages per day.",
+                ),
+                secondary: IconButton(
+                  tooltip: 'Change chat price',
+                  onPressed: _saving ? null : () => _editChatPrice(chatPrice),
+                  icon: const Icon(Icons.edit_outlined),
                 ),
                 onChanged:
                     snapshot.connectionState == ConnectionState.waiting ||
@@ -668,6 +811,36 @@ class _ContactPaymentSettingsPanelState
                     ? null
                     : _setEventPaymentsEnabled,
               ),
+              const Divider(height: 24),
+              Text(
+                'KODIMALI 3.0 controlled rollout',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'These audited Super Admin flags are separate from marketplace availability. Both controls must be approved before new financial automation can run.',
+              ),
+              const SizedBox(height: 8),
+              if (rolloutFlags.isEmpty)
+                const Text('KODIMALI 3.0 rollout flags are not installed yet.')
+              else
+                ...rolloutFlags.map((row) {
+                  final key = row["key"].toString();
+                  final enabled = row["enabled"] == true;
+                  return SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: enabled,
+                    title: Text(key.replaceAll("_", " ")),
+                    subtitle: Text(
+                      enabled
+                          ? 'Active · approved ${DateFormatters.formatDateTime(row["approved_at"] as String?)}'
+                          : 'Inactive',
+                    ),
+                    onChanged: _saving
+                        ? null
+                        : (value) => _setRolloutFlag(key, value),
+                  );
+                }),
               const Divider(height: 24),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
