@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Ingia" };
 
 export default function LoginPage() {
   return (
-    <PageShell className="space-y-6 pb-20">
+    <PageShell className="auth-page space-y-6 pb-20">
       <PageHero
         eyebrow="Akaunti ya mteja"
         title="Ingia KODIMALI"

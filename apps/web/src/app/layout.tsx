@@ -4,6 +4,7 @@ import { SiteHeader } from "@/components/site-header";
 import { FirstVisitWelcome } from "@/components/first-visit-welcome";
 import { LanguageProvider } from "@/components/language-provider";
 import { GlobalInteractions } from "@/components/global-interactions";
+import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 import "./globals.css";
 import { bodyFont, headingFont } from "./fonts";
 
@@ -48,6 +49,7 @@ export default function RootLayout({
           <SiteHeader />
           <div className="page-frame">{children}</div>
           <SiteFooter />
+          <MobileBottomNav />
         </LanguageProvider>
       </body>
     </html>

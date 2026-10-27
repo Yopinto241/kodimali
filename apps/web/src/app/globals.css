@@ -1846,6 +1846,60 @@ video {
 }
 .field-input::placeholder { color: #587174; opacity: 1; }
 
+/* Mobile marketplace controls: one consistent, readable treatment across every category. */
+.category-price-panel {
+  background: #203b3b;
+  border-color: rgba(255,255,255,.16);
+  color: #fff;
+}
+.category-price-panel input,
+.category-price-panel select,
+.event-filter-panel .field-input,
+.event-filter-group .field-input {
+  border-color: rgba(255,255,255,.18);
+  background: #c7d2d0;
+  color: #102f37;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35);
+}
+.category-price-panel option,
+.event-filter-panel option,
+.event-filter-group option { background: #203b3b; color: #fff; }
+.event-filter-panel,
+.event-filter-group { position: relative; overflow: visible; }
+
+.password-field { position: relative; display: block; }
+.password-field input { width: 100%; padding-right: 6.2rem; color: #102f37; }
+.password-field button { position: absolute; top: 50%; right: .55rem; transform: translateY(-50%); border-radius: 10px; background: #d4e1de; padding: .45rem .65rem; color: #173b40; font-size: .72rem; font-weight: 850; }
+.auth-forgot-link { justify-self: start; color: #9ddfd4; font-size: .85rem; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
+.auth-panel { max-width: 720px; margin-inline: auto; }
+.auth-form input { min-height: 50px; }
+
+.mobile-bottom-nav { display: none; }
+@media (max-width: 1023px) {
+  body { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+  .mobile-bottom-nav {
+    position: fixed; z-index: 80; right: 10px; bottom: 8px; left: 10px;
+    display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); align-items: end;
+    min-height: 62px; padding: 7px 5px calc(6px + env(safe-area-inset-bottom));
+    border: 1px solid rgba(255,255,255,.14); border-radius: 20px;
+    background: rgba(16,47,55,.96); box-shadow: 0 18px 48px rgba(7,24,29,.3); backdrop-filter: blur(18px);
+  }
+  .mobile-bottom-nav a { display: flex; min-width: 0; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: rgba(255,255,255,.68); font-size: .58rem; font-weight: 750; }
+  .mobile-bottom-nav svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+  .mobile-bottom-nav a.is-active { color: #9ddfd4; }
+  .mobile-bottom-nav .mobile-bottom-brand { align-self: center; transform: translateY(-12px); }
+  .mobile-bottom-brand img { border: 4px solid #102f37; border-radius: 15px; background: #fff; box-shadow: 0 8px 20px rgba(0,0,0,.2); }
+  .event-filter-panel { grid-template-columns: minmax(0,1fr); }
+  .event-location-grid { grid-template-columns: minmax(0,1fr); }
+  .referral-page-hero .app-shell { min-height: 330px; padding-block: 2.25rem; }
+  .referral-visual { display: none; }
+  .referral-form-card .btn-success { position: sticky; bottom: 82px; z-index: 5; width: 100%; box-shadow: 0 12px 28px rgba(7,24,29,.3); }
+  .auth-page { padding-top: 12px; }
+  .auth-page .page-hero-card { padding: 1.1rem; border-radius: 18px; }
+  .auth-page .page-hero-card h1 { font-size: 1.8rem; }
+  .auth-page .page-hero-card .section-copy { display: none; }
+}
+
 @media (max-width: 640px) {
   .category-title-row { align-items: flex-start; }
   .category-route-picker { max-width: 45%; }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
 import { useLanguage } from "@/components/language-provider";
 
@@ -17,10 +18,12 @@ export function ListingActions({
   bookingMode?: "not_bookable" | "request_booking" | "instant_booking";
 }) {
   const supabase = useMemo(() => getBrowserSupabase(), []);
+  const router = useRouter();
   const { language } = useLanguage();
   const sw = language === "sw";
   const [saved, setSaved] = useState(false);
   const [compared, setCompared] = useState(false);
+  const [priceAlert, setPriceAlert] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -37,6 +40,8 @@ export function ListingActions({
         .eq("listing_id", listingId)
         .maybeSingle();
       setSaved(Boolean(result.data));
+      const alert = await supabase.from("price_alerts").select("is_active").eq("user_id", data.user.id).eq("listing_id", listingId).maybeSingle();
+      setPriceAlert(Boolean((alert.data as { is_active?: boolean } | null)?.is_active));
     });
   }, [listingId, supabase]);
 
@@ -63,18 +68,19 @@ export function ListingActions({
   async function createPriceAlert() {
     const { data } = await supabase.auth.getUser();
     if (!data.user) {
-      setMessage("Sign in from Customer Account to create a price alert.");
+      router.push(`/login?next=${encodeURIComponent(window.location.pathname)}&action=price-alert`);
       return;
     }
     const result = await supabase.from("price_alerts").upsert(
       {
         user_id: data.user.id,
         listing_id: listingId,
-        is_active: true,
+        is_active: !priceAlert,
       } as never,
       { onConflict: "user_id,listing_id" },
     );
-    setMessage(result.error?.message ?? "Price-drop alert enabled.");
+    if (!result.error) setPriceAlert(!priceAlert);
+    setMessage(result.error?.message ?? (!priceAlert ? "Price-drop alert enabled." : "Price-drop alert disabled."));
   }
 
   function toggleCompared() {
@@ -135,7 +141,7 @@ export function ListingActions({
           className="btn btn-outline !min-h-9 !px-3 !py-2 text-xs"
           onClick={() => void createPriceAlert()}
         >
-          {sw ? "Taarifa ya bei" : "Price alert"}
+          {priceAlert ? (sw ? "Bei: imewashwa" : "Alert: on") : (sw ? "Taarifa ya bei" : "Price alert")}
         </button>
         <Link
           href="/compare"

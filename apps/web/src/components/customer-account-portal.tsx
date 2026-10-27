@@ -45,6 +45,9 @@ export function CustomerAccountPortal({
   const [mode, setMode] = useState<"login" | "register">(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [paymentPhone, setPaymentPhone] = useState("");
@@ -180,7 +183,8 @@ export function CustomerAccountPortal({
       }
     };
     void supabase.auth.getUser().then(({ data }) => applyUser(data.user));
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") setRecoveryMode(true);
       applyUser(session?.user ?? null);
     });
     return () => data.subscription.unsubscribe();
@@ -323,6 +327,7 @@ export function CustomerAccountPortal({
           ? requestedNext
           : "/account";
       if (mode === "register") {
+        if (password !== confirmPassword) throw new Error("Nenosiri na uthibitisho wake havifanani.");
         const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
@@ -378,6 +383,28 @@ export function CustomerAccountPortal({
     }
   }
 
+  async function sendPasswordReset() {
+    if (!email.trim()) { setMessage("Weka barua pepe yako kwanza."); return; }
+    setBusy(true); setMessage(null);
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/account`,
+    });
+    setBusy(false);
+    setMessage(error?.message ?? "Tumetuma kiungo cha kubadili nenosiri kwenye barua pepe yako.");
+  }
+
+  async function updateRecoveredPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (password !== confirmPassword) { setMessage("Nenosiri na uthibitisho wake havifanani."); return; }
+    setBusy(true); setMessage(null);
+    const { error } = await supabase.auth.updateUser({ password });
+    setBusy(false);
+    if (error) setMessage(error.message);
+    else { setRecoveryMode(false); setPassword(""); setConfirmPassword(""); setMessage("Nenosiri limebadilishwa. Akaunti yako iko tayari."); }
+  }
+
+  if (recoveryMode) return <section className="auth-panel surface-card p-5 sm:p-8"><p className="eyebrow">Usalama wa akaunti</p><h2 className="mt-2 font-heading text-2xl font-semibold">Weka nenosiri jipya</h2><form className="auth-form mt-6 grid max-w-xl gap-4" onSubmit={updateRecoveredPassword}><label className="grid gap-2 font-semibold">Nenosiri jipya<input className="field-input" type={showPassword ? "text" : "password"} minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} required/></label><label className="grid gap-2 font-semibold">Thibitisha nenosiri<input className="field-input" type={showPassword ? "text" : "password"} minLength={6} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required/></label><button className="auth-forgot-link" type="button" onClick={() => setShowPassword((value) => !value)}>{showPassword ? "Ficha nenosiri" : "Onyesha nenosiri"}</button><button className="btn btn-success" disabled={busy}>{busy ? "Subiri..." : "Hifadhi nenosiri"}</button>{message ? <p role="status">{message}</p> : null}</form></section>;
+
   async function claimRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -399,7 +426,7 @@ export function CustomerAccountPortal({
 
   if (!user) {
     return (
-      <section className="surface-card p-6 sm:p-8">
+      <section className="auth-panel surface-card p-5 sm:p-8">
         {accountKind === "owner" ? (
           <div className="mb-6 max-w-xl">
             <h2 className="font-heading text-2xl font-semibold">
@@ -432,7 +459,7 @@ export function CustomerAccountPortal({
             Jisajili
           </button>
         </div>
-        <form className="mt-6 grid max-w-xl gap-4" onSubmit={submit}>
+        <form className="auth-form mt-6 grid max-w-xl gap-4" onSubmit={submit}>
           {mode === "register" ? (
             <>
               <label className="grid gap-2 font-semibold">
@@ -471,9 +498,9 @@ export function CustomerAccountPortal({
           </label>
           <label className="grid gap-2 font-semibold">
             Nenosiri
-            <input
+            <span className="password-field"><input
               className="rounded-2xl border border-brand-border bg-white px-4 py-3"
-              type="password"
+              type={showPassword ? "text" : "password"}
               autoComplete={
                 mode === "login" ? "current-password" : "new-password"
               }
@@ -481,8 +508,10 @@ export function CustomerAccountPortal({
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
-            />
+            /><button type="button" aria-label={showPassword ? "Ficha nenosiri" : "Onyesha nenosiri"} onClick={() => setShowPassword((value) => !value)}>{showPassword ? "Ficha" : "Onyesha"}</button></span>
           </label>
+          {mode === "register" ? <label className="grid gap-2 font-semibold">Thibitisha nenosiri<span className="password-field"><input className="rounded-2xl border border-brand-border bg-white px-4 py-3" type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={6} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required/><button type="button" onClick={() => setShowPassword((value) => !value)}>{showPassword ? "Ficha" : "Onyesha"}</button></span></label> : null}
+          {mode === "login" ? <button className="auth-forgot-link" type="button" disabled={busy} onClick={() => void sendPasswordReset()}>Umesahau nenosiri?</button> : null}
           <button className="btn btn-success" disabled={busy}>
             {busy ? "Subiri..." : mode === "login" ? "Ingia" : "Fungua akaunti"}
           </button>

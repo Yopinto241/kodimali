@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Jisajili" };
 
 export default function RegisterPage() {
   return (
-    <PageShell className="space-y-6 pb-20">
+    <PageShell className="auth-page space-y-6 pb-20">
       <PageHero
         eyebrow="Akaunti ya mteja"
         title="Fungua akaunti ya KODIMALI"

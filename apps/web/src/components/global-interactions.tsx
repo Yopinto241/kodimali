@@ -22,9 +22,27 @@ export function GlobalInteractions() {
     window.addEventListener("pointermove", move, { passive: true });
     window.addEventListener("pointerdown", ripple, { passive: true });
 
+    const dismissOpenMenus = (event: PointerEvent) => {
+      const target = event.target as Node;
+      document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((detail) => {
+        if (!detail.contains(target)) detail.open = false;
+      });
+    };
+    const keepOneMenuOpen = (event: Event) => {
+      const opened = event.target as HTMLDetailsElement;
+      if (!opened.open) return;
+      document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((detail) => {
+        if (detail !== opened) detail.open = false;
+      });
+    };
+    document.addEventListener("pointerdown", dismissOpenMenus);
+    document.addEventListener("toggle", keepOneMenuOpen, true);
+
     return () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerdown", ripple);
+      document.removeEventListener("pointerdown", dismissOpenMenus);
+      document.removeEventListener("toggle", keepOneMenuOpen, true);
     };
   }, []);
   return null;
