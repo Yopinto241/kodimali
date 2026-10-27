@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
 
 type Row = Record<string, unknown>;
-export function CustomerGrowthTools() {
+export function CustomerGrowthTools({ mode = "activity" }: { mode?: string }) {
   const supabase = useMemo(() => getBrowserSupabase(), []);
   const [userId, setUserId] = useState<string | null>(null);
   const [saved, setSaved] = useState<Row[]>([]); const [recent, setRecent] = useState<Row[]>([]);
@@ -29,12 +29,12 @@ export function CustomerGrowthTools() {
   const hasActivity = saved.length + recent.length + searches.length + alerts.length > 0;
   return <section className="account-activity mt-8 grid gap-5">
     {!loaded ? <div className="surface-card p-6 text-muted">Inapakia...</div> : null}
-    {loaded && !hasActivity ? <div className="surface-card p-6 text-muted">Hakuna shughuli.</div> : null}
-    {saved.length > 0 ? <AccountList title="Mali Zilizohifadhiwa" rows={saved} render={(row)=><><Link className="font-bold underline" href={`/listing/${row.listing_id}`}>{title(row)}</Link><button className="text-sm font-bold text-brand-danger" onClick={()=>void remove("customer_saved_listings","listing_id",String(row.listing_id))}>Ondoa</button></>} /> : null}
-    {recent.length > 0 ? <AccountList title="Ulizotazama" rows={recent} render={(row)=><><Link className="font-bold underline" href={`/listing/${row.listing_id}`}>{title(row)}</Link><span className="text-xs text-muted">Mara {String(row.view_count)}</span></>} /> : null}
-    {searches.length > 0 ? <AccountList title="Utafutaji Uliohifadhiwa" rows={searches} render={(row)=><><p className="font-bold">{String(row.name)}</p><button className="text-sm font-bold text-brand-danger" onClick={()=>void remove("saved_searches","id",String(row.id))}>Futa</button></>} /> : null}
-    {alerts.length > 0 ? <AccountList title="Taarifa za Bei" rows={alerts} render={(row)=><><Link className="font-bold underline" href={`/listing/${row.listing_id}`}>{title(row)}</Link><button className="text-sm font-bold text-brand-danger" onClick={()=>void remove("price_alerts","id",String(row.id))}>Futa</button></>} /> : null}
-    <details className="surface-card p-6"><summary className="cursor-pointer font-heading text-xl font-semibold">Mipangilio ya Arifa</summary><div className="mt-4 grid gap-3 sm:grid-cols-2">{[["chat_enabled","Ujumbe"],["requests_enabled","Maombi"],["payments_enabled","Malipo"],["reminders_enabled","Miadi"],["promotions_enabled","Matangazo"]].map(([key,label])=><label className="flex justify-between rounded-xl border border-brand-border p-4" key={key}><span className="font-semibold">{label}</span><input type="checkbox" checked={preferences[key] !== false} onChange={(e)=>void preference(key,e.target.checked)} /></label>)}</div></details>
+    {mode === "activity" && loaded && !hasActivity ? <div className="surface-card p-6 text-muted">Hakuna shughuli.</div> : null}
+    {mode === "activity" && saved.length > 0 ? <AccountList title="Mali Zilizohifadhiwa" rows={saved} render={(row)=><><Link className="font-bold underline" href={`/listing/${row.listing_id}`}>{title(row)}</Link><button className="text-sm font-bold text-brand-danger" onClick={()=>void remove("customer_saved_listings","listing_id",String(row.listing_id))}>Ondoa</button></>} /> : null}
+    {mode === "activity" && recent.length > 0 ? <AccountList title="Ulizotazama" rows={recent} render={(row)=><><Link className="font-bold underline" href={`/listing/${row.listing_id}`}>{title(row)}</Link><span className="text-xs text-muted">Mara {String(row.view_count)}</span></>} /> : null}
+    {mode === "activity" && searches.length > 0 ? <AccountList title="Utafutaji Uliohifadhiwa" rows={searches} render={(row)=><><p className="font-bold">{String(row.name)}</p><button className="text-sm font-bold text-brand-danger" onClick={()=>void remove("saved_searches","id",String(row.id))}>Futa</button></>} /> : null}
+    {mode === "activity" && alerts.length > 0 ? <AccountList title="Taarifa za Bei" rows={alerts} render={(row)=><><Link className="font-bold underline" href={`/listing/${row.listing_id}`}>{title(row)}</Link><button className="text-sm font-bold text-brand-danger" onClick={()=>void remove("price_alerts","id",String(row.id))}>Futa</button></>} /> : null}
+    {mode === "settings" ? <details open className="surface-card p-6"><summary className="cursor-pointer font-heading text-xl font-semibold">Mipangilio ya Arifa</summary><div className="mt-4 grid gap-3 sm:grid-cols-2">{[["chat_enabled","Ujumbe"],["requests_enabled","Maombi"],["payments_enabled","Malipo"],["reminders_enabled","Miadi"],["promotions_enabled","Matangazo"]].map(([key,label])=><label className="flex justify-between rounded-xl border border-brand-border p-4" key={key}><span className="font-semibold">{label}</span><input type="checkbox" checked={preferences[key] !== false} onChange={(e)=>void preference(key,e.target.checked)} /></label>)}</div></details> : null}
   </section>;
 }
 function title(row: Row) { const value = row.listings; const listing = Array.isArray(value)?value[0]:value; return listing&&typeof listing==="object"?String((listing as Row).title??"Listing"):"Listing"; }

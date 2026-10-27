@@ -1894,6 +1894,23 @@ video {
 .account-shell .chat-send-button { background: var(--account-blue); }
 .account-shell .chat-send-button:hover:not(:disabled) { background: var(--account-blue-dark); }
 @media (max-width: 640px) { .account-shell .surface-card { border-radius: 15px; } .account-dashboard { padding-inline: 14px; } }
+.account-section-nav { display: flex; gap: 5px; overflow-x: auto; padding: 5px; border-radius: 14px; background: #edf3f7; scrollbar-width: none; }
+.account-section-nav::-webkit-scrollbar { display: none; }
+.account-section-nav a { flex: 0 0 auto; border-radius: 10px; padding: 9px 13px; color: #607482; font-size: 13px; font-weight: 700; transition: background .18s ease, color .18s ease, box-shadow .18s ease; }
+.account-section-nav a:hover { color: var(--account-blue-dark); }
+.account-section-nav a.active { background: #fff; color: var(--account-blue-dark); box-shadow: 0 2px 9px rgba(31,57,79,.1); }
+.account-dashboard [data-account-group] { display: none; }
+.account-dashboard[data-section="overview"] [data-account-group~="overview"],
+.account-dashboard[data-section="bookings"] [data-account-group~="bookings"],
+.account-dashboard[data-section="chats"] [data-account-group~="chats"],
+.account-dashboard[data-section="invitations"] [data-account-group~="invitations"],
+.account-dashboard[data-section="events"] [data-account-group~="events"],
+.account-dashboard[data-section="settings"] [data-account-group~="settings"] { display: grid; }
+.account-dashboard[data-section="settings"] p[data-account-group] { display: block; }
+.account-chat-row { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--account-line); padding: 12px 4px; color: var(--account-text); }
+.account-chat-row:last-child { border-bottom: 0; }
+.account-chat-avatar { display: grid; width: 44px; height: 44px; flex: 0 0 auto; place-items: center; border-radius: 999px; background: linear-gradient(145deg,#42b6e9,#168ac1); color: #fff; font-weight: 800; }
+.account-empty { border-radius: 14px; background: #f6f9fb; padding: 22px; text-align: center; color: var(--account-muted); }
 
 /* Mobile marketplace controls: one consistent, readable treatment across every category. */
 .category-price-panel {

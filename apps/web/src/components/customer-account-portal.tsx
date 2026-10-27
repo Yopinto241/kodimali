@@ -33,6 +33,7 @@ type CustomerAccountPortalProps = {
   initialMode?: "login" | "register";
   destination?: string;
   accountKind?: "customer" | "owner";
+  section?: string;
 };
 
 function PasswordVisibilityIcon({ visible }: { visible: boolean }) {
@@ -45,6 +46,7 @@ export function CustomerAccountPortal({
   initialMode = "login",
   destination,
   accountKind = "customer",
+  section = "overview",
 }: CustomerAccountPortalProps) {
   const supabase = getBrowserSupabase();
   const [user, setUser] = useState<User | null>(null);
@@ -69,6 +71,7 @@ export function CustomerAccountPortal({
   const [individualEventBookings, setIndividualEventBookings] = useState<
     Array<Record<string, unknown>>
   >([]);
+  const [conversations, setConversations] = useState<Array<Record<string, unknown>>>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -168,6 +171,12 @@ export function CustomerAccountPortal({
     );
   }, [supabase]);
 
+  const loadConversations = useCallback(async () => {
+    const { data, error } = await supabase.rpc("list_my_listing_conversations");
+    if (error) throw error;
+    setConversations((data ?? []) as Array<Record<string, unknown>>);
+  }, [supabase]);
+
   useEffect(() => {
     const applyUser = (nextUser: User | null) => {
       setUser(nextUser);
@@ -184,6 +193,7 @@ export function CustomerAccountPortal({
         void loadIndividualEventBookings().catch((error: unknown) =>
           setMessage(readError(error)),
         );
+        void loadConversations().catch((error: unknown) => setMessage(readError(error)));
       } else {
         setBookings([]);
       }
@@ -198,6 +208,7 @@ export function CustomerAccountPortal({
     loadBookings,
     loadEventPlans,
     loadIndividualEventBookings,
+    loadConversations,
     loadRentalAgreements,
     supabase,
   ]);
@@ -545,7 +556,7 @@ export function CustomerAccountPortal({
   }
 
   return (
-    <section className="account-dashboard surface-card p-5 sm:p-7">
+    <section className="account-dashboard surface-card p-5 sm:p-7" data-section={section}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <span className="account-avatar" aria-hidden="true">{(user.email?.[0] ?? "K").toUpperCase()}</span>
@@ -562,17 +573,24 @@ export function CustomerAccountPortal({
           Toka
         </button>
       </div>
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <nav className="account-section-nav mt-5" aria-label="Account sections">
+        {[
+          ["overview", "Muhtasari"], ["bookings", "Booking"], ["chats", "Chat"],
+          ["invitations", "Mialiko"], ["events", "Matukio"], ["activity", "Shughuli"], ["settings", "Mipangilio"],
+        ].map(([key, label]) => <Link key={key} href={`/account?section=${key}`} className={section === key ? "active" : ""}>{label}</Link>)}
+      </nav>
+      <div data-account-group="overview" className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <AccountAction href="/toa-taarifa" title="Toa Taarifa" />
         <AccountAction
           href="/toa-taarifa#taarifa-zangu"
           title="Taarifa Zangu"
         />
         <AccountAction href="/listings" title="Tafuta Mali" />
-        <AccountAction href="/account#shughuli" title="Shughuli Zangu" />
+        <AccountAction href="/account?section=activity" title="Shughuli Zangu" />
         <AccountAction href="/events" title="Panga Sherehe" />
       </div>
       <form
+        data-account-group="invitations"
         className="soft-panel mt-6 flex flex-col gap-3 p-4 sm:flex-row"
         onSubmit={claimRequest}
       >
@@ -598,7 +616,7 @@ export function CustomerAccountPortal({
           {message}
         </p>
       ) : null}
-      <label className="mt-6 grid max-w-md gap-2 font-semibold">
+      <label data-account-group="bookings events" className="mt-6 max-w-md gap-2 font-semibold">
         Namba ya simu ya malipo
         <input
           className="field-input"
@@ -612,7 +630,7 @@ export function CustomerAccountPortal({
           SonicPesa itatuma ombi la kuthibitisha malipo kwenye namba hii.
         </span>
       </label>
-      <div className="mt-8">
+      <div data-account-group="bookings" className="mt-8">
         <h2 className="font-heading text-2xl font-semibold">
           Miadi na Booking Zangu
         </h2>
@@ -682,7 +700,7 @@ export function CustomerAccountPortal({
           )}
         </div>
       </div>
-      <section className="mt-8">
+      <section data-account-group="invitations" className="mt-8">
         <h2 className="font-heading text-2xl font-semibold">
           Rental connection
         </h2>
@@ -739,7 +757,7 @@ export function CustomerAccountPortal({
           )}
         </div>
       </section>
-      <section className="mt-8" id="event-plans">
+      <section data-account-group="events" className="mt-8" id="event-plans">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="font-heading text-2xl font-semibold">
@@ -829,7 +847,7 @@ export function CustomerAccountPortal({
           )}
         </div>
       </section>
-      <section className="mt-8">
+      <section data-account-group="events" className="mt-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="font-heading text-2xl font-semibold">
@@ -960,7 +978,21 @@ export function CustomerAccountPortal({
           )}
         </div>
       </section>
-      <p className="mt-6 text-sm text-muted">
+      <section data-account-group="chats" className="mt-8">
+        <div className="flex items-end justify-between gap-3">
+          <div><h2 className="text-2xl font-bold">Chat Zangu</h2><p className="mt-1 text-sm text-muted">Mazungumzo yako na mawakala wa listings.</p></div>
+        </div>
+        <div className="mt-4 grid gap-2">
+          {conversations.length === 0 ? <p className="account-empty">Huna chat kwa sasa.</p> : conversations.map((chat) => (
+            <Link className="account-chat-row" href={`/account/chat/${String(chat.id)}`} key={String(chat.id)}>
+              <span className="account-chat-avatar">{String(chat.agent_name ?? "A").slice(0,1).toUpperCase()}</span>
+              <span className="min-w-0 flex-1"><strong className="block truncate">{String(chat.agent_name ?? "Wakala")}</strong><small className="block truncate text-muted">{String(chat.listing_title ?? "Listing")}</small></span>
+              <span className="text-xl text-[#8e9aa3]">›</span>
+            </Link>
+          ))}
+        </div>
+      </section>
+      <p data-account-group="settings" className="mt-6 text-sm text-muted">
         Need to remove your account?{" "}
         <Link className="font-semibold underline" href="/delete-account">
           Open account deletion
