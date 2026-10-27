@@ -48,7 +48,7 @@ export function ListingMediaGallery({
       }}
     >
       {visibleMedia.map((item, index) => (
-        <div className="aspect-square w-full shrink-0 snap-center" key={`${item.signed_url}-${index}`}>
+        <div className="aspect-[16/10] w-full shrink-0 snap-center sm:aspect-[16/9]" key={`${item.signed_url}-${index}`}>
           {item.media_type === "video" ? (
             index === selectedIndex ? <SquareMediaVideo src={item.signed_url!} controls /> : <div className="flex h-full w-full items-center justify-center bg-brand-navy text-white"><span className="rounded-full border border-white/30 px-4 py-2 text-sm font-bold">VIDEO {index + 1}</span></div>
           ) : (
@@ -62,7 +62,7 @@ export function ListingMediaGallery({
                 alt={`${title} media ${index + 1}`}
                 priority={index === 0}
                 sizes="(min-width: 1280px) 52vw, (min-width: 1024px) 58vw, 100vw"
-                className="aspect-square h-full w-full object-cover"
+                className="h-full w-full object-cover"
               />
             </button>
           )}
@@ -73,7 +73,7 @@ export function ListingMediaGallery({
 
   return (
     <>
-      <div className="mt-8">
+      <div>
         <div className="flex items-center justify-between gap-3">
           <p className="eyebrow">Media</p>
           <p className="text-sm font-semibold text-muted">

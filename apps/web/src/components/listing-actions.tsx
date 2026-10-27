@@ -100,7 +100,7 @@ export function ListingActions({
   }
 
   return (
-    <div className="mt-4" onClick={(event) => event.stopPropagation()}>
+    <div onClick={(event) => event.stopPropagation()}>
       <div className="flex flex-wrap gap-2">
         {bookingHref ? (
           <Link
@@ -118,10 +118,12 @@ export function ListingActions({
         ) : null}
         <button
           type="button"
-          className="btn btn-outline !min-h-9 !px-3 !py-2 text-xs"
+          className={`listing-icon-action ${saved ? "active" : ""}`}
           onClick={() => void toggleSaved()}
+          aria-label={saved ? (sw ? "Ondoa hifadhi" : "Remove saved listing") : (sw ? "Hifadhi" : "Save")}
+          title={saved ? (sw ? "Imehifadhiwa" : "Saved") : (sw ? "Hifadhi" : "Save")}
         >
-          {saved ? (sw ? "Imehifadhiwa" : "Saved") : sw ? "Hifadhi" : "Save"}
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-4-6 4V4.5Z" /></svg>
         </button>
         <button
           type="button"

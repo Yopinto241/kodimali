@@ -212,10 +212,10 @@ export function AgentContactCard({
   }
 
   return (
-    <div className="surface-card rounded-[24px] p-6">
+    <div className="listing-agent-card surface-card rounded-[20px] p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="eyebrow">Agent contact</p>
+          <p className="eyebrow">{sw ? "Wakala" : "Agent"}</p>
           <h2 className="mt-3 font-heading text-2xl font-semibold text-brand-ink">
             {displayName}
           </h2>
@@ -227,7 +227,7 @@ export function AgentContactCard({
               className="mt-2 inline-block text-sm font-bold text-brand-navy underline"
               href={`/agent/${agentSummary.id}`}
             >
-              View public agent profile
+              {sw ? "Wasifu wa wakala" : "Agent profile"}
             </Link>
           ) : null}
         </div>
@@ -296,40 +296,8 @@ export function AgentContactCard({
         </div>
       ) : (
         <div className="mt-5 grid gap-4">
-          <div className="rounded-2xl border border-brand-border bg-brand-info-soft p-4 text-sm">
-            <p className="font-bold text-brand-ink">
-              {sw ? "Kabla ya kulipa" : "Before you pay"}
-            </p>
-            <ul className="mt-2 grid list-disc gap-1 pl-5 text-muted">
-              <li>
-                {sw
-                  ? "Hii ni ada ya kufungua namba kwa saa 24; si deposit wala malipo ya rental."
-                  : "This fee unlocks the number for 24 hours; it is not a rental payment or deposit."}
-              </li>
-              <li>
-                {sw
-                  ? "Kiasi kamili kitaonekana kabla hujaidhinisha ombi la mobile money."
-                  : "The exact amount is shown before you approve the mobile-money request."}
-              </li>
-              <li>
-                {sw
-                  ? "Ikiwa tangazo halipatikani au wakala hajibu, unaweza kuomba KODIMALI ikague refund; refund si ya moja kwa moja."
-                  : "If the listing is unavailable or the agent does not respond, you may request a KODIMALI refund review; refunds are not automatic."}
-              </li>
-              <li>
-                {sw
-                  ? "Unaweza kutumia booking au private chat bila kufungua namba; ada yoyote inayotumika itaonyeshwa kabla ya malipo."
-                  : "You may use booking or private chat without revealing the number; any applicable fee is shown before payment."}
-              </li>
-            </ul>
-            <Link
-              className="mt-3 inline-block font-bold underline"
-              href="/terms"
-            >
-              {sw
-                ? "Soma masharti ya malipo na refund"
-                : "Read payment and refund terms"}
-            </Link>
+          <div className="rounded-2xl border border-[#b9e5d5] bg-[#e7f7f1] p-3 text-sm text-[#31564c]">
+            {sw ? "Fungua namba kwa saa 24. Ada hii si malipo ya booking." : "Unlock the number for 24 hours. This fee is not a booking payment."}
           </div>
           <p className="section-copy text-sm">
             {sw

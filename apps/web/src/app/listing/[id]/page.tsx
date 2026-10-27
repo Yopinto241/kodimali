@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { cookies } from "next/headers";
 
 import { AgentContactCard } from "@/components/agent-contact-card";
@@ -195,7 +194,7 @@ export default async function ListingPage({
     }));
 
   return (
-    <PageShell className="pb-20">
+    <PageShell className="listing-detail-page pb-20">
       <ListingViewRecorder listingId={id} />
       <script
         type="application/ld+json"
@@ -216,8 +215,11 @@ export default async function ListingPage({
       <div className="mb-4">
         <BackNavButton fallbackHref="/listings" label={sw ? "Rudi" : "Back"} />
       </div>
+      <section className="listing-detail-media">
+        <ListingMediaGallery media={media} title={listing.title} />
+      </section>
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <section className="surface-card rounded-[20px] p-6 sm:p-8">
+        <section className="listing-detail-card surface-card rounded-[20px] p-5 sm:p-7">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="eyebrow">
@@ -232,24 +234,18 @@ export default async function ListingPage({
             </div>
             <div className="flex flex-wrap gap-2">
               <StatusPill
-                label={sw ? "Tangazo la umma" : "Public listing"}
+                label={sw ? "Imethibitishwa" : "Verified"}
                 tone="active"
-              />
-              <StatusPill
-                label={sw ? "Utaratibu uliothibitishwa" : "Verified process"}
-                tone="info"
               />
             </div>
           </div>
 
-          <div className="navy-panel mt-6 p-5 sm:p-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/70">
-              Price
+          <div className="listing-price mt-5">
+            <p className="text-xs font-bold uppercase tracking-[0.14em]">{sw ? "Bei" : "Price"}</p>
+            <p className="mt-1 text-3xl font-extrabold">
+              TZS {Number(listing.price_amount ?? 0).toLocaleString()}
             </p>
-            <p className="mt-3 font-heading text-3xl font-semibold text-white">
-              TZS {listing.price_amount}
-            </p>
-            <p className="mt-2 text-sm text-white/78">{listing.price_period}</p>
+            <p className="mt-1 text-sm font-semibold opacity-70">/ {listing.price_period}</p>
           </div>
 
           <p className="section-copy mt-6 text-base">
@@ -258,16 +254,11 @@ export default async function ListingPage({
 
           <div className="mt-6 flex flex-wrap gap-3">
             <ListingShareButton title={String(listing.title)} />
-            <Link href="/listings" className="btn btn-outline">
-              Rudi kwenye listings
-            </Link>
+            <ListingActions listingId={id} />
           </div>
-          <ListingActions listingId={id} />
-
-          <ListingMediaGallery media={media} title={listing.title} />
 
           {showFarmHighlights ? (
-            <div className="soft-panel mt-8 p-5">
+            <div className="listing-detail-group mt-7 p-5">
               <p className="eyebrow">Farm highlights</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 {highlights.map((item) => (
@@ -286,7 +277,7 @@ export default async function ListingPage({
           ) : null}
 
           {showApartmentServices && services.length > 0 ? (
-            <div className="soft-panel mt-8 p-5">
+            <div className="listing-detail-group mt-7 p-5">
               <p className="eyebrow">Available services</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {services.map((service) => (
@@ -302,8 +293,8 @@ export default async function ListingPage({
           ) : null}
 
           {attributeEntries.length > 0 ? (
-            <div className="soft-panel mt-8 p-5">
-              <p className="eyebrow">Additional details</p>
+            <div className="listing-detail-group mt-7 p-5">
+              <p className="eyebrow">{sw ? "Maelezo ya mali" : "Listing details"}</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {attributeEntries.map(({ key, label, value }) => (
                   <div
@@ -319,7 +310,7 @@ export default async function ListingPage({
           ) : null}
         </section>
 
-        <aside className="space-y-6 lg:sticky lg:top-32 lg:self-start">
+        <aside className="listing-detail-sidebar space-y-5 lg:sticky lg:top-24 lg:self-start">
           <AgentContactCard
             listingId={id}
             agentSummary={listing.agent_summary as never}
