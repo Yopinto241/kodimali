@@ -27,7 +27,7 @@ export function CustomerGrowthTools() {
   async function remove(table: string, idKey: string, id: string) { await supabase.from(table).delete().eq(idKey,id); await load(userId!); }
   async function preference(key: string, value: boolean) { await supabase.from("notification_preferences").upsert({ user_id:userId,[key]:value } as never); await load(userId!); }
   const hasActivity = saved.length + recent.length + searches.length + alerts.length > 0;
-  return <section className="mt-8 grid gap-6">
+  return <section className="account-activity mt-8 grid gap-5">
     {!loaded ? <div className="surface-card p-6 text-muted">Inapakia...</div> : null}
     {loaded && !hasActivity ? <div className="surface-card p-6 text-muted">Hakuna shughuli.</div> : null}
     {saved.length > 0 ? <AccountList title="Mali Zilizohifadhiwa" rows={saved} render={(row)=><><Link className="font-bold underline" href={`/listing/${row.listing_id}`}>{title(row)}</Link><button className="text-sm font-bold text-brand-danger" onClick={()=>void remove("customer_saved_listings","listing_id",String(row.listing_id))}>Ondoa</button></>} /> : null}
@@ -38,4 +38,4 @@ export function CustomerGrowthTools() {
   </section>;
 }
 function title(row: Row) { const value = row.listings; const listing = Array.isArray(value)?value[0]:value; return listing&&typeof listing==="object"?String((listing as Row).title??"Listing"):"Listing"; }
-function AccountList({title,rows,render}:{title:string;rows:Row[];render:(row:Row)=>React.ReactNode}) { return <div className="surface-card p-6"><h2 className="font-heading text-2xl font-semibold">{title}</h2><div className="mt-4 grid gap-3">{rows.map((row,index)=><article className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-border p-4" key={String(row.id??row.listing_id??index)}>{render(row)}</article>)}</div></div>; }
+function AccountList({title,rows,render}:{title:string;rows:Row[];render:(row:Row)=>React.ReactNode}) { return <div className="surface-card p-5 sm:p-6"><h2 className="text-xl font-bold">{title}</h2><div className="mt-4 grid gap-2">{rows.map((row,index)=><article className="account-list-row flex flex-wrap items-center justify-between gap-3 p-3.5" key={String(row.id??row.listing_id??index)}>{render(row)}</article>)}</div></div>; }

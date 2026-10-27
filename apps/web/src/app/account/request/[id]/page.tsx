@@ -8,7 +8,7 @@ export default async function CustomerRequestPage({
 }) {
   const { id } = await params;
   return (
-    <PageShell className="pb-20">
+    <PageShell className="account-shell pb-20">
       <CustomerRequestWorkspace bookingRequestId={id} />
     </PageShell>
   );

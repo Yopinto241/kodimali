@@ -1866,6 +1866,35 @@ video {
 .chat-send-button:disabled { cursor: not-allowed; opacity: .45; }
 @media (max-width: 640px) { .chat-shell { height: calc(100dvh - 8.5rem); min-height: 540px; border-radius: 16px; } .chat-bubble { max-width: 88%; } }
 
+/* Customer account: Telegram-inspired visual system, KODIMALI workflows. */
+.account-shell { --account-blue: #229ed9; --account-blue-dark: #168ac1; --account-bg: #eef3f7; --account-line: #dce5ec; --account-text: #182533; --account-muted: #70808f; color: var(--account-text); }
+.account-shell::before { content: ""; position: fixed; inset: 0; z-index: -1; background: linear-gradient(180deg, #f7fafc 0, var(--account-bg) 42%, #e8eff4 100%); }
+.account-shell .surface-card { border: 1px solid var(--account-line); border-radius: 18px; background: rgba(255,255,255,.97); color: var(--account-text); box-shadow: 0 8px 30px rgba(31,57,79,.08); }
+.account-shell .soft-panel { border: 1px solid var(--account-line); border-radius: 14px; background: #f7f9fb; color: var(--account-text); }
+.account-shell h1, .account-shell h2, .account-shell h3, .account-shell .font-heading { font-family: Arial, "Helvetica Neue", sans-serif; letter-spacing: -.02em; color: var(--account-text); }
+.account-shell .text-muted, .account-shell .section-copy { color: var(--account-muted); }
+.account-shell .btn-success { border-color: var(--account-blue); background: var(--account-blue); color: #fff; }
+.account-shell .btn-success:hover { border-color: var(--account-blue-dark); background: var(--account-blue-dark); }
+.account-shell .btn-outline { border-color: #cbd9e3; background: #fff; color: var(--account-blue-dark); }
+.account-shell .field-input, .account-shell input:not([type="checkbox"]):not([type="radio"]), .account-shell textarea, .account-shell select { border-color: #cbd9e3; background: #fff; color: var(--account-text); }
+.account-shell .field-input:focus, .account-shell input:focus, .account-shell textarea:focus, .account-shell select:focus { border-color: var(--account-blue); box-shadow: 0 0 0 3px rgba(34,158,217,.12); }
+.account-avatar { display: grid; width: 52px; height: 52px; flex: 0 0 auto; place-items: center; border-radius: 999px; background: linear-gradient(145deg, #42b6e9, #168ac1); color: #fff; font-size: 21px; font-weight: 800; box-shadow: 0 5px 14px rgba(34,158,217,.24); }
+.account-action { border: 1px solid var(--account-line); border-radius: 14px; background: #fff; color: var(--account-text); transition: border-color .18s ease, background .18s ease, transform .18s ease; }
+.account-action:hover { transform: translateY(-1px); border-color: rgba(34,158,217,.5); background: #f6fbfe; }
+.account-action-icon { display: grid; width: 40px; height: 40px; flex: 0 0 auto; place-items: center; border-radius: 999px; background: #e6f4fb; color: var(--account-blue); }
+.account-action-icon svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.account-list-row { border-bottom: 1px solid var(--account-line); background: #fff; }
+.account-list-row:last-child { border-bottom: 0; }
+.account-shell details > summary { color: var(--account-text); }
+.account-shell input[type="checkbox"] { accent-color: var(--account-blue); }
+.account-shell .chat-header { background: linear-gradient(135deg, #168ac1, #229ed9); }
+.account-shell .chat-avatar { background: #dff3fc; color: #168ac1; }
+.account-shell .chat-message-area { background-color: #dfeaf1; background-image: radial-gradient(circle at 15% 20%, rgba(34,158,217,.07) 0 1px, transparent 1.5px), radial-gradient(circle at 80% 60%, rgba(34,158,217,.05) 0 1px, transparent 1.5px); }
+.account-shell .chat-bubble-mine { background: #e1f2fb; }
+.account-shell .chat-send-button { background: var(--account-blue); }
+.account-shell .chat-send-button:hover:not(:disabled) { background: var(--account-blue-dark); }
+@media (max-width: 640px) { .account-shell .surface-card { border-radius: 15px; } .account-dashboard { padding-inline: 14px; } }
+
 /* Mobile marketplace controls: one consistent, readable treatment across every category. */
 .category-price-panel {
   background: #203b3b;

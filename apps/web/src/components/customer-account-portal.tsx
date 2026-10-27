@@ -545,11 +545,14 @@ export function CustomerAccountPortal({
   }
 
   return (
-    <section className="surface-card p-6 sm:p-8">
+    <section className="account-dashboard surface-card p-5 sm:p-7">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="font-heading text-3xl font-semibold">Akaunti Yangu</h1>
-          <p className="mt-1 text-sm text-muted">{user.email}</p>
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="account-avatar" aria-hidden="true">{(user.email?.[0] ?? "K").toUpperCase()}</span>
+          <div className="min-w-0">
+            <h1 className="truncate text-2xl font-bold">Akaunti Yangu</h1>
+            <p className="mt-0.5 truncate text-sm text-muted">{user.email}</p>
+          </div>
         </div>
         <button
           className="btn btn-outline"
@@ -972,11 +975,27 @@ function AccountAction({ href, title }: { href: string; title: string }) {
   return (
     <Link
       href={href}
-      className="soft-panel block p-4 transition hover:-translate-y-0.5 hover:shadow-md"
+      className="account-action flex items-center gap-3 p-3.5"
     >
-      <p className="font-semibold text-brand-navy">{title}</p>
+      <span className="account-action-icon" aria-hidden="true"><AccountActionIcon title={title} /></span>
+      <p className="font-semibold">{title}</p>
+      <span className="ml-auto text-xl text-[#8e9aa3]">›</span>
     </Link>
   );
+}
+
+function AccountActionIcon({ title }: { title: string }) {
+  const common = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z";
+  const detail = title.includes("Taarifa")
+    ? "M8 12h8M12 8v8"
+    : title.includes("Tafuta")
+      ? "m15.5 15.5 4 4M10.5 17a6.5 6.5 0 1 1 0-13 6.5 6.5 0 0 1 0 13Z"
+      : title.includes("Shughuli")
+        ? "M8 12h2l1.5-4 2 8 1.5-4H18"
+        : title.includes("Sherehe")
+          ? "M8 20V10h8v10M7 7h10M9 4h6"
+          : "M8 8h8v10H8zM10 5h4";
+  return <svg viewBox="0 0 24 24"><path d={title === "Toa Taarifa" ? common : detail} />{title === "Toa Taarifa" ? <path d="M8 12h8M12 8v8" /> : null}</svg>;
 }
 
 function readError(error: unknown) {
