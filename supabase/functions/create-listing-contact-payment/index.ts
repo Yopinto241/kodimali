@@ -76,8 +76,8 @@ function paymentAmountTzs(categorySlug: string): number {
   if (premiumCategorySlugs.has(normalizedSlug)) {
     return Math.max(
       readAmountEnv(
-      "CLICKPESA_CONTACT_PRICE_PREMIUM_TZS",
-      CONTACT_PRICE_PREMIUM_TZS,
+        "CLICKPESA_CONTACT_PRICE_PREMIUM_TZS",
+        CONTACT_PRICE_PREMIUM_TZS,
       ),
       minimumCollectionAmount,
     );
@@ -122,6 +122,7 @@ async function contactPaymentsEnabled(
 }
 
 Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") return json({ ok: true });
   if (request.method !== "POST") {
     return json({ error: "Method not allowed" }, 405);
   }
@@ -246,7 +247,10 @@ Deno.serve(async (request) => {
     const sonic = useSonicPesa();
     const config = sonic ? null : contactPaymentConfig();
     const amount = sonic
-      ? Math.max(paymentAmountTzs(categorySlug), readAmountEnv("SONICPESA_MIN_TZS", 1000))
+      ? Math.max(
+        paymentAmountTzs(categorySlug),
+        readAmountEnv("SONICPESA_MIN_TZS", 1000),
+      )
       : paymentAmountTzs(categorySlug);
     const orderReference = createOrderReference();
     const accessToken = crypto.randomUUID();
@@ -258,7 +262,10 @@ Deno.serve(async (request) => {
       fetchSenderDetails: true,
     };
     if (config?.checksumKey) {
-      previewPayload.checksum = createChecksum(config.checksumKey, previewPayload);
+      previewPayload.checksum = createChecksum(
+        config.checksumKey,
+        previewPayload,
+      );
     }
 
     const { data: paymentRow, error: paymentInsertError } = await supabase

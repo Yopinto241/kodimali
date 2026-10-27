@@ -23,6 +23,7 @@ const sonicMinimumAmount = () => {
 const reference = () =>
   `CH${crypto.randomUUID().replaceAll("-", "").slice(0, 18).toUpperCase()}`;
 Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") return json({ ok: true });
   if (request.method !== "POST") {
     return json({ error: "Method not allowed" }, 405);
   }

@@ -13,7 +13,10 @@ import {
   SonicPesaRequestError,
 } from "../_shared/sonicpesa.ts";
 
-function friendlyMessage(status: string, paymentMessage: string | null): string {
+function friendlyMessage(
+  status: string,
+  paymentMessage: string | null,
+): string {
   switch (status) {
     case "paid":
       return "Payment confirmed. The agent phone number is now available.";
@@ -35,8 +38,18 @@ function contactPaymentConfig() {
   });
 }
 
+type RpcClient = {
+  rpc: (
+    fn: string,
+    params?: Record<string, unknown>,
+  ) => PromiseLike<{
+    data: unknown;
+    error: { code?: string; message: string } | null;
+  }>;
+};
+
 async function contactPaymentsEnabled(
-  supabase: ReturnType<typeof createClient>,
+  supabase: RpcClient,
 ): Promise<boolean> {
   const { data, error } = await supabase.rpc("contact_payments_enabled");
   if (error) {
@@ -53,6 +66,7 @@ async function contactPaymentsEnabled(
 }
 
 Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") return json({ ok: true });
   if (request.method !== "POST") {
     return json({ error: "Method not allowed" }, 405);
   }
@@ -117,9 +131,10 @@ Deno.serve(async (request) => {
     let paymentMessage = typeof payment.status_message === "string"
       ? payment.status_message
       : null;
-    let paymentReference = typeof payment.provider_payment_reference === "string"
-      ? payment.provider_payment_reference
-      : null;
+    let paymentReference =
+      typeof payment.provider_payment_reference === "string"
+        ? payment.provider_payment_reference
+        : null;
     let providerPaymentId = typeof payment.provider_payment_id === "string"
       ? payment.provider_payment_id
       : null;
@@ -222,12 +237,15 @@ Deno.serve(async (request) => {
     } else {
       const expiresAt = payment.access_expires_at
         ? new Date(payment.access_expires_at as string)
-        : new Date(new Date(payment.paid_at as string).getTime() + 24 * 60 * 60 * 1000);
+        : new Date(
+          new Date(payment.paid_at as string).getTime() + 24 * 60 * 60 * 1000,
+        );
       if (expiresAt.getTime() <= Date.now()) {
         return json({
           success: false,
           paymentStatus: "expired",
-          message: "Your 24-hour phone access has expired. Pay again to unlock it.",
+          message:
+            "Your 24-hour phone access has expired. Pay again to unlock it.",
           accessExpiresAt: expiresAt.toISOString(),
         });
       }
