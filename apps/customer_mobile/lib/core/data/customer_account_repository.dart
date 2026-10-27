@@ -827,7 +827,7 @@ class CustomerAccountRepository {
 
   Future<int> fetchPaidChatUnlockPrice() async {
     final dynamic response = await _client.rpc('paid_chat_unlock_price');
-    return (response as num?)?.toInt() ?? 500;
+    return (response as num?)?.toInt() ?? 1000;
   }
 
   Future<void> markListingChatRead(String conversationId) async {

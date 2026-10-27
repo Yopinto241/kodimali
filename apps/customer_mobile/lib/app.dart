@@ -86,8 +86,8 @@ Future<void> _offerListingChat(
       content: Text(
         paymentsEnabled
             ? (context.isSwahili
-                  ? 'Unaweza kusoma maelezo yote ya mali kwanza, au kulipa TSh 500 kufungua mazungumzo ya faragha. Ruhusa itadumu siku 7.'
-                  : 'You can view all listing details first, or unlock this private chat for TSh 500. Access lasts 7 days.')
+                  ? 'Unaweza kusoma maelezo ya mali kwanza, au kulipa TSh 1,000 kuzungumza na wakala kwa faragha kwa siku 7.'
+                  : 'View the listing first, or pay TSh 1,000 to chat privately with the agent for 7 days.')
             : (context.isSwahili
                   ? 'Unaweza kusoma maelezo yote ya mali kwanza, au kufungua mazungumzo ya faragha bila malipo. Ruhusa itadumu siku 7.'
                   : 'You can view all listing details first, or open a free private chat with this agent. Access lasts 7 days.'),

@@ -148,7 +148,7 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
       if (mounted) {
         setState(() {
           _paymentsEnabled = true;
-          _chatPrice = 500;
+          _chatPrice = 1000;
         });
       }
     }

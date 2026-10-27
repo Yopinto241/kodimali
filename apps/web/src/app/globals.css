@@ -1846,6 +1846,26 @@ video {
 }
 .field-input::placeholder { color: #587174; opacity: 1; }
 
+/* Private listing chat: familiar, calm messaging layout. */
+.chat-shell { border: 1px solid rgba(17, 27, 33, .16); border-radius: 22px; background: #efeae2; box-shadow: 0 24px 70px rgba(11, 31, 30, .18); }
+.chat-header { background: linear-gradient(135deg, #075e54, #087f6d); }
+.chat-avatar { display: grid; width: 42px; height: 42px; flex: 0 0 auto; place-items: center; border-radius: 999px; background: #d9fdd3; color: #075e54; font-weight: 800; }
+.chat-icon-button { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 999px; color: #fff; transition: background .18s ease; }
+.chat-icon-button:hover { background: rgba(255,255,255,.13); }
+.chat-icon-button svg, .chat-send-button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.chat-message-area { background-color: #efeae2; background-image: radial-gradient(circle at 15% 20%, rgba(7,94,84,.045) 0 1px, transparent 1.5px), radial-gradient(circle at 80% 60%, rgba(7,94,84,.035) 0 1px, transparent 1.5px); background-size: 34px 34px, 42px 42px; }
+.chat-bubble { width: fit-content; max-width: min(78%, 560px); border-radius: 9px; padding: 7px 9px 5px; color: #111b21; box-shadow: 0 1px 1px rgba(11,20,26,.12); }
+.chat-bubble-mine { margin-left: auto; border-top-right-radius: 2px; background: #d9fdd3; }
+.chat-bubble-theirs { margin-right: auto; border-top-left-radius: 2px; background: #fff; }
+.chat-composer { border-top: 1px solid rgba(17,27,33,.1); background: #f0f2f5; }
+.chat-input { border: 1px solid transparent; border-radius: 22px; background: #fff; padding: 11px 16px; color: #111b21; outline: none; line-height: 1.35; box-shadow: 0 1px 2px rgba(11,20,26,.06); }
+.chat-input:focus { border-color: rgba(0,168,132,.45); box-shadow: 0 0 0 3px rgba(0,168,132,.1); }
+.chat-input::placeholder { color: #667781; }
+.chat-send-button { display: grid; width: 44px; height: 44px; flex: 0 0 auto; place-items: center; border-radius: 999px; background: #00a884; color: #fff; transition: transform .18s ease, background .18s ease; }
+.chat-send-button:hover:not(:disabled) { transform: translateY(-1px); background: #008f72; }
+.chat-send-button:disabled { cursor: not-allowed; opacity: .45; }
+@media (max-width: 640px) { .chat-shell { height: calc(100dvh - 8.5rem); min-height: 540px; border-radius: 16px; } .chat-bubble { max-width: 88%; } }
+
 /* Mobile marketplace controls: one consistent, readable treatment across every category. */
 .category-price-panel {
   background: #203b3b;
