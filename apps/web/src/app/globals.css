@@ -864,7 +864,16 @@ p {
   right: 0.8rem;
   left: 0.8rem;
   margin-top: 0.5rem;
+  max-height: min(72vh, 540px);
+  overflow-y: auto;
+  border-radius: 18px;
+  box-shadow: var(--shadow-lifted);
 }
+.location-picker { border: 1px solid #b9e5d5; background: #f8fcfa; color: #183d34; box-shadow: 0 12px 32px rgba(21,74,59,.12); }
+.location-picker .field-label { color: #31564c; }
+.location-picker .field-input { min-height: 44px; border: 1px solid #c8ded5; background: #fff; color: #183d34; }
+.location-picker-fields { grid-template-columns: minmax(0,1fr); }
+.search-location-filter[open] > summary { background: #e7f7f1 !important; color: #176b55 !important; }
 .search-price-popover label { display: grid; gap: 0.35rem; color: var(--muted); font-size: 0.72rem; }
 .search-price-popover input,
 .search-price-popover select { border: 1px solid var(--border); border-radius: 12px; background: #fff; padding: 0.7rem; }
@@ -876,6 +885,7 @@ p {
 @media (min-width: 720px) {
   .search-results-head { padding: 1rem; }
   .search-price-popover { right: auto; left: 12rem; width: 430px; }
+  .search-location-popover { right: auto; left: 7rem; width: min(430px, calc(100vw - 3rem)); }
 }
 .listing-card:hover {
   transform: translateY(-4px);

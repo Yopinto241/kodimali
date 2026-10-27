@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
-import { StatusPill } from "@/components/status-pill";
 import { useLanguage } from "@/components/language-provider";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
 
@@ -55,6 +54,7 @@ export function LocationBanner({
   }
 
   function navigateTo(baseUrl: URL) {
+    if (baseUrl.pathname === "/listings") baseUrl.searchParams.delete("category");
     const target = `${baseUrl.pathname}${baseUrl.search}${baseUrl.hash}`;
     startTransition(() => {
       router.push(target);
@@ -200,22 +200,14 @@ export function LocationBanner({
   }
 
   return (
-    <section className="surface-card rounded-[20px] p-5 sm:p-6">
+    <section className="location-picker rounded-[18px] p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="eyebrow">{sw ? "Chagua eneo" : "Location setup"}</p>
-            <StatusPill label={sw ? "Eneo lako ni la faragha" : "Your precise location stays private"} tone="info" />
-          </div>
-          <h2 className="mt-3 font-heading text-2xl font-semibold text-brand-ink sm:text-3xl">
-            {sw ? "Unatafuta mali karibu na ulipo?" : "Looking for something near you?"}
-          </h2>
-          <p className="section-copy mt-3 text-base">
-            {sw ? "Chagua eneo lako ili tukuonyeshe mali zinazopatikana karibu nawe. Tunaonyesha eneo la jumla tu; anwani kamili ya mali hubaki siri." : "Choose your area to see relevant properties nearby. KODIMALI shows only the general area; the property's exact address remains private."}
-          </p>
+          <h2 className="text-base font-bold text-[#183d34]">{sw ? "Chagua eneo" : "Choose location"}</h2>
+          <p className="mt-1 text-sm text-[#61756e]">{sw ? "Tumia GPS au chagua kwa hatua." : "Use GPS or choose step by step."}</p>
         </div>
       </div>
-      <div className="mt-5 flex flex-wrap gap-3">
+      <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"
           onClick={useGps}
@@ -245,7 +237,7 @@ export function LocationBanner({
       </div>
       {locationMessage ? <p className="mt-3 text-sm font-semibold text-brand-ink" role="status">{locationMessage}</p> : null}
       {manualOpen ? (
-        <div className="soft-panel mt-5 grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
+        <div className="location-picker-fields mt-4 grid gap-3">
           <label className="grid gap-2">
             <span className="field-label text-sm">{sw ? "Mkoa" : "Region"}</span>
             <select
@@ -270,7 +262,7 @@ export function LocationBanner({
               ))}
             </select>
           </label>
-          <label className="grid gap-2">
+          {regionId ? <label className="grid gap-2">
             <span className="field-label text-sm">{sw ? "Wilaya" : "District"}</span>
             <select
               value={districtId}
@@ -290,8 +282,8 @@ export function LocationBanner({
                 </option>
               ))}
             </select>
-          </label>
-          {wards.length > 0 ? (
+          </label> : null}
+          {districtId && wards.length > 0 ? (
             <label className="grid gap-2">
               <span className="field-label text-sm">{sw ? "Kata" : "Ward"}</span>
               <select
@@ -313,7 +305,7 @@ export function LocationBanner({
               </select>
             </label>
           ) : null}
-          <label className="grid gap-2">
+          {districtId ? <label className="grid gap-2">
             <span className="field-label text-sm">{sw ? "Eneo" : "Area"}</span>
             <select
               value={areaId}
@@ -327,15 +319,15 @@ export function LocationBanner({
                 </option>
               ))}
             </select>
-          </label>
-          <div className="sm:col-span-2">
+          </label> : null}
+          <div>
             <button
               type="button"
               onClick={applyManualLocation}
-              disabled={!regionId || !districtId || isNavigating}
+              disabled={!regionId || isNavigating}
               className="btn btn-success"
             >
-              {isNavigating ? (sw ? "Inafungua..." : "Loading...") : (sw ? "Tumia eneo hili" : "Use this area")}
+              {isNavigating ? (sw ? "Inafungua..." : "Loading...") : (sw ? "Onyesha listings" : "Show listings")}
             </button>
           </div>
         </div>

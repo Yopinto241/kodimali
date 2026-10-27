@@ -23,7 +23,7 @@ import {
 } from "@/lib/supabase-public";
 import { PublicListingCard } from "@/components/public-listing-card";
 
-export const revalidate = 15;
+export const revalidate = 60;
 
 export async function generateMetadata({
   params,

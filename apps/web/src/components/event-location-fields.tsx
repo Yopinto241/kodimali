@@ -138,7 +138,7 @@ export function EventLocationFields({
           ))}
         </select>
       </label>
-      <label className="grid gap-2 text-sm font-semibold">
+      {regionId ? <label className="grid gap-2 text-sm font-semibold">
         <span>{sw ? "Wilaya" : "District"}</span>
         <select
           className="field-input"
@@ -166,8 +166,8 @@ export function EventLocationFields({
             </option>
           ))}
         </select>
-      </label>
-      <label className="grid gap-2 text-sm font-semibold">
+      </label> : null}
+      {districtId ? <label className="grid gap-2 text-sm font-semibold">
         <span>{sw ? "Kata" : "Ward"}</span>
         <select
           className="field-input"
@@ -190,8 +190,8 @@ export function EventLocationFields({
             </option>
           ))}
         </select>
-      </label>
-      <label className="grid gap-2 text-sm font-semibold">
+      </label> : null}
+      {districtId ? <label className="grid gap-2 text-sm font-semibold">
         <span>{sw ? "Eneo" : "Area"}</span>
         <select
           className="field-input"
@@ -212,7 +212,7 @@ export function EventLocationFields({
             </option>
           ))}
         </select>
-      </label>
+      </label> : null}
     </div>
   );
 }

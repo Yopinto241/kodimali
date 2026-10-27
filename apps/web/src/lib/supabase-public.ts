@@ -80,9 +80,9 @@ const cacheTtl = {
   categories: 60 * 60,
   locations: 60 * 60,
   promotions: 5 * 60,
-  homeFeed: 15,
-  listings: 15,
-  listingDetail: 15,
+  homeFeed: 60,
+  listings: 60,
+  listingDetail: 60,
 } as const;
 
 let storageClient:
