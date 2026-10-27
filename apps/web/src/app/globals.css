@@ -1919,6 +1919,33 @@ video {
 .listing-detail-media > div > div:first-child { padding: 12px 16px 0; }
 .listing-detail-media > div > div:last-child { padding: 0 12px 12px; }
 .listing-detail-page .surface-card { border-color: var(--detail-line); background: rgba(255,255,255,.96); color: var(--detail-ink); box-shadow: 0 12px 38px rgba(21,74,59,.09); }
+.listing-detail-page .surface-card h1,
+.listing-detail-page .surface-card h2,
+.listing-detail-page .surface-card h3,
+.listing-detail-page .surface-card .text-brand-ink,
+.listing-detail-page .surface-card .field-label,
+.listing-detail-page .soft-panel h1,
+.listing-detail-page .soft-panel h2,
+.listing-detail-page .soft-panel h3,
+.listing-detail-page .soft-panel .text-brand-ink { color: var(--detail-ink); }
+.listing-detail-page .surface-card .section-copy,
+.listing-detail-page .surface-card .text-muted,
+.listing-detail-page .surface-card .field-help,
+.listing-detail-page .soft-panel .section-copy,
+.listing-detail-page .soft-panel .text-muted { color: #58736b; }
+.listing-detail-page .surface-card .eyebrow,
+.listing-detail-page .soft-panel .eyebrow { color: var(--detail-green); }
+.listing-detail-page .soft-panel { border-color: var(--detail-line); background: #f3faf6; color: var(--detail-ink); }
+.listing-detail-page .field-input,
+.listing-detail-page input,
+.listing-detail-page select,
+.listing-detail-page textarea { border-color: #b9d8cd; background: #fff; color: #173b32; }
+.listing-detail-page input::placeholder,
+.listing-detail-page textarea::placeholder { color: #6d817b; opacity: 1; }
+.listing-detail-page .btn-success { background: var(--detail-green); color: #fff; }
+.listing-detail-page .btn-outline { border-color: var(--detail-line); background: #fff; color: var(--detail-green); }
+.listing-detail-page .status-badge,
+.listing-detail-page .status-pill { color: var(--detail-ink); }
 .listing-price { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; border: 1px solid var(--detail-line); border-radius: 16px; background: var(--detail-soft); padding: 16px 18px; color: var(--detail-ink); }
 .listing-price > p:first-child { width: 100%; color: var(--detail-green); }
 .listing-detail-group { border: 1px solid var(--detail-line); border-radius: 18px; background: #f7fcf9; }
