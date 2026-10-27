@@ -35,6 +35,12 @@ type CustomerAccountPortalProps = {
   accountKind?: "customer" | "owner";
 };
 
+function PasswordVisibilityIcon({ visible }: { visible: boolean }) {
+  return visible
+    ? <svg viewBox="0 0 24 24" aria-hidden><path d="M3 3l18 18M10.6 10.7a2 2 0 0 0 2.7 2.7M9.9 4.3A10.8 10.8 0 0 1 12 4c5.4 0 9 5 9 5s-1.1 1.6-3 3M6.2 6.2C4.2 7.5 3 9 3 9s3.6 5 9 5c1 0 2-.2 2.9-.5"/></svg>
+    : <svg viewBox="0 0 24 24" aria-hidden><path d="M3 12s3.6-5 9-5 9 5 9 5-3.6 5-9 5-9-5-9-5Z"/><circle cx="12" cy="12" r="2.5"/></svg>;
+}
+
 export function CustomerAccountPortal({
   initialMode = "login",
   destination,
@@ -403,7 +409,7 @@ export function CustomerAccountPortal({
     else { setRecoveryMode(false); setPassword(""); setConfirmPassword(""); setMessage("Nenosiri limebadilishwa. Akaunti yako iko tayari."); }
   }
 
-  if (recoveryMode) return <section className="auth-panel surface-card p-5 sm:p-8"><p className="eyebrow">Usalama wa akaunti</p><h2 className="mt-2 font-heading text-2xl font-semibold">Weka nenosiri jipya</h2><form className="auth-form mt-6 grid max-w-xl gap-4" onSubmit={updateRecoveredPassword}><label className="grid gap-2 font-semibold">Nenosiri jipya<input className="field-input" type={showPassword ? "text" : "password"} minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} required/></label><label className="grid gap-2 font-semibold">Thibitisha nenosiri<input className="field-input" type={showPassword ? "text" : "password"} minLength={6} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required/></label><button className="auth-forgot-link" type="button" onClick={() => setShowPassword((value) => !value)}>{showPassword ? "Ficha nenosiri" : "Onyesha nenosiri"}</button><button className="btn btn-success" disabled={busy}>{busy ? "Subiri..." : "Hifadhi nenosiri"}</button>{message ? <p role="status">{message}</p> : null}</form></section>;
+  if (recoveryMode) return <section className="auth-panel surface-card p-5 sm:p-8"><p className="eyebrow">Usalama wa akaunti</p><h2 className="mt-2 font-heading text-2xl font-semibold">Weka nenosiri jipya</h2><form className="auth-form mt-6 grid max-w-xl gap-4" onSubmit={updateRecoveredPassword}><label className="grid gap-2 font-semibold">Nenosiri jipya<span className="password-field"><input className="field-input" type={showPassword ? "text" : "password"} minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} required/><button type="button" aria-label={showPassword ? "Ficha nenosiri" : "Onyesha nenosiri"} onClick={() => setShowPassword((value) => !value)}><PasswordVisibilityIcon visible={showPassword}/></button></span></label><label className="grid gap-2 font-semibold">Thibitisha nenosiri<span className="password-field"><input className="field-input" type={showPassword ? "text" : "password"} minLength={6} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required/><button type="button" aria-label={showPassword ? "Ficha nenosiri" : "Onyesha nenosiri"} onClick={() => setShowPassword((value) => !value)}><PasswordVisibilityIcon visible={showPassword}/></button></span></label><button className="btn btn-success" disabled={busy}>{busy ? "Subiri..." : "Hifadhi nenosiri"}</button>{message ? <p role="status">{message}</p> : null}</form></section>;
 
   async function claimRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -508,9 +514,9 @@ export function CustomerAccountPortal({
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
-            /><button type="button" aria-label={showPassword ? "Ficha nenosiri" : "Onyesha nenosiri"} onClick={() => setShowPassword((value) => !value)}>{showPassword ? "Ficha" : "Onyesha"}</button></span>
+            /><button type="button" aria-label={showPassword ? "Ficha nenosiri" : "Onyesha nenosiri"} onClick={() => setShowPassword((value) => !value)}><PasswordVisibilityIcon visible={showPassword}/></button></span>
           </label>
-          {mode === "register" ? <label className="grid gap-2 font-semibold">Thibitisha nenosiri<span className="password-field"><input className="rounded-2xl border border-brand-border bg-white px-4 py-3" type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={6} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required/><button type="button" onClick={() => setShowPassword((value) => !value)}>{showPassword ? "Ficha" : "Onyesha"}</button></span></label> : null}
+          {mode === "register" ? <label className="grid gap-2 font-semibold">Thibitisha nenosiri<span className="password-field"><input className="rounded-2xl border border-brand-border bg-white px-4 py-3" type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={6} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required/><button type="button" aria-label={showPassword ? "Ficha nenosiri" : "Onyesha nenosiri"} onClick={() => setShowPassword((value) => !value)}><PasswordVisibilityIcon visible={showPassword}/></button></span></label> : null}
           {mode === "login" ? <button className="auth-forgot-link" type="button" disabled={busy} onClick={() => void sendPasswordReset()}>Umesahau nenosiri?</button> : null}
           <button className="btn btn-success" disabled={busy}>
             {busy ? "Subiri..." : mode === "login" ? "Ingia" : "Fungua akaunti"}
