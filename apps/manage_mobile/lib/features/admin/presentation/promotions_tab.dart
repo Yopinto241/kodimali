@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -64,7 +65,7 @@ class _AdminPromotionCustomerPreview extends StatelessWidget {
                         color: Colors.white,
                       ),
                       SizedBox(width: 6),
-                      Text(
+                      LocalizedUiText(
                         "Sponsored",
                         style: TextStyle(
                           color: Colors.white,
@@ -152,6 +153,8 @@ class _PromotionsTabState extends State<PromotionsTab> {
   );
   bool _isActive = true;
   String _placement = "global";
+  final Set<String> _targetCategoryIds = {};
+  late Future<List<Map<String, dynamic>>> _categoryOptions;
   String _visibilityScope = "all";
   String? _editingPromotionId;
   int _formRevision = 0;
@@ -184,6 +187,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
     }
     _initialized = true;
     _future = _load();
+    _categoryOptions = AppScope.of(context).repository.fetchActiveCategories();
     _locationBootstrap = _bootstrapLocations();
     unawaited(_locationBootstrap);
   }
@@ -233,6 +237,11 @@ class _PromotionsTabState extends State<PromotionsTab> {
       _endAtController.text = promotion["end_at"] as String? ?? "";
       _displayOrderController.text = (promotion["display_order"] ?? 0)
           .toString();
+      _targetCategoryIds
+        ..clear()
+        ..addAll(
+          (promotion["target_category_ids"] as List? ?? []).cast<String>(),
+        );
       _placement = promotion["placement"] as String? ?? "global";
       _visibilityScope = promotion["visibility_scope"] as String? ?? "all";
       _isActive = promotion["is_active"] as bool? ?? true;
@@ -268,6 +277,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
       _startAtController.clear();
       _endAtController.clear();
       _displayOrderController.text = "0";
+      _targetCategoryIds.clear();
       _placement = "global";
       _visibilityScope = "all";
       _isActive = true;
@@ -509,7 +519,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
         }
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Promotion media must be 30 MB or smaller."),
+            content: LocalizedUiText(
+              "Promotion media must be 30 MB or smaller.",
+            ),
           ),
         );
         return;
@@ -520,7 +532,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
         }
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
+            content: LocalizedUiText(
               "The selected file could not be read. Choose it again, or use Image/Video from gallery.",
             ),
           ),
@@ -589,7 +601,10 @@ class _PromotionsTabState extends State<PromotionsTab> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              "Video prepared: ${originalMb.toStringAsFixed(1)} MB to ${compressedMb.toStringAsFixed(1)} MB.",
+              mobileUiFormat(context, "Video prepared: {0} MB to {1} MB.", [
+                originalMb.toStringAsFixed(1),
+                compressedMb.toStringAsFixed(1),
+              ]),
             ),
           ),
         );
@@ -613,7 +628,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
     await _videoCompressor.cancel();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Video compression cancelled.")),
+        const SnackBar(
+          content: LocalizedUiText("Video compression cancelled."),
+        ),
       );
     }
   }
@@ -641,7 +658,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Promotion media must be 30 MB or smaller."),
+            content: LocalizedUiText(
+              "Promotion media must be 30 MB or smaller.",
+            ),
           ),
         );
       }
@@ -678,7 +697,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
     if (startAt != null && endAt != null && !endAt.isAfter(startAt)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Promotion end date must be after its start date."),
+          content: LocalizedUiText(
+            "Promotion end date must be after its start date.",
+          ),
         ),
       );
       return;
@@ -698,6 +719,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
             ? null
             : _urlController.text.trim(),
         placement: _placement,
+        targetCategoryIds: _targetCategoryIds.toList(),
         visibilityScope: _visibilityScope,
         displayOrder: int.parse(_displayOrderController.text.trim()),
         isActive: _isActive,
@@ -719,8 +741,8 @@ class _PromotionsTabState extends State<PromotionsTab> {
           SnackBar(
             content: Text(
               creating
-                  ? "Promotion created successfully."
-                  : "Promotion updated successfully.",
+                  ? mobileUi(context, "Promotion created successfully.")
+                  : mobileUi(context, "Promotion updated successfully."),
             ),
           ),
         );
@@ -752,18 +774,18 @@ class _PromotionsTabState extends State<PromotionsTab> {
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) => AlertDialog(
-        title: const Text("Delete promotion?"),
-        content: const Text(
+        title: const LocalizedUiText("Delete promotion?"),
+        content: const LocalizedUiText(
           "This removes the promotion from every customer, agent, admin, and website placement.",
         ),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text("Cancel"),
+            child: const LocalizedUiText("Cancel"),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text("Delete"),
+            child: const LocalizedUiText("Delete"),
           ),
         ],
       ),
@@ -782,9 +804,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
       }
       await _refresh();
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Promotion deleted.")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: LocalizedUiText("Promotion deleted.")),
+        );
       }
     } catch (error) {
       if (mounted) {
@@ -816,7 +838,11 @@ class _PromotionsTabState extends State<PromotionsTab> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            "Enter a valid promotion $label, for example 2026-07-20T10:00:00+03:00.",
+            mobileUiFormat(
+              context,
+              "Enter a valid promotion {0}, for example 2026-07-20T10:00:00+03:00.",
+              [label],
+            ),
           ),
         ),
       );
@@ -891,7 +917,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
                         Row(
                           children: <Widget>[
                             Expanded(
-                              child: Text(
+                              child: LocalizedUiText(
                                 "Customer preview",
                                 style: Theme.of(context).textTheme.titleLarge,
                               ),
@@ -902,7 +928,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
                             ),
                           ],
                         ),
-                        const Text(
+                        const LocalizedUiText(
                           "This reproduces the sponsored card customers will see.",
                         ),
                         const SizedBox(height: 14),
@@ -937,53 +963,106 @@ class _PromotionsTabState extends State<PromotionsTab> {
             children: <Widget>[
               Text(
                 _editingPromotionId == null
-                    ? "Create promotion"
-                    : "Edit promotion",
+                    ? mobileUi(context, "Create promotion")
+                    : mobileUi(context, "Edit promotion"),
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 6),
-              Text(
+              LocalizedUiText(
                 "Choose the exact placement so the admin knows where the promotion will appear.",
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _titleController,
-                decoration: const InputDecoration(labelText: "Title"),
+                decoration: InputDecoration(
+                  labelText: mobileUi(context, "Title"),
+                ),
                 validator: (String? value) =>
-                    value == null || value.trim().isEmpty ? "Required" : null,
+                    value == null || value.trim().isEmpty
+                    ? mobileUi(context, "Required")
+                    : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _descriptionController,
                 maxLines: 3,
-                decoration: const InputDecoration(labelText: "Description"),
+                decoration: InputDecoration(
+                  labelText: mobileUi(context, "Description"),
+                ),
               ),
               const SizedBox(height: 12),
+              const LocalizedUiText('Sponsored categories'),
+              const LocalizedUiText(
+                'Leave all unchecked to show in every category.',
+              ),
+              TextButton(
+                onPressed: () => setState(_targetCategoryIds.clear),
+                child: const LocalizedUiText('All categories'),
+              ),
+              FutureBuilder<List<Map<String, dynamic>>>(
+                future: _categoryOptions,
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return const LocalizedUiText('Could not load categories.');
+                  }
+                  if (!snapshot.hasData) return const LinearProgressIndicator();
+                  return Wrap(
+                    spacing: 8,
+                    children: snapshot.data!
+                        .map(
+                          (category) => FilterChip(
+                            label: LocalizedUiText(category['name'].toString()),
+                            selected: _targetCategoryIds.contains(
+                              category['id'],
+                            ),
+                            onSelected: (selected) => setState(() {
+                              if (selected) {
+                                _targetCategoryIds.add(
+                                  category['id'].toString(),
+                                );
+                              } else {
+                                _targetCategoryIds.remove(category['id']);
+                              }
+                            }),
+                          ),
+                        )
+                        .toList(),
+                  );
+                },
+              ),
               DropdownButtonFormField<String>(
                 key: ValueKey<String>("placement-$_placement"),
                 isExpanded: true,
                 menuMaxHeight: _menuMaxHeight,
                 initialValue: _placement,
-                decoration: const InputDecoration(labelText: "Placement"),
+                decoration: InputDecoration(
+                  labelText: mobileUi(context, "Placement"),
+                ),
                 items: const <DropdownMenuItem<String>>[
-                  DropdownMenuItem(value: "global", child: Text("global")),
+                  DropdownMenuItem(
+                    value: "global",
+                    child: LocalizedUiText("global"),
+                  ),
                   DropdownMenuItem(
                     value: "home_feed",
-                    child: Text("home_feed"),
+                    child: LocalizedUiText("home_feed"),
                   ),
                   DropdownMenuItem(
                     value: "category_page",
-                    child: Text("category_page"),
+                    child: LocalizedUiText("category_page"),
                   ),
                   DropdownMenuItem(
                     value: "listing_detail",
-                    child: Text("listing_detail"),
+                    child: LocalizedUiText("listing_detail"),
                   ),
                   DropdownMenuItem(
                     value: "manage_dashboard",
-                    child: Text("manage_dashboard"),
+                    child: LocalizedUiText("manage_dashboard"),
                   ),
-                  DropdownMenuItem(value: "website", child: Text("website")),
+                  DropdownMenuItem(
+                    value: "website",
+                    child: LocalizedUiText("website"),
+                  ),
                 ],
                 onChanged: (String? value) {
                   if (value != null) {
@@ -1007,14 +1086,23 @@ class _PromotionsTabState extends State<PromotionsTab> {
                 isExpanded: true,
                 menuMaxHeight: _menuMaxHeight,
                 initialValue: _visibilityScope,
-                decoration: const InputDecoration(
-                  labelText: "Visibility scope",
+                decoration: InputDecoration(
+                  labelText: mobileUi(context, "Visibility scope"),
                 ),
                 items: const <DropdownMenuItem<String>>[
-                  DropdownMenuItem(value: "all", child: Text("all")),
-                  DropdownMenuItem(value: "public", child: Text("public")),
-                  DropdownMenuItem(value: "manage", child: Text("manage")),
-                  DropdownMenuItem(value: "admin", child: Text("admin")),
+                  DropdownMenuItem(value: "all", child: LocalizedUiText("all")),
+                  DropdownMenuItem(
+                    value: "public",
+                    child: LocalizedUiText("public"),
+                  ),
+                  DropdownMenuItem(
+                    value: "manage",
+                    child: LocalizedUiText("manage"),
+                  ),
+                  DropdownMenuItem(
+                    value: "admin",
+                    child: LocalizedUiText("admin"),
+                  ),
                 ],
                 onChanged: (String? value) {
                   if (value != null) {
@@ -1023,7 +1111,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
                 },
               ),
               const SizedBox(height: 12),
-              Text(
+              LocalizedUiText(
                 "Target location",
                 style: Theme.of(context).textTheme.titleMedium,
               ),
@@ -1038,14 +1126,17 @@ class _PromotionsTabState extends State<PromotionsTab> {
                 isExpanded: true,
                 menuMaxHeight: _menuMaxHeight,
                 initialValue: _targetRegionId ?? "",
-                decoration: const InputDecoration(
-                  labelText: "Region",
-                  helperText: "Leave blank to publish to all locations.",
+                decoration: InputDecoration(
+                  labelText: mobileUi(context, "Region"),
+                  helperText: mobileUi(
+                    context,
+                    "Leave blank to publish to all locations.",
+                  ),
                 ),
                 items: <DropdownMenuItem<String>>[
                   const DropdownMenuItem<String>(
                     value: "",
-                    child: Text("All locations"),
+                    child: LocalizedUiText("All locations"),
                   ),
                   ..._regions.map(
                     (Map<String, dynamic> item) => DropdownMenuItem<String>(
@@ -1079,14 +1170,17 @@ class _PromotionsTabState extends State<PromotionsTab> {
                 isExpanded: true,
                 menuMaxHeight: _menuMaxHeight,
                 initialValue: _targetDistrictId ?? "",
-                decoration: const InputDecoration(
-                  labelText: "District",
-                  helperText: "Leave blank to target the whole region.",
+                decoration: InputDecoration(
+                  labelText: mobileUi(context, "District"),
+                  helperText: mobileUi(
+                    context,
+                    "Leave blank to target the whole region.",
+                  ),
                 ),
                 items: <DropdownMenuItem<String>>[
                   const DropdownMenuItem<String>(
                     value: "",
-                    child: Text(
+                    child: LocalizedUiText(
                       "Use region only",
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1121,14 +1215,17 @@ class _PromotionsTabState extends State<PromotionsTab> {
                 isExpanded: true,
                 menuMaxHeight: _menuMaxHeight,
                 initialValue: _targetWardId ?? "",
-                decoration: const InputDecoration(
-                  labelText: "Ward",
-                  helperText: "Leave blank to target the whole district.",
+                decoration: InputDecoration(
+                  labelText: mobileUi(context, "Ward"),
+                  helperText: mobileUi(
+                    context,
+                    "Leave blank to target the whole district.",
+                  ),
                 ),
                 items: <DropdownMenuItem<String>>[
                   const DropdownMenuItem<String>(
                     value: "",
-                    child: Text(
+                    child: LocalizedUiText(
                       "Use district only",
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1161,14 +1258,17 @@ class _PromotionsTabState extends State<PromotionsTab> {
                 isExpanded: true,
                 menuMaxHeight: _menuMaxHeight,
                 initialValue: _targetAreaId ?? "",
-                decoration: const InputDecoration(
-                  labelText: "Area",
-                  helperText: "Leave blank to target the whole ward.",
+                decoration: InputDecoration(
+                  labelText: mobileUi(context, "Area"),
+                  helperText: mobileUi(
+                    context,
+                    "Leave blank to target the whole ward.",
+                  ),
                 ),
                 items: <DropdownMenuItem<String>>[
                   const DropdownMenuItem<String>(
                     value: "",
-                    child: Text(
+                    child: LocalizedUiText(
                       "Use ward only",
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1194,13 +1294,18 @@ class _PromotionsTabState extends State<PromotionsTab> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _ctaController,
-                decoration: const InputDecoration(labelText: "CTA label"),
+                decoration: InputDecoration(
+                  labelText: mobileUi(context, "CTA label"),
+                ),
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _urlController,
-                decoration: const InputDecoration(
-                  labelText: "Target URL or destination link",
+                decoration: InputDecoration(
+                  labelText: mobileUi(
+                    context,
+                    "Target URL or destination link",
+                  ),
                 ),
                 validator: (String? value) {
                   final String target = value?.trim() ?? "";
@@ -1217,24 +1322,32 @@ class _PromotionsTabState extends State<PromotionsTab> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _startAtController,
-                decoration: const InputDecoration(
-                  labelText: "Start at ISO (optional)",
-                  helperText: "Example: 2026-07-20T10:00:00+03:00",
+                decoration: InputDecoration(
+                  labelText: mobileUi(context, "Start at ISO (optional)"),
+                  helperText: mobileUi(
+                    context,
+                    "Example: 2026-07-20T10:00:00+03:00",
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _endAtController,
-                decoration: const InputDecoration(
-                  labelText: "End at ISO (optional)",
-                  helperText: "Must be after the start time.",
+                decoration: InputDecoration(
+                  labelText: mobileUi(context, "End at ISO (optional)"),
+                  helperText: mobileUi(
+                    context,
+                    "Must be after the start time.",
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _displayOrderController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Display order"),
+                decoration: InputDecoration(
+                  labelText: mobileUi(context, "Display order"),
+                ),
                 validator: (String? value) {
                   if (int.tryParse(value?.trim() ?? "") == null) {
                     return "Enter a whole number";
@@ -1246,13 +1359,13 @@ class _PromotionsTabState extends State<PromotionsTab> {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: _isActive,
-                title: const Text("Promotion is active"),
+                title: const LocalizedUiText("Promotion is active"),
                 onChanged: (bool value) {
                   setState(() => _isActive = value);
                 },
               ),
               const SizedBox(height: 8),
-              Text(
+              LocalizedUiText(
                 "Promotion media",
                 style: Theme.of(context).textTheme.titleMedium,
               ),
@@ -1266,19 +1379,19 @@ class _PromotionsTabState extends State<PromotionsTab> {
                         ? null
                         : _pickImageFromGallery,
                     icon: const Icon(Icons.photo_library_outlined),
-                    label: const Text("Image from gallery"),
+                    label: const LocalizedUiText("Image from gallery"),
                   ),
                   OutlinedButton.icon(
                     onPressed: _saving || _compressingVideo
                         ? null
                         : _pickVideoFromGallery,
                     icon: const Icon(Icons.video_library_outlined),
-                    label: const Text("Video from gallery"),
+                    label: const LocalizedUiText("Video from gallery"),
                   ),
                   OutlinedButton.icon(
                     onPressed: _saving || _compressingVideo ? null : _pickMedia,
                     icon: const Icon(Icons.folder_open_outlined),
-                    label: const Text("Pick file"),
+                    label: const LocalizedUiText("Pick file"),
                   ),
                 ],
               ),
@@ -1289,13 +1402,13 @@ class _PromotionsTabState extends State<PromotionsTab> {
                 Row(
                   children: <Widget>[
                     const Expanded(
-                      child: Text(
+                      child: LocalizedUiText(
                         "Preparing an upload-safe MP4 below 29 MB...",
                       ),
                     ),
                     TextButton(
                       onPressed: _cancelVideoCompression,
-                      child: const Text("Cancel"),
+                      child: const LocalizedUiText("Cancel"),
                     ),
                   ],
                 ),
@@ -1304,9 +1417,17 @@ class _PromotionsTabState extends State<PromotionsTab> {
               Text(
                 _mediaFile == null
                     ? _editingPromotionId == null
-                          ? "No media selected yet. Media is optional. Allowed: JPG, PNG, WebP, GIF, HEIC, HEIF, MP4, MOV, M4V, WebM, AVI, MKV up to 30 MB."
-                          : "No replacement media selected. Existing promotion media will be kept."
-                    : "Selected media: ${_mediaFile!.name}",
+                          ? mobileUi(
+                              context,
+                              "No media selected yet. Media is optional. Allowed: JPG, PNG, WebP, GIF, HEIC, HEIF, MP4, MOV, M4V, WebM, AVI, MKV up to 30 MB.",
+                            )
+                          : mobileUi(
+                              context,
+                              "No replacement media selected. Existing promotion media will be kept.",
+                            )
+                    : mobileUiFormat(context, "Selected media: {0}", [
+                        _mediaFile!.name,
+                      ]),
               ),
               if (_mediaFile != null)
                 Align(
@@ -1316,7 +1437,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
                         ? null
                         : () => setState(() => _mediaFile = null),
                     icon: const Icon(Icons.close_rounded),
-                    label: const Text("Clear selected media"),
+                    label: const LocalizedUiText("Clear selected media"),
                   ),
                 ),
               const SizedBox(height: 16),
@@ -1327,10 +1448,10 @@ class _PromotionsTabState extends State<PromotionsTab> {
                       onPressed: _saving || _compressingVideo ? null : _save,
                       child: Text(
                         _saving
-                            ? "Saving..."
+                            ? mobileUi(context, "Saving...")
                             : _editingPromotionId == null
-                            ? "Create promotion"
-                            : "Save promotion",
+                            ? mobileUi(context, "Create promotion")
+                            : mobileUi(context, "Save promotion"),
                       ),
                     ),
                   ),
@@ -1340,7 +1461,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
                       onPressed: _saving || _compressingVideo
                           ? null
                           : _resetForm,
-                      child: const Text("Clear form"),
+                      child: const LocalizedUiText("Clear form"),
                     ),
                   ],
                 ],
@@ -1354,9 +1475,12 @@ class _PromotionsTabState extends State<PromotionsTab> {
 
   Widget _buildPromotionList(List<Map<String, dynamic>> promotions) {
     if (promotions.isEmpty) {
-      return const KodimaliEmptyState(
-        title: "Hakuna promotions",
-        message: "Admin promotions zitaonekana hapa baada ya kuundwa.",
+      return KodimaliEmptyState(
+        title: mobileUi(context, "Hakuna promotions"),
+        message: mobileUi(
+          context,
+          "Admin promotions zitaonekana hapa baada ya kuundwa.",
+        ),
       );
     }
     return ListView.separated(
@@ -1392,7 +1516,11 @@ class _PromotionsTabState extends State<PromotionsTab> {
                       onPressed: deleting || _saving || _compressingVideo
                           ? null
                           : () => _deletePromotion(promotionId),
-                      child: Text(deleting ? "Deleting..." : "Delete"),
+                      child: Text(
+                        deleting
+                            ? mobileUi(context, "Deleting...")
+                            : mobileUi(context, "Delete"),
+                      ),
                     ),
                   ],
                 ),
@@ -1403,18 +1531,34 @@ class _PromotionsTabState extends State<PromotionsTab> {
                   spacing: 8,
                   runSpacing: 8,
                   children: <Widget>[
-                    Chip(label: Text("Placement: ${promotion["placement"]}")),
                     Chip(
                       label: Text(
-                        "Visibility: ${promotion["visibility_scope"]}",
+                        mobileUiFormat(context, "Placement: {0}", [
+                          promotion["placement"],
+                        ]),
                       ),
                     ),
                     Chip(
                       label: Text(
-                        "Location: ${_promotionTargetLabel(promotion)}",
+                        mobileUiFormat(context, "Visibility: {0}", [
+                          promotion["visibility_scope"],
+                        ]),
                       ),
                     ),
-                    Chip(label: Text("Media files: ${media.length}")),
+                    Chip(
+                      label: Text(
+                        mobileUiFormat(context, "Location: {0}", [
+                          _promotionTargetLabel(promotion),
+                        ]),
+                      ),
+                    ),
+                    Chip(
+                      label: Text(
+                        mobileUiFormat(context, "Media files: {0}", [
+                          media.length,
+                        ]),
+                      ),
+                    ),
                     Chip(
                       avatar: Icon(
                         deliveryIssues.isEmpty
@@ -1424,7 +1568,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
                       ),
                       label: Text(
                         deliveryIssues.isEmpty
-                            ? "Eligible for customers now"
+                            ? mobileUi(context, "Eligible for customers now")
                             : deliveryIssues.join(" · "),
                       ),
                     ),
@@ -1432,7 +1576,11 @@ class _PromotionsTabState extends State<PromotionsTab> {
                 ),
                 const SizedBox(height: 10),
                 if ((promotion["target_url"] as String?)?.isNotEmpty ?? false)
-                  Text("Target: ${promotion["target_url"]}"),
+                  Text(
+                    mobileUiFormat(context, "Target: {0}", [
+                      promotion["target_url"],
+                    ]),
+                  ),
                 Text(
                   _placementDescription(
                     promotion["placement"] as String? ?? "global",
@@ -1448,14 +1596,14 @@ class _PromotionsTabState extends State<PromotionsTab> {
                           ? null
                           : () => _loadIntoForm(promotion),
                       icon: const Icon(Icons.edit_outlined),
-                      label: const Text("Edit promotion"),
+                      label: const LocalizedUiText("Edit promotion"),
                     ),
                     OutlinedButton.icon(
                       onPressed: deleting
                           ? null
                           : () => _previewPromotion(promotion),
                       icon: const Icon(Icons.visibility_outlined),
-                      label: const Text("Preview as customer"),
+                      label: const LocalizedUiText("Preview as customer"),
                     ),
                   ],
                 ),
@@ -1483,7 +1631,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
           );
         } else if (snapshot.hasError) {
           promotionList = ManagePanel(
-            title: "Promotions could not load",
+            title: mobileUi(context, "Promotions could not load"),
             subtitle: userFacingError(
               snapshot.error!,
               fallback:
@@ -1494,7 +1642,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
               child: FilledButton.tonalIcon(
                 onPressed: _refresh,
                 icon: const Icon(Icons.refresh_rounded),
-                label: const Text("Try again"),
+                label: const LocalizedUiText("Try again"),
               ),
             ),
           );
@@ -1505,9 +1653,11 @@ class _PromotionsTabState extends State<PromotionsTab> {
           onRefresh: _refresh,
           children: <Widget>[
             ManageHeroCard(
-              title: "Promotions",
-              subtitle:
-                  "Create and place platform promotions with clearer control over media, visibility, and placement.",
+              title: mobileUi(context, "Promotions"),
+              subtitle: mobileUi(
+                context,
+                "Create and place platform promotions with clearer control over media, visibility, and placement.",
+              ),
               bottom: ManageMetaWrap(
                 items: <String>[
                   "${promotions.length} promotion${promotions.length == 1 ? "" : "s"}",
@@ -1530,9 +1680,11 @@ class _PromotionsTabState extends State<PromotionsTab> {
                         child: Column(
                           children: <Widget>[
                             ManageSectionTitle(
-                              title: "Existing promotions",
-                              subtitle:
-                                  "Open any item to edit the message or replace its media.",
+                              title: mobileUi(context, "Existing promotions"),
+                              subtitle: mobileUi(
+                                context,
+                                "Open any item to edit the message or replace its media.",
+                              ),
                             ),
                             const SizedBox(height: 12),
                             promotionList,
@@ -1546,10 +1698,12 @@ class _PromotionsTabState extends State<PromotionsTab> {
                   children: <Widget>[
                     _buildFormCard(),
                     const SizedBox(height: 16),
-                    const ManageSectionTitle(
-                      title: "Existing promotions",
-                      subtitle:
-                          "Open any item to edit the message or replace its media.",
+                    ManageSectionTitle(
+                      title: mobileUi(context, "Existing promotions"),
+                      subtitle: mobileUi(
+                        context,
+                        "Open any item to edit the message or replace its media.",
+                      ),
                     ),
                     const SizedBox(height: 12),
                     promotionList,

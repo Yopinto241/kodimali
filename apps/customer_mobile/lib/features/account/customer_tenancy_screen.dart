@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/data/customer_account_repository.dart';
@@ -88,22 +89,32 @@ class _CustomerTenancyScreenState extends State<CustomerTenancyScreen> {
     final approved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(sw ? 'Taarifa ya kuhama' : 'Move-out notice'),
+        title: Text(
+          sw
+              ? mobileUi(context, 'Taarifa ya kuhama')
+              : mobileUi(context, 'Move-out notice'),
+        ),
         content: TextField(
           controller: reason,
           maxLines: 3,
           decoration: InputDecoration(
-            labelText: sw ? 'Sababu (si lazima)' : 'Reason (optional)',
+            labelText: sw
+                ? mobileUi(context, 'Sababu (si lazima)')
+                : mobileUi(context, 'Reason (optional)'),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(sw ? 'Ghairi' : 'Cancel'),
+            child: Text(
+              sw ? mobileUi(context, 'Ghairi') : mobileUi(context, 'Cancel'),
+            ),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(sw ? 'Tuma' : 'Send'),
+            child: Text(
+              sw ? mobileUi(context, 'Tuma') : mobileUi(context, 'Send'),
+            ),
           ),
         ],
       ),
@@ -138,7 +149,13 @@ class _CustomerTenancyScreenState extends State<CustomerTenancyScreen> {
   Widget build(BuildContext context) {
     final sw = context.isSwahili;
     return Scaffold(
-      appBar: AppBar(title: Text(sw ? 'Upangaji wangu' : 'My tenancy')),
+      appBar: AppBar(
+        title: Text(
+          sw
+              ? mobileUi(context, 'Upangaji wangu')
+              : mobileUi(context, 'My tenancy'),
+        ),
+      ),
       body: RefreshIndicator(
         onRefresh: _reload,
         child: ListView(
@@ -151,26 +168,40 @@ class _CustomerTenancyScreenState extends State<CustomerTenancyScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      sw ? 'Unganisha na mwenye mali' : 'Connect with an owner',
+                      sw
+                          ? mobileUi(context, 'Unganisha na mwenye mali')
+                          : mobileUi(context, 'Connect with an owner'),
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 8),
                     Text(
                       sw
-                          ? 'Weka namba ya mwaliko uliyotumiwa na mwenye mali.'
-                          : 'Enter the private invitation token sent by the owner.',
+                          ? mobileUi(
+                              context,
+                              'Weka namba ya mwaliko uliyotumiwa na mwenye mali.',
+                            )
+                          : mobileUi(
+                              context,
+                              'Enter the private invitation token sent by the owner.',
+                            ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _token,
                       decoration: InputDecoration(
-                        labelText: sw ? 'Namba ya mwaliko' : 'Invitation token',
+                        labelText: sw
+                            ? mobileUi(context, 'Namba ya mwaliko')
+                            : mobileUi(context, 'Invitation token'),
                       ),
                     ),
                     const SizedBox(height: 12),
                     FilledButton(
                       onPressed: _busy ? null : _acceptInvite,
-                      child: Text(sw ? 'Kubali mwaliko' : 'Accept invitation'),
+                      child: Text(
+                        sw
+                            ? mobileUi(context, 'Kubali mwaliko')
+                            : mobileUi(context, 'Accept invitation'),
+                      ),
                     ),
                   ],
                 ),
@@ -188,8 +219,8 @@ class _CustomerTenancyScreenState extends State<CustomerTenancyScreen> {
                 if (rows.isEmpty) {
                   return Text(
                     sw
-                        ? 'Bado huna mkataba wa upangaji.'
-                        : 'No rental agreements yet.',
+                        ? mobileUi(context, 'Bado huna mkataba wa upangaji.')
+                        : mobileUi(context, 'No rental agreements yet.'),
                   );
                 }
                 return Column(
@@ -203,7 +234,9 @@ class _CustomerTenancyScreenState extends State<CustomerTenancyScreen> {
                       child: ListTile(
                         title: Text(
                           asset?['display_name']?.toString() ??
-                              (sw ? 'Mkataba wa upangaji' : 'Rental agreement'),
+                              (sw
+                                  ? mobileUi(context, 'Mkataba wa upangaji')
+                                  : mobileUi(context, 'Rental agreement')),
                         ),
                         subtitle: Text(
                           '${row['starts_on']} · TZS ${row['rent_amount_tzs']} / ${row['rent_period']}\n'
@@ -217,7 +250,11 @@ class _CustomerTenancyScreenState extends State<CustomerTenancyScreen> {
                                     : () => _acceptAgreement(
                                         row['id'].toString(),
                                       ),
-                                child: Text(sw ? 'Kubali' : 'Accept'),
+                                child: Text(
+                                  sw
+                                      ? mobileUi(context, 'Kubali')
+                                      : mobileUi(context, 'Accept'),
+                                ),
                               )
                             : status == 'active'
                             ? TextButton(
@@ -225,7 +262,9 @@ class _CustomerTenancyScreenState extends State<CustomerTenancyScreen> {
                                     ? null
                                     : () => _moveOut(row['id'].toString()),
                                 child: Text(
-                                  sw ? 'Taarifa ya kuhama' : 'Move out',
+                                  sw
+                                      ? mobileUi(context, 'Taarifa ya kuhama')
+                                      : mobileUi(context, 'Move out'),
                                 ),
                               )
                             : null,

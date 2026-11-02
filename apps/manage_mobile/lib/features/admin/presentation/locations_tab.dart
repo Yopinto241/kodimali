@@ -1,626 +1,350 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:flutter_core/localized_ui.dart';
+import 'package:flutter_design_system/flutter_design_system.dart';
 import 'package:shared_models/shared_models.dart';
-
+import '../../../core/data/manage_repository.dart';
 import '../../../core/widgets/app_scope.dart';
-import '../../../core/widgets/kodimali_empty_state.dart';
-import '../../../core/widgets/manage_ui.dart';
+import '../../../core/utils/user_facing_error.dart';
 
 class LocationsTab extends StatefulWidget {
-  const LocationsTab({super.key});
-
+  const LocationsTab({super.key, this.ancestors = const [], this.repository});
+  final List<Map<String, dynamic>> ancestors;
+  final ManageRepository? repository;
   @override
   State<LocationsTab> createState() => _LocationsTabState();
 }
 
 class _LocationsTabState extends State<LocationsTab> {
-  late Future<List<Map<String, dynamic>>> _future;
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _searchController = TextEditingController();
-
-  LocationType _type = LocationType.region;
-  String? _parentId;
-  bool _initialized = false;
-  bool _saving = false;
-  String? _deletingLocationId;
+  final _search = TextEditingController();
+  Future<List<Map<String, dynamic>>>? _future;
+  int _page = 0;
+  Map<String, dynamic>? _country;
+  List<Map<String, dynamic>> get _trail => widget.ancestors.isNotEmpty
+      ? widget.ancestors
+      : _country == null
+      ? []
+      : [_country!];
+  bool _busy = false;
+  ManageRepository get _repository =>
+      widget.repository ?? AppScope.of(context).repository;
+  Map<String, dynamic>? get _parent => _trail.lastOrNull;
+  static const _children = {
+    'country': 'region',
+    'region': 'district',
+    'district': 'ward',
+    'ward': 'area',
+    'area': 'street',
+  };
+  String? get _childType =>
+      _parent == null ? null : _children[_parent!['location_type']];
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_initialized) {
-      return;
-    }
-    _initialized = true;
-    _future = _load();
+    _future ??= _bootstrap();
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _searchController.dispose();
+    _search.dispose();
     super.dispose();
   }
 
-  Future<List<Map<String, dynamic>>> _load() {
-    return AppScope.of(context).repository.fetchLocationsForAdmin();
+  Future<List<Map<String, dynamic>>> _bootstrap() async {
+    if (widget.ancestors.isEmpty) {
+      _country = await _repository.fetchLocationCountryForAdmin();
+    }
+    return _load();
   }
 
+  Future<List<Map<String, dynamic>>> _load() =>
+      _repository.fetchLocationChildren(
+        parentId: _parent?['id']?.toString(),
+        search: _search.text,
+        offset: _page * 20,
+      );
   Future<void> _refresh() async {
     setState(() {
-      _future = _load();
+      _future = _country == null && widget.ancestors.isEmpty
+          ? _bootstrap()
+          : _load();
     });
     await _future;
   }
 
-  Future<void> _addLocation() async {
-    final String trimmedName = _nameController.text.trim();
-    if (trimmedName.isEmpty) {
-      return;
-    }
-    if (_supportsParent(_type) && (_parentId == null || _parentId!.isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Choose a ${_expectedParentLabel(_type)} first."),
-        ),
-      );
-      return;
-    }
-
-    setState(() => _saving = true);
-    try {
-      await AppScope.of(context).repository.addLocation(
-        name: trimmedName,
-        type: _type,
-        parentId: _parentId,
-      );
-      if (!mounted) {
-        return;
-      }
-      _nameController.clear();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Location added.")));
-      await _refresh();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
-    } finally {
-      if (mounted) {
-        setState(() => _saving = false);
-      }
-    }
-  }
-
-  Future<void> _deleteLocation(Map<String, dynamic> location) async {
-    final String locationId = location["id"] as String? ?? "";
-    final String locationName = location["name"] as String? ?? "this location";
-    final bool? confirmed = await showDialog<bool>(
+  Future<void> _edit([Map<String, dynamic>? row]) async {
+    String name = row?['name']?.toString() ?? '';
+    final value = await showDialog<String>(
       context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: const Text("Delete location?"),
-        content: Text(
-          "$locationName will be deleted only if it has no child locations and is not already in use.",
+      builder: (context) => AlertDialog(
+        title: LocalizedUiText(row == null ? 'Add location' : 'Edit location'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${mobileUi(context, 'Parent')}: ${_parent?['name'] ?? mobileUi(context, 'No parent')}',
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                initialValue: name,
+                onChanged: (value) => name = value,
+                autofocus: true,
+                maxLength: 160,
+                decoration: InputDecoration(
+                  labelText: mobileUi(context, 'Location name'),
+                ),
+              ),
+            ],
+          ),
         ),
-        actions: <Widget>[
+        actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text("Cancel"),
+            onPressed: () => Navigator.pop(context),
+            child: const LocalizedUiText('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text("Delete"),
+            onPressed: () {
+              if (name.trim().isNotEmpty) Navigator.pop(context, name.trim());
+            },
+            child: const LocalizedUiText('Save'),
           ),
         ],
       ),
     );
-    if (confirmed != true || locationId.isEmpty) {
-      return;
-    }
-    if (!mounted) {
-      return;
-    }
-
-    setState(() => _deletingLocationId = locationId);
-    final repository = AppScope.of(context).repository;
+    if (value == null || !mounted) return;
+    setState(() => _busy = true);
     try {
-      await repository.deleteLocation(locationId);
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Location deleted.")));
-      await _refresh();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
-    } finally {
-      if (mounted) {
-        setState(() => _deletingLocationId = null);
-      }
-    }
-  }
-
-  bool _supportsParent(LocationType type) {
-    return type != LocationType.country;
-  }
-
-  bool _isValidParent(LocationType childType, Map<String, dynamic> candidate) {
-    if (candidate["is_active"] != true) {
-      return false;
-    }
-    final String parentType = candidate["location_type"] as String? ?? "";
-    switch (childType) {
-      case LocationType.country:
-        return false;
-      case LocationType.region:
-        return parentType == LocationType.country.storageValue;
-      case LocationType.district:
-        return parentType == LocationType.region.storageValue;
-      case LocationType.ward:
-        return parentType == LocationType.district.storageValue;
-      case LocationType.area:
-        return parentType == LocationType.ward.storageValue;
-      case LocationType.street:
-        return parentType == LocationType.area.storageValue;
-    }
-  }
-
-  LocationType? _expectedParentType(LocationType childType) {
-    switch (childType) {
-      case LocationType.country:
-        return null;
-      case LocationType.region:
-        return LocationType.country;
-      case LocationType.district:
-        return LocationType.region;
-      case LocationType.ward:
-        return LocationType.district;
-      case LocationType.area:
-        return LocationType.ward;
-      case LocationType.street:
-        return LocationType.area;
-    }
-  }
-
-  String _expectedParentLabel(LocationType childType) {
-    return _expectedParentType(childType)?.storageValue ?? "parent location";
-  }
-
-  String _typeLabel(LocationType type) {
-    final String raw = type.storageValue.replaceAll("_", " ");
-    return raw[0].toUpperCase() + raw.substring(1);
-  }
-
-  String? _labelFor(List<Map<String, dynamic>> items, String? id) {
-    if (id == null) {
-      return null;
-    }
-    for (final Map<String, dynamic> item in items) {
-      if (item["id"] == id) {
-        return item["name"] as String?;
-      }
-    }
-    return null;
-  }
-
-  bool _matchesSearch(
-    Map<String, dynamic> item,
-    Map<String, Map<String, dynamic>> byId,
-    String query,
-  ) {
-    final String normalizedQuery = query.trim().toLowerCase();
-    if (normalizedQuery.isEmpty) {
-      return true;
-    }
-    final Map<String, dynamic>? parent = byId[item["parent_id"]];
-    final Iterable<String> haystack = <String>[
-      item["name"] as String? ?? "",
-      item["location_type"] as String? ?? "",
-      parent?["name"] as String? ?? "",
-      parent?["location_type"] as String? ?? "",
-    ];
-    for (final String value in haystack) {
-      if (value.toLowerCase().contains(normalizedQuery)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  Future<String?> _pickLocation({
-    required String title,
-    required List<Map<String, dynamic>> items,
-    String? selectedId,
-    String? emptyValue,
-    String? emptyLabel,
-  }) async {
-    final TextEditingController searchController = TextEditingController();
-    return showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setSheetState) {
-            final String query = searchController.text.trim().toLowerCase();
-            final List<Map<String, dynamic>> filteredItems = items
-                .where((Map<String, dynamic> item) {
-                  final String label = item["name"] as String? ?? "";
-                  return query.isEmpty || label.toLowerCase().contains(query);
-                })
-                .toList(growable: false);
-            return FractionallySizedBox(
-              heightFactor: 0.92,
-              child: Column(
-                children: <Widget>[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                    child: Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                    child: TextField(
-                      controller: searchController,
-                      onChanged: (_) => setSheetState(() {}),
-                      decoration: const InputDecoration(
-                        labelText: "Search",
-                        prefixIcon: Icon(Icons.search_rounded),
-                      ),
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  Expanded(
-                    child:
-                        filteredItems.isEmpty &&
-                            (emptyValue == null || emptyLabel == null)
-                        ? const Center(
-                            child: Text("No matching locations found."),
-                          )
-                        : ListView(
-                            children: <Widget>[
-                              if (emptyValue != null && emptyLabel != null)
-                                ListTile(
-                                  title: Text(emptyLabel),
-                                  trailing: selectedId == emptyValue
-                                      ? const Icon(Icons.check_rounded)
-                                      : null,
-                                  onTap: () =>
-                                      Navigator.of(context).pop(emptyValue),
-                                ),
-                              ...filteredItems.map((Map<String, dynamic> item) {
-                                final String value =
-                                    item["id"] as String? ?? "";
-                                final String label =
-                                    item["name"] as String? ?? "-";
-                                final String type =
-                                    item["location_type"] as String? ?? "";
-                                return ListTile(
-                                  title: Text(label),
-                                  subtitle: Text(type),
-                                  trailing: selectedId == value
-                                      ? const Icon(Icons.check_rounded)
-                                      : null,
-                                  onTap: () => Navigator.of(context).pop(value),
-                                );
-                              }),
-                            ],
-                          ),
-                  ),
-                ],
-              ),
-            );
-          },
+      if (row == null) {
+        await _repository.addLocation(
+          name: value,
+          type: LocationType.values.firstWhere(
+            (type) => type.name == _childType,
+          ),
+          parentId: _parent?['id']?.toString(),
         );
-      },
-    ).whenComplete(searchController.dispose);
+      } else {
+        await _repository.renameLocation(id: row['id'].toString(), name: value);
+      }
+      if (mounted) await _refresh();
+    } catch (error) {
+      if (mounted) _showError(error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
-  Widget _selectionField({
-    required String label,
-    required String valueText,
-    required bool enabled,
-    String? helperText,
-    required Future<void> Function() onTap,
-  }) {
-    return InkWell(
-      onTap: enabled ? () => unawaited(onTap()) : null,
-      borderRadius: BorderRadius.circular(16),
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          helperText: helperText,
-          enabled: enabled,
-        ),
-        child: Row(
-          children: <Widget>[
-            Expanded(
-              child: Text(
-                valueText,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Icon(Icons.keyboard_arrow_down_rounded),
+  void _showError(Object error) => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: LocalizedUiText(userFacingError(error))));
+  Future<void> _delete(Map<String, dynamic> row) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const LocalizedUiText('Delete location'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(row['name'].toString()),
+            const SizedBox(height: 12),
+            const LocalizedUiText('Referenced locations cannot be deleted.'),
           ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const LocalizedUiText('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const LocalizedUiText('Delete'),
+          ),
+        ],
       ),
     );
-  }
-
-  List<String> _summaryItems(List<Map<String, dynamic>> locations) {
-    final Map<String, int> counts = <String, int>{};
-    for (final LocationType type in LocationType.values) {
-      counts[type.storageValue] = locations.where((Map<String, dynamic> item) {
-        return item["location_type"] == type.storageValue &&
-            item["is_active"] == true;
-      }).length;
+    if (confirmed != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await _repository.deleteLocation(row['id'].toString());
+      if (mounted) await _refresh();
+    } catch (error) {
+      if (mounted) _showError(error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
-    return <String>[
-      "${counts[LocationType.region.storageValue] ?? 0} regions",
-      "${counts[LocationType.district.storageValue] ?? 0} districts",
-      "${counts[LocationType.ward.storageValue] ?? 0} wards",
-      "${counts[LocationType.area.storageValue] ?? 0} areas",
-      "${counts[LocationType.street.storageValue] ?? 0} streets",
-    ];
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _future,
-      builder: (BuildContext context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text(snapshot.error.toString()));
-        }
-
-        final List<Map<String, dynamic>> locations =
-            snapshot.data ?? <Map<String, dynamic>>[];
-        final Map<String, Map<String, dynamic>> byId =
-            <String, Map<String, dynamic>>{
-              for (final Map<String, dynamic> item in locations)
-                if ((item["id"] as String?) != null) item["id"] as String: item,
-            };
-        final List<Map<String, dynamic>> parentOptions = locations
-            .where((Map<String, dynamic> item) => _isValidParent(_type, item))
-            .toList(growable: false);
-        final String? selectedParentId =
-            parentOptions.any(
-              (Map<String, dynamic> item) => item["id"] == _parentId,
-            )
-            ? _parentId
-            : null;
-        final String searchQuery = _searchController.text.trim();
-        final List<Map<String, dynamic>> matchingLocations = locations
-            .where((Map<String, dynamic> item) {
-              return _matchesSearch(item, byId, searchQuery);
-            })
-            .toList(growable: false);
-        final List<Map<String, dynamic>> visibleLocations = matchingLocations
-            .take(160)
-            .toList(growable: false);
-
-        return ManagePageScrollView(
-          onRefresh: _refresh,
-          children: <Widget>[
-            ManageHeroCard(
-              title: "Locations",
-              subtitle:
-                  "Add official regions, districts, wards, areas, and streets in a controlled hierarchy, then clean up unused mistakes safely.",
-              bottom: ManageMetaWrap(
-                items: <String>[
-                  "${locations.length} total records",
-                  ..._summaryItems(locations),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-            ManagePanel(
-              title: "Add location",
-              subtitle:
-                  "Choose the exact parent level so the hierarchy stays valid across customer app, manage app, and web.",
-              child: Column(
-                children: <Widget>[
-                  TextField(
-                    controller: _nameController,
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: "Location name",
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<LocationType>(
-                    isExpanded: true,
-                    initialValue: _type,
-                    decoration: const InputDecoration(
-                      labelText: "Location type",
-                    ),
-                    items: LocationType.values
-                        .map(
-                          (LocationType item) => DropdownMenuItem<LocationType>(
-                            value: item,
-                            child: Text(_typeLabel(item)),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (LocationType? value) {
-                      if (value == null) {
-                        return;
-                      }
-                      final List<Map<String, dynamic>> nextParents = locations
-                          .where(
-                            (Map<String, dynamic> item) =>
-                                _isValidParent(value, item),
-                          )
-                          .toList(growable: false);
-                      setState(() {
-                        _type = value;
-                        _parentId = nextParents.length == 1
-                            ? nextParents.first["id"] as String?
-                            : null;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  _selectionField(
-                    label: "Parent location",
-                    valueText: !_supportsParent(_type)
-                        ? "Country has no parent"
-                        : (_labelFor(parentOptions, selectedParentId) ??
-                              "Choose ${_expectedParentLabel(_type)}"),
-                    enabled: _supportsParent(_type),
-                    helperText: !_supportsParent(_type)
-                        ? null
-                        : "Required parent type: ${_expectedParentLabel(_type)}",
-                    onTap: () async {
-                      final String? value = await _pickLocation(
-                        title: "Choose ${_expectedParentLabel(_type)}",
-                        items: parentOptions,
-                        selectedId: selectedParentId ?? "",
-                        emptyValue: "",
-                        emptyLabel: "Clear parent selection",
-                      );
-                      if (!mounted || value == null) {
-                        return;
-                      }
-                      setState(() => _parentId = value.isEmpty ? null : value);
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: _saving || _nameController.text.trim().isEmpty
+    final body = RefreshIndicator(
+      onRefresh: _refresh,
+      child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _future,
+        builder: (context, snapshot) {
+          final rows = snapshot.data ?? [];
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 6,
+                children: [
+                  const LocalizedUiText('Locations'),
+                  ..._trail.map(
+                    (row) => TextButton(
+                      onPressed: row == _parent
                           ? null
-                          : _addLocation,
-                      child: Text(_saving ? "Saving..." : "Add location"),
+                          : () => Navigator.of(context).popUntil(
+                              (route) =>
+                                  route.settings.name ==
+                                      'manage-location:${row['id']}' ||
+                                  route.isFirst,
+                            ),
+                      child: Text(row['name'].toString()),
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 18),
-            ManagePanel(
-              title: "Search and delete",
-              subtitle:
-                  "To keep the app fast, this view shows matching results only. Delete works only for unused locations with no child nodes.",
-              child: Column(
-                children: <Widget>[
-                  TextField(
-                    controller: _searchController,
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: "Search locations",
-                      hintText:
-                          "Type a region, district, ward, area, or street",
-                      prefixIcon: Icon(Icons.search_rounded),
+              const SizedBox(height: 16),
+              Text(
+                _parent?['name']?.toString() ?? mobileUi(context, 'Locations'),
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _search,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) {
+                  _page = 0;
+                  _refresh();
+                },
+                decoration: InputDecoration(
+                  labelText: mobileUi(context, 'Search locations'),
+                  suffixIcon: IconButton(
+                    tooltip: mobileUi(context, 'Search'),
+                    onPressed: () {
+                      _page = 0;
+                      _refresh();
+                    },
+                    icon: const Icon(Icons.search),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (_childType != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.icon(
+                    onPressed: _busy ? null : _edit,
+                    icon: const Icon(Icons.add),
+                    label: Text(
+                      '${mobileUi(context, 'Add')} ${mobileUi(context, _childType!)}',
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      searchQuery.isEmpty
-                          ? "Showing the first ${visibleLocations.length} records. Search to narrow down faster."
-                          : "Showing ${visibleLocations.length} of ${matchingLocations.length} matching locations.",
-                      style: Theme.of(context).textTheme.bodySmall,
+                ),
+              const SizedBox(height: 16),
+              if (snapshot.connectionState == ConnectionState.waiting)
+                KodimaliLoading(label: mobileUi(context, 'Loading...'))
+              else if (snapshot.hasError)
+                Column(
+                  children: [
+                    Text(userFacingError(snapshot.error!)),
+                    TextButton(
+                      onPressed: _refresh,
+                      child: const LocalizedUiText('Retry'),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (visibleLocations.isEmpty)
-                    const KodimaliEmptyState(
-                      title: "No matching locations",
-                      message:
-                          "Try another search term or add the missing location above.",
-                    )
-                  else
-                    SizedBox(
-                      height: 460,
-                      child: ListView.separated(
-                        itemCount: visibleLocations.length,
-                        itemBuilder: (BuildContext context, int index) {
-                          final Map<String, dynamic> item =
-                              visibleLocations[index];
-                          final String itemId = item["id"] as String? ?? "";
-                          final Map<String, dynamic>? parent =
-                              byId[item["parent_id"] as String?];
-                          final bool deleting = _deletingLocationId == itemId;
-                          final bool canDelete =
-                              (item["location_type"] as String? ?? "") !=
-                              LocationType.country.storageValue;
-                          return Card(
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 10,
-                              ),
-                              title: Text(item["name"] as String? ?? "-"),
-                              subtitle: Text(
-                                [
-                                  item["location_type"] as String? ?? "-",
-                                  if (parent != null)
-                                    "Parent: ${parent["name"]} (${parent["location_type"]})",
-                                  if (item["is_active"] != true) "Inactive",
-                                ].join("  •  "),
-                              ),
-                              trailing: canDelete
-                                  ? IconButton(
-                                      tooltip: "Delete location",
-                                      onPressed: deleting
-                                          ? null
-                                          : () => _deleteLocation(item),
-                                      icon: deleting
-                                          ? const SizedBox(
-                                              width: 18,
-                                              height: 18,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                              ),
-                                            )
-                                          : const Icon(
-                                              Icons.delete_outline_rounded,
-                                            ),
-                                    )
-                                  : null,
+                  ],
+                )
+              else if (rows.isEmpty)
+                const LocalizedUiText('No locations found.')
+              else
+                ...rows.map(
+                  (row) => Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(row['name'].toString()),
+                            subtitle: Text(
+                              '${mobileUi(context, row['location_type'].toString())} · ${mobileUi(context, row['is_active'] == true ? 'Active' : 'Inactive')}',
                             ),
-                          );
-                        },
-                        separatorBuilder: (BuildContext context, int index) =>
-                            const SizedBox(height: 8),
+                            trailing:
+                                _children.containsKey(row['location_type'])
+                                ? const Icon(Icons.chevron_right)
+                                : null,
+                            onTap: !_children.containsKey(row['location_type'])
+                                ? null
+                                : () => Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      settings: RouteSettings(
+                                        name: 'manage-location:${row['id']}',
+                                      ),
+                                      builder: (_) => LocationsTab(
+                                        ancestors: [..._trail, row],
+                                        repository: _repository,
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                          Wrap(
+                            spacing: 12,
+                            children: [
+                              OutlinedButton(
+                                onPressed: _busy ? null : () => _edit(row),
+                                child: const LocalizedUiText('Edit'),
+                              ),
+                              TextButton(
+                                onPressed: _busy ? null : () => _delete(row),
+                                child: const LocalizedUiText('Delete'),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
+                  ),
+                ),
+              if (!snapshot.hasError &&
+                  snapshot.connectionState == ConnectionState.done)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton(
+                      onPressed: _page == 0
+                          ? null
+                          : () {
+                              _page--;
+                              _refresh();
+                            },
+                      child: const LocalizedUiText('Previous'),
+                    ),
+                    TextButton(
+                      onPressed: rows.length < 20
+                          ? null
+                          : () {
+                              _page++;
+                              _refresh();
+                            },
+                      child: const LocalizedUiText('Next'),
+                    ),
+                  ],
+                ),
+            ],
+          );
+        },
+      ),
     );
+    return widget.ancestors.isEmpty
+        ? body
+        : Scaffold(
+            appBar: AppBar(title: Text(_parent!['name'].toString())),
+            body: SafeArea(child: body),
+          );
   }
 }

@@ -1,6 +1,6 @@
 "use client";
+import { UiButton, UiLink, UiSpan, UiText, UiTextarea } from "@/components/ui-text";
 
-import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
 import { useLanguage } from "@/components/language-provider";
@@ -105,9 +105,9 @@ export function ListingChatWorkspace({
   return (
     <section className="chat-shell mx-auto flex h-[calc(100dvh-10rem)] min-h-[620px] max-w-4xl flex-col overflow-hidden">
       <div className="chat-header flex items-center gap-3 px-4 py-3 sm:px-5">
-        <Link href="/account" className="chat-icon-button" aria-label={sw ? "Rudi" : "Back"}>
+        <UiLink href="/account" className="chat-icon-button" aria-label={sw ? "Rudi" : "Back"}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
-        </Link>
+        </UiLink>
         <div className="chat-avatar" aria-hidden="true">
           {String(conversation?.agent_name ?? "A").slice(0, 1).toUpperCase()}
         </div>
@@ -120,7 +120,7 @@ export function ListingChatWorkspace({
           </p>
         </div>
         <span className="hidden rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/80 sm:inline">
-          {sw ? "Faragha" : "Private"}
+          <UiText text={sw ? "Faragha" : "Private"} />
         </span>
       </div>
       <div
@@ -139,7 +139,7 @@ export function ListingChatWorkspace({
                 <p className="whitespace-pre-wrap break-words text-[15px] leading-5">{String(message.body ?? "")}</p>
                 <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-[#667781]">
                   <time>{formatChatTime(message.created_at, language)}</time>
-                  {mine ? <span className={message.read_at ? "text-[#53bdeb]" : ""} aria-label={message.read_at ? "Read" : "Sent"}>✓✓</span> : null}
+                  {mine ? <UiSpan className={message.read_at ? "text-[#53bdeb]" : ""} aria-label={message.read_at ? "Read" : "Sent"}>✓✓</UiSpan> : null}
                 </div>
               </article>
             );
@@ -149,9 +149,9 @@ export function ListingChatWorkspace({
       </div>
       <form className="chat-composer flex items-end gap-2 p-2.5 sm:p-3" onSubmit={send}>
         <label className="sr-only" htmlFor="listing-chat-message">
-          {sw ? "Ujumbe" : "Message"}
+          <UiText text={sw ? "Ujumbe" : "Message"} />
         </label>
-        <textarea
+        <UiTextarea
           id="listing-chat-message"
           className="chat-input min-h-11 min-w-0 flex-1 resize-none"
           maxLength={2000}
@@ -166,13 +166,13 @@ export function ListingChatWorkspace({
             }
           }}
         />
-        <button className="chat-send-button" disabled={busy || !body.trim()} aria-label={sw ? "Tuma" : "Send"}>
+        <UiButton className="chat-send-button" disabled={busy || !body.trim()} aria-label={sw ? "Tuma" : "Send"}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 4 16 8-16 8 3-8-3-8Zm3 8h13" /></svg>
-        </button>
+        </UiButton>
       </form>
       {notice && messages.length > 0 ? (
         <p className="mt-3 text-sm text-muted" role="status">
-          {notice}
+          <UiText text={notice} />
         </p>
       ) : null}
     </section>

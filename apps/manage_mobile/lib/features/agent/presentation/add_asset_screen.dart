@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -47,6 +48,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
   final Map<String, String?> _attributeSelections = <String, String?>{};
 
   bool _creatingOwner = true;
+  bool _includeOwnerDetails = false;
   bool _submitting = false;
   bool _bootstrapped = false;
   bool _bootstrapLoading = true;
@@ -187,6 +189,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
     return <String, dynamic>{
       "category_id": _selectedCategory?["id"],
       "creating_owner": _creatingOwner,
+      "include_owner_details": _includeOwnerDetails,
       "selected_owner_id": _selectedOwnerId,
       "owner_name": _ownerNameController.text,
       "owner_phone": _ownerPhoneController.text,
@@ -257,6 +260,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
         _selectedCategory = category;
         _applyCategorySchema(category);
       }
+      _includeOwnerDetails = draft["include_owner_details"] == true;
       if (draft["creating_owner"] is bool) {
         _creatingOwner = draft["creating_owner"] as bool;
       }
@@ -837,7 +841,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
 
   void _showMediaError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      SnackBar(content: LocalizedUiText(message), behavior: SnackBarBehavior.floating),
     );
   }
 
@@ -987,8 +991,8 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                     child: TextField(
                       controller: searchController,
                       onChanged: (_) => setSheetState(() {}),
-                      decoration: const InputDecoration(
-                        labelText: "Search",
+                      decoration: InputDecoration(
+                        labelText: mobileUi(context, "Search"),
                         prefixIcon: Icon(Icons.search_rounded),
                       ),
                     ),
@@ -999,7 +1003,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                         filteredItems.isEmpty &&
                             (emptyValue == null || emptyLabel == null)
                         ? const Center(
-                            child: Text("No matching locations found."),
+                            child: LocalizedUiText(
+                              "No matching locations found.",
+                            ),
                           )
                         : ListView(
                             children: <Widget>[
@@ -1101,6 +1107,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
     _latitudeController.clear();
     _longitudeController.clear();
     _manualAreaController.clear();
+    _includeOwnerDetails = false;
     _ownerNameController.clear();
     _ownerPhoneController.clear();
     _ownerNotesController.clear();
@@ -1181,17 +1188,25 @@ class _AddAssetScreenState extends State<AddAssetScreen>
       return;
     }
     final bool creatingOwner = _creatingOwner;
-    final String ownerName = _ownerNameController.text.trim();
-    final String ownerPhone = _ownerPhoneController.text.trim();
-    final String ownerNotes = _ownerNotesController.text.trim();
-    final String? existingOwnerId = creatingOwner
+    final String ownerName = _includeOwnerDetails
+        ? _ownerNameController.text.trim()
+        : "";
+    final String ownerPhone = _includeOwnerDetails
+        ? _ownerPhoneController.text.trim()
+        : "";
+    final String ownerNotes = _includeOwnerDetails
+        ? _ownerNotesController.text.trim()
+        : "";
+    final String? existingOwnerId = !_includeOwnerDetails || creatingOwner
         ? null
         : _nonEmptyId(_selectedOwnerId);
-    if (creatingOwner && (ownerName.isEmpty || ownerPhone.isEmpty)) {
+    if (_includeOwnerDetails &&
+        creatingOwner &&
+        (ownerName.isEmpty || ownerPhone.isEmpty)) {
       _showMediaError("Enter the owner's name and phone number.");
       return;
     }
-    if (!creatingOwner && existingOwnerId == null) {
+    if (_includeOwnerDetails && !creatingOwner && existingOwnerId == null) {
       _showMediaError("Choose a valid owner before publishing.");
       return;
     }
@@ -1234,9 +1249,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
     setState(() {
       _submitting = true;
       _uploadController = controller;
-      _uploadProgress = const UploadProgressSnapshot(
+      _uploadProgress = UploadProgressSnapshot(
         value: 0.02,
-        label: "Preparing listing upload...",
+        label: mobileUi(context, "Preparing listing upload..."),
       );
     });
     final repository = AppScope.of(context).repository;
@@ -1302,7 +1317,11 @@ class _AddAssetScreenState extends State<AddAssetScreen>
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                "TSh $paymentAmount payment request sent. Confirm it on your agent phone.",
+                mobileUiFormat(
+                  context,
+                  "TSh {0} payment request sent. Confirm it on your agent phone.",
+                  [paymentAmount],
+                ),
               ),
             ),
           );
@@ -1333,19 +1352,46 @@ class _AddAssetScreenState extends State<AddAssetScreen>
           content: Text(
             !paymentRequired
                 ? published
-                      ? "Listing published. Publication is currently free."
+                      ? mobileUi(
+                          context,
+                          "Listing published. Publication is currently free.",
+                        )
                       : approvalRequired
-                      ? "Listing saved. Admin approval is required because this agent is not verified. Publication is free after approval."
-                      : "Listing saved and is being published."
+                      ? mobileUi(
+                          context,
+                          "Listing saved. Admin approval is required because this agent is not verified. Publication is free after approval.",
+                        )
+                      : mobileUi(
+                          context,
+                          "Listing saved and is being published.",
+                        )
                 : paymentStatus == "paid"
                 ? published
-                      ? "Payment confirmed. Listing is now live on the marketplace."
+                      ? mobileUi(
+                          context,
+                          "Payment confirmed. Listing is now live on the marketplace.",
+                        )
                       : approvalRequired
-                      ? "Payment confirmed. Admin approval is still required before this listing becomes public."
-                      : "Payment confirmed. The listing is being published."
+                      ? mobileUi(
+                          context,
+                          "Payment confirmed. Admin approval is still required before this listing becomes public.",
+                        )
+                      : mobileUi(
+                          context,
+                          "Payment confirmed. The listing is being published.",
+                        )
                 : paymentRequired
-                ? "Listing saved privately. Complete the TSh $paymentAmount payment${approvalRequired ? " and wait for admin approval" : ""} to publish it."
-                : "Listing published.",
+                ? mobileUiFormat(
+                    context,
+                    "Listing saved privately. Complete the TSh {0} payment{1} to publish it.",
+                    [
+                      paymentAmount,
+                      approvalRequired
+                          ? mobileUi(context, " and wait for admin approval")
+                          : "",
+                    ],
+                  )
+                : mobileUi(context, "Listing published."),
           ),
         ),
       );
@@ -1367,9 +1413,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Upload cancelled.")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: LocalizedUiText("Upload cancelled.")),
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -1395,7 +1441,8 @@ class _AddAssetScreenState extends State<AddAssetScreen>
         _priceController.text.trim().isNotEmpty) {
       count += 1;
     }
-    if ((!_creatingOwner && _selectedOwnerId != null) ||
+    if (!_includeOwnerDetails ||
+        (!_creatingOwner && _selectedOwnerId != null) ||
         (_creatingOwner &&
             _ownerNameController.text.trim().isNotEmpty &&
             _ownerPhoneController.text.trim().isNotEmpty)) {
@@ -1420,14 +1467,14 @@ class _AddAssetScreenState extends State<AddAssetScreen>
       return ManagePageScrollView(
         children: <Widget>[
           ManagePanel(
-            title: "Add asset could not load",
+            title: mobileUi(context, "Add asset could not load"),
             subtitle: _bootstrapError!,
             child: Align(
               alignment: Alignment.centerLeft,
               child: FilledButton.icon(
                 onPressed: _bootstrap,
                 icon: const Icon(Icons.refresh_rounded),
-                label: const Text("Try again"),
+                label: const LocalizedUiText("Try again"),
               ),
             ),
           ),
@@ -1440,9 +1487,11 @@ class _AddAssetScreenState extends State<AddAssetScreen>
       child: ManagePageScrollView(
         children: <Widget>[
           ManageHeroCard(
-            title: "Add asset",
-            subtitle:
-                "Publish only inside the categories assigned to your agent account. This flow keeps owner, location, media, and category fields in one structured workspace.",
+            title: mobileUi(context, "Add asset"),
+            subtitle: mobileUi(
+              context,
+              "Publish only inside the categories assigned to your agent account. This flow keeps owner, location, media, and category fields in one structured workspace.",
+            ),
             bottom: ManageMetaWrap(
               items: <String>[
                 _stringValue(_selectedCategory?["name"]) ??
@@ -1471,22 +1520,24 @@ class _AddAssetScreenState extends State<AddAssetScreen>
           const SizedBox(height: 18),
           if (_draftRestored) ...<Widget>[
             ManagePanel(
-              title: "Draft restored",
-              subtitle:
-                  "Your text, owner, category, price, and location were restored on this device. For privacy and reliability, select images and video again.",
+              title: mobileUi(context, "Draft restored"),
+              subtitle: mobileUi(
+                context,
+                "Your text, owner, category, price, and location were restored on this device. For privacy and reliability, select images and video again.",
+              ),
               action: TextButton.icon(
                 onPressed: _discardDraft,
                 icon: const Icon(Icons.delete_outline_rounded),
-                label: const Text("Discard"),
+                label: const LocalizedUiText("Discard"),
               ),
-              child: const Text(
+              child: const LocalizedUiText(
                 "Continue where you stopped; changes save automatically while you type.",
               ),
             ),
             const SizedBox(height: 16),
           ],
           ManagePanel(
-            title: "Publishing checklist",
+            title: mobileUi(context, "Publishing checklist"),
             subtitle: _adminApprovalRequired
                 ? "Complete all sections. This listing will remain private until an admin approves it${_listingPaymentRequired ? " and payment is confirmed" : ""}."
                 : "Complete all sections. As a verified agent, your listing publishes directly${_listingPaymentRequired ? " after payment" : ""}.",
@@ -1502,18 +1553,19 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                         ? Icons.check_circle
                         : Icons.circle_outlined,
                   ),
-                  label: const Text("Basics"),
+                  label: const LocalizedUiText("Basics"),
                 ),
                 Chip(
                   avatar: Icon(
-                    (!_creatingOwner && _selectedOwnerId != null) ||
+                    !_includeOwnerDetails ||
+                            (!_creatingOwner && _selectedOwnerId != null) ||
                             (_creatingOwner &&
                                 _ownerNameController.text.trim().isNotEmpty &&
                                 _ownerPhoneController.text.trim().isNotEmpty)
                         ? Icons.check_circle
                         : Icons.circle_outlined,
                   ),
-                  label: const Text("Owner"),
+                  label: const LocalizedUiText("Owner (optional)"),
                 ),
                 Chip(
                   avatar: Icon(
@@ -1521,7 +1573,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                         ? Icons.check_circle
                         : Icons.circle_outlined,
                   ),
-                  label: const Text("Location"),
+                  label: const LocalizedUiText("Location"),
                 ),
                 Chip(
                   avatar: Icon(
@@ -1529,7 +1581,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                         ? Icons.check_circle
                         : Icons.circle_outlined,
                   ),
-                  label: const Text("Media"),
+                  label: const LocalizedUiText("Media"),
                 ),
               ],
             ),
@@ -1542,9 +1594,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: const <Widget>[
-                    Text("No category assigned yet"),
+                    LocalizedUiText("No category assigned yet"),
                     SizedBox(height: 8),
-                    Text(
+                    LocalizedUiText(
                       "Admin must assign one or more categories before you can publish a listing.",
                     ),
                   ],
@@ -1552,23 +1604,30 @@ class _AddAssetScreenState extends State<AddAssetScreen>
               ),
             ),
           ManagePanel(
-            title: "Listing basics",
-            subtitle:
-                "Pick the assigned category first, then add the main marketplace details customers will see.",
+            title: mobileUi(context, "Listing basics"),
+            subtitle: mobileUi(
+              context,
+              "Pick the assigned category first, then add the main marketplace details customers will see.",
+            ),
             child: Column(
               children: <Widget>[
                 DropdownButtonFormField<String>(
                   isExpanded: true,
                   menuMaxHeight: _menuMaxHeight,
                   initialValue: _nonEmptyId(_selectedCategory?["id"]),
-                  decoration: const InputDecoration(
-                    labelText: "Assigned category",
+                  decoration: InputDecoration(
+                    labelText: mobileUi(context, "Assigned category"),
                   ),
                   items: _categories
                       .map(
                         (Map<String, dynamic> item) => DropdownMenuItem<String>(
                           value: _requiredRowId(item, "Category"),
-                          child: _menuText(_stringValue(item["name"]) ?? "-"),
+                          child: _menuText(
+                            mobileUi(
+                              context,
+                              _stringValue(item["name"]) ?? "-",
+                            ),
+                          ),
                         ),
                       )
                       .toList(),
@@ -1587,16 +1646,18 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _titleController,
-                  decoration: const InputDecoration(labelText: "Title"),
+                  decoration: InputDecoration(
+                    labelText: mobileUi(context, "Title"),
+                  ),
                   validator: ListingContentValidator.titleError,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _descriptionController,
                   maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: "Description *",
-                    helperText: "At least 10 characters",
+                  decoration: InputDecoration(
+                    labelText: mobileUi(context, "Description *"),
+                    helperText: mobileUi(context, "At least 10 characters"),
                   ),
                   validator: ListingContentValidator.descriptionError,
                 ),
@@ -1610,8 +1671,8 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                           TextFormField(
                             controller: _priceController,
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: "Price amount *",
+                            decoration: InputDecoration(
+                              labelText: mobileUi(context, "Price amount *"),
                             ),
                             validator: (String? value) {
                               if (value == null || value.trim().isEmpty) {
@@ -1625,8 +1686,8 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                             isExpanded: true,
                             menuMaxHeight: _menuMaxHeight,
                             initialValue: _pricePeriod,
-                            decoration: const InputDecoration(
-                              labelText: "Price period *",
+                            decoration: InputDecoration(
+                              labelText: mobileUi(context, "Price period *"),
                             ),
                             items: pricePeriods
                                 .map(
@@ -1653,8 +1714,8 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                           child: TextFormField(
                             controller: _priceController,
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: "Price amount *",
+                            decoration: InputDecoration(
+                              labelText: mobileUi(context, "Price amount *"),
                             ),
                             validator: (String? value) {
                               if (value == null || value.trim().isEmpty) {
@@ -1670,8 +1731,8 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                             isExpanded: true,
                             menuMaxHeight: _menuMaxHeight,
                             initialValue: _pricePeriod,
-                            decoration: const InputDecoration(
-                              labelText: "Price period *",
+                            decoration: InputDecoration(
+                              labelText: mobileUi(context, "Price period *"),
                             ),
                             items: pricePeriods
                                 .map(
@@ -1698,8 +1759,8 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                 TextFormField(
                   controller: _depositController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: "Deposit amount",
+                  decoration: InputDecoration(
+                    labelText: mobileUi(context, "Deposit amount"),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -1707,20 +1768,25 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                   isExpanded: true,
                   menuMaxHeight: _menuMaxHeight,
                   initialValue: _availabilityStatus,
-                  decoration: const InputDecoration(labelText: "Availability"),
+                  decoration: InputDecoration(
+                    labelText: mobileUi(context, "Availability"),
+                  ),
                   items: const <DropdownMenuItem<String>>[
                     DropdownMenuItem(
                       value: "available",
-                      child: Text("Available"),
+                      child: LocalizedUiText("Available"),
                     ),
                     DropdownMenuItem(
                       value: "reserved",
-                      child: Text("Reserved"),
+                      child: LocalizedUiText("Reserved"),
                     ),
-                    DropdownMenuItem(value: "rented", child: Text("Rented")),
+                    DropdownMenuItem(
+                      value: "rented",
+                      child: LocalizedUiText("Rented"),
+                    ),
                     DropdownMenuItem(
                       value: "unavailable",
-                      child: Text("Unavailable"),
+                      child: LocalizedUiText("Unavailable"),
                     ),
                   ],
                   onChanged: (String? value) {
@@ -1734,35 +1800,50 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                 TextFormField(
                   controller: _rulesController,
                   maxLines: 3,
-                  decoration: const InputDecoration(labelText: "Rules"),
+                  decoration: InputDecoration(
+                    labelText: mobileUi(context, "Rules"),
+                  ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 16),
           ManagePanel(
-            title: "Owner information",
-            subtitle:
-                "Attach this listing to an existing owner or create a fresh owner record before publishing.",
+            title: mobileUi(context, "Owner information"),
+            subtitle: mobileUi(
+              context,
+              "Optional private contact details. You can publish without adding an owner. This does not verify ownership or grant account access.",
+            ),
             child: Column(
               children: <Widget>[
-                if (_owners.isNotEmpty)
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const LocalizedUiText("Add owner details (optional)"),
+                  value: _includeOwnerDetails,
+                  onChanged: (value) {
+                    setState(() => _includeOwnerDetails = value);
+                    _scheduleDraftSave();
+                  },
+                ),
+                if (_includeOwnerDetails && _owners.isNotEmpty)
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: _creatingOwner,
-                    title: const Text("Create new owner"),
+                    title: const LocalizedUiText("Create new owner"),
                     onChanged: (bool value) {
                       setState(() => _creatingOwner = value);
                       _scheduleDraftSave();
                     },
                   ),
-                if (!_creatingOwner && _owners.isNotEmpty)
+                if (_includeOwnerDetails &&
+                    !_creatingOwner &&
+                    _owners.isNotEmpty)
                   DropdownButtonFormField<String>(
                     isExpanded: true,
                     menuMaxHeight: _menuMaxHeight,
                     initialValue: _selectedOwnerId,
-                    decoration: const InputDecoration(
-                      labelText: "Select owner",
+                    decoration: InputDecoration(
+                      labelText: mobileUi(context, "Select owner"),
                     ),
                     items: _owners
                         .map(
@@ -1780,26 +1861,28 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                       _scheduleDraftSave();
                     },
                   ),
-                if (_creatingOwner) ...<Widget>[
+                if (_includeOwnerDetails && _creatingOwner) ...<Widget>[
                   TextFormField(
                     controller: _ownerNameController,
-                    decoration: const InputDecoration(
-                      labelText: "Owner full name",
+                    decoration: InputDecoration(
+                      labelText: mobileUi(context, "Owner full name"),
                     ),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _ownerPhoneController,
                     keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      labelText: "Owner phone number",
+                    decoration: InputDecoration(
+                      labelText: mobileUi(context, "Owner phone number"),
                     ),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _ownerNotesController,
                     maxLines: 3,
-                    decoration: const InputDecoration(labelText: "Owner notes"),
+                    decoration: InputDecoration(
+                      labelText: mobileUi(context, "Owner notes"),
+                    ),
                   ),
                 ],
               ],
@@ -1807,18 +1890,20 @@ class _AddAssetScreenState extends State<AddAssetScreen>
           ),
           const SizedBox(height: 16),
           ManagePanel(
-            title: "Marketplace location",
-            subtitle:
-                "Follow the official location chain. Region, district, and ward are required. Area is optional, and a new area can be saved for future use when needed.",
+            title: mobileUi(context, "Marketplace location"),
+            subtitle: mobileUi(
+              context,
+              "Follow the official location chain. Region, district, and ward are required. Area is optional, and a new area can be saved for future use when needed.",
+            ),
             child: Column(
               children: <Widget>[
                 _selectionField(
-                  label: "Region *",
+                  label: mobileUi(context, "Region *"),
                   valueText: _labelFor(_regions, _regionId) ?? "Choose region",
                   enabled: _regions.isNotEmpty,
                   onTap: () async {
                     final String? value = await _pickLocation(
-                      title: "Choose region",
+                      title: mobileUi(context, "Choose region"),
                       items: _regions,
                       selectedId: _regionId,
                     );
@@ -1834,13 +1919,13 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                 ),
                 const SizedBox(height: 12),
                 _selectionField(
-                  label: "District *",
+                  label: mobileUi(context, "District *"),
                   valueText:
                       _labelFor(_districts, _districtId) ?? "Choose district",
                   enabled: _districts.isNotEmpty,
                   onTap: () async {
                     final String? value = await _pickLocation(
-                      title: "Choose district",
+                      title: mobileUi(context, "Choose district"),
                       items: _districts,
                       selectedId: _districtId,
                     );
@@ -1853,12 +1938,12 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                 ),
                 const SizedBox(height: 12),
                 _selectionField(
-                  label: "Ward *",
+                  label: mobileUi(context, "Ward *"),
                   valueText: _labelFor(_wards, _wardId) ?? "Choose ward",
                   enabled: _wards.isNotEmpty,
                   onTap: () async {
                     final String? value = await _pickLocation(
-                      title: "Choose ward",
+                      title: mobileUi(context, "Choose ward"),
                       items: _wards,
                       selectedId: _wardId,
                     );
@@ -1871,14 +1956,14 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                 ),
                 const SizedBox(height: 12),
                 _selectionField(
-                  label: "Saved area",
+                  label: mobileUi(context, "Saved area"),
                   valueText: _areaId == null
                       ? "Leave blank or choose a saved area"
                       : (_labelFor(_areas, _areaId) ?? "Saved area selected"),
                   enabled: _wardId != null,
                   onTap: () async {
                     final String? value = await _pickLocation(
-                      title: "Choose saved area",
+                      title: mobileUi(context, "Choose saved area"),
                       items: _areas,
                       selectedId: _areaId ?? "",
                       emptyValue: "",
@@ -1904,7 +1989,11 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    "Saved areas in this ward: ${_areas.length}/100",
+                    mobileUiFormat(
+                      context,
+                      "Saved areas in this ward: {0}/100",
+                      [_areas.length],
+                    ),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
@@ -1913,22 +2002,31 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                   controller: _manualAreaController,
                   enabled: _wardId != null && _areas.length < 100,
                   decoration: InputDecoration(
-                    labelText: "New area name (optional)",
+                    labelText: mobileUi(context, "New area name (optional)"),
                     helperText: _wardId == null
-                        ? "Choose region, district, and ward first."
+                        ? mobileUi(
+                            context,
+                            "Choose region, district, and ward first.",
+                          )
                         : _areas.length < 100
-                        ? "If the area is missing, type it here and it will be saved for future use."
-                        : "This ward already has 100 saved areas, so use the saved list only.",
+                        ? mobileUi(
+                            context,
+                            "If the area is missing, type it here and it will be saved for future use.",
+                          )
+                        : mobileUi(
+                            context,
+                            "This ward already has 100 saved areas, so use the saved list only.",
+                          ),
                   ),
                 ),
                 const SizedBox(height: 12),
                 _selectionField(
-                  label: "Street",
+                  label: mobileUi(context, "Street"),
                   valueText: _labelFor(_streets, _streetId) ?? "Choose street",
                   enabled: _streets.isNotEmpty,
                   onTap: () async {
                     final String? value = await _pickLocation(
-                      title: "Choose street",
+                      title: mobileUi(context, "Choose street"),
                       items: _streets,
                       selectedId: _streetId ?? "",
                       emptyValue: "",
@@ -1943,16 +2041,16 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                 ),
                 const SizedBox(height: 12),
                 InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: "Public location label",
+                  decoration: InputDecoration(
+                    labelText: mobileUi(context, "Public location label"),
                   ),
                   child: Text(_computedPublicLocationLabel()),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _exactAddressController,
-                  decoration: const InputDecoration(
-                    labelText: "Exact address (private)",
+                  decoration: InputDecoration(
+                    labelText: mobileUi(context, "Exact address (private)"),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -1961,8 +2059,8 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: const InputDecoration(
-                    labelText: "Private latitude",
+                  decoration: InputDecoration(
+                    labelText: mobileUi(context, "Private latitude"),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -1971,8 +2069,8 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: const InputDecoration(
-                    labelText: "Private longitude",
+                  decoration: InputDecoration(
+                    labelText: mobileUi(context, "Private longitude"),
                   ),
                 ),
               ],
@@ -1982,9 +2080,11 @@ class _AddAssetScreenState extends State<AddAssetScreen>
           if (_selectedCategory
               case final Map<String, dynamic> selectedCategory)
             ManagePanel(
-              title: "Category fields",
-              subtitle:
-                  "These fields come directly from the selected category schema so new categories work without app rewrites.",
+              title: mobileUi(context, "Category fields"),
+              subtitle: mobileUi(
+                context,
+                "These fields come directly from the selected category schema so new categories work without app rewrites.",
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[..._buildDynamicFields(selectedCategory)],
@@ -1992,7 +2092,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
             ),
           const SizedBox(height: 16),
           ManagePanel(
-            title: "Media upload",
+            title: mobileUi(context, "Media upload"),
             subtitle: _selectedCategorySlug == "apartment"
                 ? "Apartment listings support up to 15 images. Selected video is compressed to MP4 below 29 MB before upload; the server maximum is 30 MB."
                 : "Add up to 8 images. Selected video is compressed to MP4 below 29 MB before upload; the server maximum is 30 MB.",
@@ -2012,7 +2112,10 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                           : _pickImages,
                       icon: const Icon(Icons.photo_library_outlined),
                       label: Text(
-                        "Pick images (${_images.length}/$_maxImagesAllowed)",
+                        mobileUiFormat(context, "Pick images ({0}/{1})", [
+                          _images.length,
+                          _maxImagesAllowed,
+                        ]),
                       ),
                     ),
                     OutlinedButton.icon(
@@ -2023,10 +2126,12 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                       icon: const Icon(Icons.video_library_outlined),
                       label: Text(
                         _compressingVideo
-                            ? "Compressing ${(_videoCompressionProgress * 100).round()}%"
+                            ? mobileUiFormat(context, "Compressing {0}%", [
+                                (_videoCompressionProgress * 100).round(),
+                              ])
                             : _video == null
-                            ? "Pick and compress video"
-                            : "Compressed video ready",
+                            ? mobileUi(context, "Pick and compress video")
+                            : mobileUi(context, "Compressed video ready"),
                       ),
                     ),
                   ],
@@ -2038,20 +2143,20 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                   Row(
                     children: <Widget>[
                       const Expanded(
-                        child: Text(
+                        child: LocalizedUiText(
                           "Preparing a smaller MP4 on this device. Keep the app open until this finishes.",
                         ),
                       ),
                       TextButton(
                         onPressed: _cancelVideoCompression,
-                        child: const Text("Cancel"),
+                        child: const LocalizedUiText("Cancel"),
                       ),
                     ],
                   ),
                 ],
                 const SizedBox(height: 16),
                 if (_images.isEmpty)
-                  const Text("No images selected yet.")
+                  const LocalizedUiText("No images selected yet.")
                 else
                   ..._images.asMap().entries.map(
                     (MapEntry<int, XFile> item) => Card(
@@ -2069,14 +2174,14 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                         title: Text(item.value.name),
                         subtitle: Text(
                           item.key == _coverImageIndex
-                              ? "Current cover image"
-                              : "Tap to set as cover",
+                              ? mobileUi(context, "Current cover image")
+                              : mobileUi(context, "Tap to set as cover"),
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: <Widget>[
                             IconButton(
-                              tooltip: "Move up",
+                              tooltip: mobileUi(context, "Move up"),
                               onPressed:
                                   _submitting ||
                                       _compressingVideo ||
@@ -2086,7 +2191,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                               icon: const Icon(Icons.arrow_upward_rounded),
                             ),
                             IconButton(
-                              tooltip: "Move down",
+                              tooltip: mobileUi(context, "Move down"),
                               onPressed:
                                   _submitting ||
                                       _compressingVideo ||
@@ -2096,7 +2201,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                               icon: const Icon(Icons.arrow_downward_rounded),
                             ),
                             IconButton(
-                              tooltip: "Remove image",
+                              tooltip: mobileUi(context, "Remove image"),
                               onPressed: _submitting || _compressingVideo
                                   ? null
                                   : () => _removeImage(item.key),
@@ -2127,15 +2232,21 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                       ),
                       subtitle: Text(
                         _videoIsCover
-                            ? "Current cover video. It appears first and autoplays muted."
+                            ? mobileUi(
+                                context,
+                                "Current cover video. It appears first and autoplays muted.",
+                              )
                             : _videoCompressionResult == null
-                            ? "Video must be selected again before publishing."
+                            ? mobileUi(
+                                context,
+                                "Video must be selected again before publishing.",
+                              )
                             : "Compressed ${_videoCompressionResult!.reductionPercent.toStringAsFixed(0)}% to "
                                   "${ListingMediaValidator.formatMiB(_videoCompressionResult!.compressedBytes)}. "
                                   "MP4 is ready for upload.",
                       ),
                       trailing: IconButton(
-                        tooltip: "Remove video",
+                        tooltip: mobileUi(context, "Remove video"),
                         onPressed: _submitting ? null : _removeVideo,
                         icon: const Icon(Icons.delete_outline_rounded),
                       ),
@@ -2151,9 +2262,11 @@ class _AddAssetScreenState extends State<AddAssetScreen>
           const SizedBox(height: 16),
           if (_submitting && _uploadProgress != null) ...<Widget>[
             ManagePanel(
-              title: "Upload progress",
-              subtitle:
-                  "Files upload step by step. Cancel stops the next remaining steps.",
+              title: mobileUi(context, "Upload progress"),
+              subtitle: mobileUi(
+                context,
+                "Files upload step by step. Cancel stops the next remaining steps.",
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -2166,7 +2279,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                         ? () => _uploadController?.cancel()
                         : null,
                     icon: const Icon(Icons.close_rounded),
-                    label: const Text("Cancel upload"),
+                    label: const LocalizedUiText("Cancel upload"),
                   ),
                 ],
               ),
@@ -2178,14 +2291,16 @@ class _AddAssetScreenState extends State<AddAssetScreen>
             icon: const Icon(Icons.publish_outlined),
             label: Text(
               _submitting
-                  ? "Inatuma..."
+                  ? mobileUi(context, "Inatuma...")
                   : _compressingVideo
-                  ? "Compressing video..."
+                  ? mobileUi(context, "Compressing video...")
                   : _listingPaymentRequired
-                  ? "Save and pay TSh $_listingFeeAmount"
+                  ? mobileUiFormat(context, "Save and pay TSh {0}", [
+                      _listingFeeAmount,
+                    ])
                   : _adminApprovalRequired
-                  ? "Submit for admin approval"
-                  : "Publish listing free",
+                  ? mobileUi(context, "Submit for admin approval")
+                  : mobileUi(context, "Publish listing free"),
             ),
           ),
           const SizedBox(height: 10),
@@ -2202,19 +2317,25 @@ class _AddAssetScreenState extends State<AddAssetScreen>
   List<Widget> _buildDynamicFields(Map<String, dynamic> category) {
     final List<Map<String, dynamic>> schema = _schemaFieldsFor(category);
     if (schema.isEmpty) {
-      return const <Widget>[Text("No extra fields configured.")];
+      return const <Widget>[LocalizedUiText("No extra fields configured.")];
     }
 
     return schema.map((Map<String, dynamic> field) {
       final String key = field["key"]?.toString().trim() ?? "";
-      final String label = _nonEmptyId(field["label"]) ?? key;
+      final String label = mobileUi(
+        context,
+        _nonEmptyId(field["label"]) ?? key,
+      );
       final String type = _nonEmptyId(field["type"])?.toLowerCase() ?? "text";
       final dynamic rawOptions = field["options"];
       final List<dynamic> options = rawOptions is List
           ? List<dynamic>.from(rawOptions)
           : <dynamic>[];
       final bool required = field["required"] == true;
-      final String? helpText = _nonEmptyId(field["help_text"]);
+      final String? rawHelpText = _nonEmptyId(field["help_text"]);
+      final String? helpText = rawHelpText == null
+          ? null
+          : mobileUi(context, rawHelpText);
       final String inputLabel = required ? "$label *" : label;
 
       if (type == "boolean") {
@@ -2245,7 +2366,7 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                 .map(
                   (dynamic option) => DropdownMenuItem<String>(
                     value: option.toString(),
-                    child: _menuText(option.toString()),
+                    child: _menuText(mobileUi(context, option.toString())),
                   ),
                 )
                 .toList(),

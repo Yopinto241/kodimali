@@ -1,4 +1,5 @@
 "use client";
+import { UiLink, UiNav, UiText } from "@/components/ui-text";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -41,11 +42,13 @@ export function MobileBottomNav() {
     };
   }, []);
 
-  return <nav className={`mobile-bottom-nav ${hidden ? "is-hidden" : ""}`} aria-label="Mobile shortcuts" aria-hidden={hidden}>
-    <Link href="/listings" className={pathname.startsWith("/listings") || pathname.startsWith("/category/") ? "is-active" : ""}><Icon kind="listings"/><span>Listings</span></Link>
+  if (pathname === "/events/plan") return null;
+
+  return <UiNav className={`mobile-bottom-nav ${hidden ? "is-hidden" : ""}`} aria-label="Mobile shortcuts" aria-hidden={hidden}>
+    <Link prefetch={false} href="/listings" className={pathname.startsWith("/listings") || pathname.startsWith("/category/") ? "is-active" : ""}><Icon kind="listings"/><span><UiText text={"Listings"} /></span></Link>
     <a href="https://wa.me/255684684972" target="_blank" rel="noreferrer"><Icon kind="whatsapp"/><span>WhatsApp</span></a>
-    <Link href="/" className={`mobile-bottom-brand ${pathname === "/" ? "is-active" : ""}`} aria-label="Home"><Image src="/icon.png" alt="" width={44} height={44}/><span className="sr-only">Home</span></Link>
+    <UiLink prefetch={false} href="/" className={`mobile-bottom-brand ${pathname === "/" ? "is-active" : ""}`} aria-label="Home"><Image src="/icon.png" alt="" width={44} height={44}/><span className="sr-only"><UiText text={"Home"} /></span></UiLink>
     <a href={instagram} target="_blank" rel="noreferrer"><Icon kind="instagram"/><span>Instagram</span></a>
-    <Link href="/account" className={pathname.startsWith("/account") || pathname === "/login" || pathname === "/register" ? "is-active" : ""}><Icon kind="account"/><span>Account</span></Link>
-  </nav>;
+    <Link prefetch={false} href="/account" className={pathname.startsWith("/account") || pathname === "/login" || pathname === "/register" ? "is-active" : ""}><Icon kind="account"/><span><UiText text={"Account"} /></span></Link>
+  </UiNav>;
 }

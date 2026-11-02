@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
@@ -17,6 +18,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
+export 'features/location/location_selector_sheet.dart';
+import 'features/location/location_selector_sheet.dart';
+import 'core/utils/whatsapp.dart';
+import 'core/widgets/whatsapp_icon.dart';
+import 'core/ads/promotion_tracking.dart';
+import 'core/ads/sponsored_layout.dart';
 import 'core/ads/admob_support.dart';
 import 'core/cache/customer_activity_store.dart';
 import 'core/cache/customer_snapshot_store.dart';
@@ -25,6 +32,7 @@ import 'core/data/customer_public_repository.dart';
 import 'core/localization/customer_localization.dart';
 import 'core/media/customer_media_cache.dart';
 import 'features/account/customer_account_screens.dart';
+import 'features/navigation/customer_category_menu.dart';
 import 'features/chat/listing_chat_screens.dart';
 import 'features/events/events_marketplace_screen.dart';
 import 'core/notifications/push_notification_service.dart';
@@ -228,7 +236,7 @@ class _CustomerAppState extends State<CustomerApp> {
       );
     }
 
-    final ThemeData lightTheme = KodimaliTheme.light();
+    final ThemeData lightTheme = KodimaliTheme.mobileLight();
     return CustomerAppScope(
       languageCode: _languageCode,
       onLanguageChanged: _setLanguageCode,
@@ -238,25 +246,8 @@ class _CustomerAppState extends State<CustomerApp> {
         navigatorKey: customerNavigatorKey,
         debugShowCheckedModeBanner: false,
         title: appName,
-        theme: lightTheme.copyWith(
-          splashFactory: InkSparkle.splashFactory,
-          splashColor: KodimaliColors.green.withValues(alpha: 0.22),
-          highlightColor: KodimaliColors.blueSurface.withValues(alpha: 0.10),
-          scaffoldBackgroundColor: KodimaliColors.background,
-          cardTheme: lightTheme.cardTheme.copyWith(
-            color: const Color(0xFFF7FAFD),
-            shadowColor: KodimaliColors.navy.withValues(alpha: 0.16),
-          ),
-          appBarTheme: lightTheme.appBarTheme.copyWith(
-            backgroundColor: KodimaliColors.navy,
-            foregroundColor: Colors.white,
-          ),
-        ),
-        darkTheme: KodimaliTheme.dark().copyWith(
-          splashFactory: InkSparkle.splashFactory,
-          splashColor: KodimaliColors.green.withValues(alpha: 0.20),
-          highlightColor: Colors.white.withValues(alpha: 0.06),
-        ),
+        theme: lightTheme,
+        darkTheme: KodimaliTheme.mobileDark(),
         themeMode: _themeMode,
         locale: Locale(_languageCode),
         supportedLocales: const <Locale>[Locale("en"), Locale("sw")],
@@ -1122,7 +1113,9 @@ class _HelpSupportScreen extends StatelessWidget {
     final bool launched = await launchUrl(uri, mode: mode);
     if (!launched && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("We could not open that link right now.")),
+        const SnackBar(
+          content: LocalizedUiText("We could not open that link right now."),
+        ),
       );
     }
   }
@@ -1620,8 +1613,8 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          const KodimaliStatusBadge(
-                            label: "Private location only",
+                          KodimaliStatusBadge(
+                            label: mobileUi(context, "Private location only"),
                             tone: KodimaliStatusTone.info,
                           ),
                           const SizedBox(height: KodimaliSpacing.sm),
@@ -1630,7 +1623,7 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const SizedBox(height: KodimaliSpacing.xs),
-                          Text(
+                          LocalizedUiText(
                             "Tunatumia eneo la jumla tu ili kuonyesha listings zinazokufaa bila kufichua address kamili hadharani.",
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
@@ -1666,13 +1659,12 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
                 ),
                 if (orderedCategories.isNotEmpty) ...<Widget>[
                   const SizedBox(height: KodimaliSpacing.lg),
-                  Row(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          context.tr("heading.browseCategories"),
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
+                      Text(
+                        context.tr("heading.browseCategories"),
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
                       if (apartmentCategory != null)
                         TextButton(
@@ -1693,7 +1685,13 @@ class _PublicHomeScreenState extends State<PublicHomeScreen> {
                   ),
                   const SizedBox(height: KodimaliSpacing.sm),
                   SizedBox(
-                    height: 124,
+                    height:
+                        124 +
+                        (MediaQuery.textScalerOf(context).scale(14) - 14).clamp(
+                              0,
+                              28,
+                            ) *
+                            3,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: orderedCategories.length,
@@ -1787,6 +1785,8 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
   bool _isSearching = false;
   String? _errorMessage;
   int _requestSequence = 0;
+  late double? _searchLatitude = widget.latitude;
+  late double? _searchLongitude = widget.longitude;
   late String? _searchRegionId = widget.regionId;
   late String? _searchDistrictId = widget.districtId;
   late String? _searchWardId = widget.wardId;
@@ -1809,6 +1809,8 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
         oldWidget.latitude != widget.latitude ||
         oldWidget.longitude != widget.longitude ||
         oldWidget.refreshTick != widget.refreshTick) {
+      _searchLatitude = widget.latitude;
+      _searchLongitude = widget.longitude;
       _searchRegionId = widget.regionId;
       _searchDistrictId = widget.districtId;
       _searchWardId = widget.wardId;
@@ -1839,8 +1841,8 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
       districtId: _searchDistrictId,
       wardId: _searchWardId,
       areaId: _searchAreaId,
-      latitude: widget.latitude,
-      longitude: widget.longitude,
+      latitude: _searchLatitude,
+      longitude: _searchLongitude,
       sessionSeed: query.isEmpty ? "search" : "search:$query",
       minPrice: double.tryParse(_minPriceController.text.trim()),
       maxPrice: double.tryParse(_maxPriceController.text.trim()),
@@ -1854,10 +1856,10 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
       surface: "customer_app",
       placement: "category_page",
       limit: 6,
-      regionId: widget.regionId,
-      districtId: widget.districtId,
-      wardId: widget.wardId,
-      areaId: widget.areaId,
+      regionId: _searchRegionId,
+      districtId: _searchDistrictId,
+      wardId: _searchWardId,
+      areaId: _searchAreaId,
     );
   }
 
@@ -1962,12 +1964,14 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
         );
     if (result == null || !mounted) return;
     setState(() {
+      _searchLatitude = null;
+      _searchLongitude = null;
       _searchRegionId = result['regionId'];
       _searchDistrictId = result['districtId'];
       _searchWardId = result['wardId'];
       _searchAreaId = result['areaId'];
     });
-    await _refreshSearch();
+    await _refreshSearch(refreshPromotions: true);
   }
 
   Future<void> _openFilters() async {
@@ -1986,7 +1990,7 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(
+              LocalizedUiText(
                 'Search filters',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
@@ -1997,8 +2001,8 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
                     child: TextField(
                       controller: _minPriceController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Minimum price',
+                      decoration: InputDecoration(
+                        labelText: mobileUi(context, 'Minimum price'),
                       ),
                     ),
                   ),
@@ -2007,8 +2011,8 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
                     child: TextField(
                       controller: _maxPriceController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Maximum price',
+                      decoration: InputDecoration(
+                        labelText: mobileUi(context, 'Maximum price'),
                       ),
                     ),
                   ),
@@ -2017,37 +2021,59 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
               const SizedBox(height: 12),
               DropdownButtonFormField<String?>(
                 initialValue: _pricePeriod,
-                decoration: const InputDecoration(labelText: 'Price period'),
+                decoration: InputDecoration(
+                  labelText: mobileUi(context, 'Price period'),
+                ),
                 items: const <DropdownMenuItem<String?>>[
-                  DropdownMenuItem(value: null, child: Text('Any period')),
-                  DropdownMenuItem(value: 'hour', child: Text('Per hour')),
-                  DropdownMenuItem(value: 'day', child: Text('Per day')),
-                  DropdownMenuItem(value: 'week', child: Text('Per week')),
-                  DropdownMenuItem(value: 'month', child: Text('Per month')),
-                  DropdownMenuItem(value: 'year', child: Text('Per year')),
+                  DropdownMenuItem(
+                    value: null,
+                    child: LocalizedUiText('Any period'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'hour',
+                    child: LocalizedUiText('Per hour'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'day',
+                    child: LocalizedUiText('Per day'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'week',
+                    child: LocalizedUiText('Per week'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'month',
+                    child: LocalizedUiText('Per month'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'year',
+                    child: LocalizedUiText('Per year'),
+                  ),
                 ],
                 onChanged: (v) => setSheet(() => _pricePeriod = v),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _sort,
-                decoration: const InputDecoration(labelText: 'Sort results'),
+                decoration: InputDecoration(
+                  labelText: mobileUi(context, 'Sort results'),
+                ),
                 items: const <DropdownMenuItem<String>>[
                   DropdownMenuItem(
                     value: 'recommended',
-                    child: Text('Recommended'),
+                    child: LocalizedUiText('Recommended'),
                   ),
                   DropdownMenuItem(
                     value: 'newest',
-                    child: Text('Newest first'),
+                    child: LocalizedUiText('Newest first'),
                   ),
                   DropdownMenuItem(
                     value: 'price_low',
-                    child: Text('Lowest price'),
+                    child: LocalizedUiText('Lowest price'),
                   ),
                   DropdownMenuItem(
                     value: 'price_high',
-                    child: Text('Highest price'),
+                    child: LocalizedUiText('Highest price'),
                   ),
                 ],
                 onChanged: (v) => setSheet(() => _sort = v ?? 'recommended'),
@@ -2057,7 +2083,7 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: () => Navigator.pop(sheetContext, true),
-                  child: const Text('Apply filters'),
+                  child: const LocalizedUiText('Apply filters'),
                 ),
               ),
             ],
@@ -2078,14 +2104,18 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
             child: Text(
               _isLoading || _isSearching
                   ? context.tr('search.searching')
-                  : 'Matokeo ${_results.length}',
+                  : mobileUiFormat(context, "Matokeo {0}", [_results.length]),
               style: Theme.of(context).textTheme.labelLarge,
             ),
           ),
           TextButton.icon(
             onPressed: _openFilters,
             icon: const Icon(Icons.swap_vert_rounded, size: 18),
-            label: Text(_sort == 'recommended' ? 'Mapendekezo' : 'Panga kwa'),
+            label: Text(
+              _sort == 'recommended'
+                  ? mobileUi(context, 'Mapendekezo')
+                  : mobileUi(context, 'Panga kwa'),
+            ),
           ),
         ],
       ),
@@ -2111,18 +2141,17 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
       );
     } else {
       listChildren.addAll(
-        _results.map(
-          (Map<String, dynamic> listing) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _CategoryListingCard(
-              listing: listing,
-              repository: widget.repository,
-            ),
-          ),
+        _buildListingChildren(
+          listings: _results,
+          promotions: _promotions,
+          repository: widget.repository,
         ),
       );
     }
 
+    if (!_isLoading && _results.isEmpty) {
+      listChildren.add(_SponsoredRemainder(promotions: _promotions));
+    }
     return Column(
       children: <Widget>[
         Padding(
@@ -2176,29 +2205,29 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
                   children: <Widget>[
                     ActionChip(
                       avatar: const Icon(Icons.category_outlined, size: 17),
-                      label: const Text('Aina zote'),
+                      label: const LocalizedUiText('Aina zote'),
                       onPressed: _openFilters,
                     ),
                     const SizedBox(width: 8),
                     ActionChip(
                       avatar: const Icon(Icons.location_on_outlined, size: 17),
                       label: Text(
-                        _searchRegionId != null || widget.latitude != null
-                            ? 'Eneo limechaguliwa'
-                            : 'Eneo lote',
+                        _searchRegionId != null || _searchLatitude != null
+                            ? mobileUi(context, 'Eneo limechaguliwa')
+                            : mobileUi(context, 'Eneo lote'),
                       ),
                       onPressed: _chooseSearchLocation,
                     ),
                     const SizedBox(width: 8),
                     ActionChip(
                       avatar: const Icon(Icons.payments_outlined, size: 17),
-                      label: const Text('Bei'),
+                      label: const LocalizedUiText('Bei'),
                       onPressed: _openFilters,
                     ),
                     const SizedBox(width: 8),
                     ActionChip(
                       avatar: const Icon(Icons.tune_rounded, size: 17),
-                      label: const Text('Chuja'),
+                      label: const LocalizedUiText('Chuja'),
                       onPressed: _openFilters,
                     ),
                   ],
@@ -2492,6 +2521,7 @@ class _PopularCategoryFeedScreenState extends State<PopularCategoryFeedScreen> {
             widget.repository.fetchPromotions(
               surface: "customer_app",
               placement: "category_page",
+              categorySlug: widget.categorySlug,
               limit: 6,
               regionId: widget.regionId,
               districtId: widget.districtId,
@@ -2576,8 +2606,8 @@ class _PopularCategoryFeedScreenState extends State<PopularCategoryFeedScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  const KodimaliStatusBadge(
-                    label: "Popular category",
+                  KodimaliStatusBadge(
+                    label: mobileUi(context, "Popular category"),
                     tone: KodimaliStatusTone.info,
                   ),
                   const SizedBox(height: KodimaliSpacing.sm),
@@ -2602,12 +2632,13 @@ class _PopularCategoryFeedScreenState extends State<PopularCategoryFeedScreen> {
             const SizedBox(height: KodimaliSpacing.md),
             _ErrorMessageCard(message: _errorMessage!),
           ],
+          if (listings.isEmpty) _SponsoredRemainder(promotions: _promotions),
           if (listings.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: KodimaliSpacing.lg),
-              child: const Center(
+              child: Center(
                 child: KodimaliStatusBadge(
-                  label: "No listings in this category yet",
+                  label: mobileUi(context, "No listings in this category yet"),
                   tone: KodimaliStatusTone.muted,
                 ),
               ),
@@ -2845,6 +2876,7 @@ class _CategoryListingsScreenState extends State<CategoryListingsScreen> {
       widget.repository.fetchPromotions(
         surface: "customer_app",
         placement: "category_page",
+        categorySlug: widget.category["slug"] as String?,
         limit: 6,
         regionId: _regionId,
         districtId: _districtId,
@@ -2911,26 +2943,28 @@ class _CategoryListingsScreenState extends State<CategoryListingsScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
+                LocalizedUiText(
                   'Chuja matokeo',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   initialValue: nextSort,
-                  decoration: const InputDecoration(labelText: 'Panga kwa'),
+                  decoration: InputDecoration(
+                    labelText: mobileUi(context, 'Panga kwa'),
+                  ),
                   items: const <DropdownMenuItem<String>>[
                     DropdownMenuItem(
                       value: 'recommended',
-                      child: Text('Mapendekezo'),
+                      child: LocalizedUiText('Mapendekezo'),
                     ),
                     DropdownMenuItem(
                       value: 'price_low',
-                      child: Text('Bei ya chini kwanza'),
+                      child: LocalizedUiText('Bei ya chini kwanza'),
                     ),
                     DropdownMenuItem(
                       value: 'price_high',
-                      child: Text('Bei ya juu kwanza'),
+                      child: LocalizedUiText('Bei ya juu kwanza'),
                     ),
                   ],
                   onChanged: (String? value) =>
@@ -2943,8 +2977,8 @@ class _CategoryListingsScreenState extends State<CategoryListingsScreen> {
                       child: TextField(
                         controller: minimum,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Bei ya chini',
+                        decoration: InputDecoration(
+                          labelText: mobileUi(context, 'Bei ya chini'),
                         ),
                       ),
                     ),
@@ -2953,8 +2987,8 @@ class _CategoryListingsScreenState extends State<CategoryListingsScreen> {
                       child: TextField(
                         controller: maximum,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Bei ya juu',
+                        decoration: InputDecoration(
+                          labelText: mobileUi(context, 'Bei ya juu'),
                         ),
                       ),
                     ),
@@ -2965,7 +2999,7 @@ class _CategoryListingsScreenState extends State<CategoryListingsScreen> {
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: () => Navigator.pop(sheetContext, true),
-                    child: const Text('Tazama matokeo'),
+                    child: const LocalizedUiText('Tazama matokeo'),
                   ),
                 ),
               ],
@@ -3075,16 +3109,13 @@ class _CategoryListingsScreenState extends State<CategoryListingsScreen> {
                     ),
                     const SizedBox(height: KodimaliSpacing.md),
                     if (listings.isNotEmpty)
-                      ...listings.map(
-                        (Map<String, dynamic> listing) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _CategoryListingCard(
-                            listing: listing,
-                            repository: widget.repository,
-                          ),
-                        ),
+                      ..._buildListingChildren(
+                        listings: listings,
+                        promotions: data.promotions,
+                        repository: widget.repository,
                       )
                     else ...<Widget>[
+                      _SponsoredRemainder(promotions: data.promotions),
                       Container(
                         padding: const EdgeInsets.all(KodimaliSpacing.md),
                         decoration: BoxDecoration(
@@ -3212,14 +3243,18 @@ class _CategoryBrowseControls extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: onLocation,
                 icon: const Icon(Icons.location_on_outlined, size: 18),
-                label: Text(hasLocation ? 'Eneo limechaguliwa' : 'Chagua eneo'),
+                label: Text(
+                  hasLocation
+                      ? mobileUi(context, 'Eneo limechaguliwa')
+                      : mobileUi(context, 'Chagua eneo'),
+                ),
               ),
             ),
             const SizedBox(width: 8),
             OutlinedButton.icon(
               onPressed: onFilter,
               icon: const Icon(Icons.tune_rounded, size: 18),
-              label: const Text('Chuja'),
+              label: const LocalizedUiText('Chuja'),
             ),
           ],
         ),
@@ -3227,141 +3262,18 @@ class _CategoryBrowseControls extends StatelessWidget {
         Row(
           children: <Widget>[
             Text(
-              'Matokeo $resultCount',
+              mobileUiFormat(context, "Matokeo {0}", [resultCount]),
               style: Theme.of(context).textTheme.labelLarge,
             ),
             const Spacer(),
             TextButton.icon(
               onPressed: onFilter,
               icon: const Icon(Icons.swap_vert_rounded, size: 18),
-              label: const Text('Panga kwa'),
+              label: const LocalizedUiText('Panga kwa'),
             ),
           ],
         ),
       ],
-    );
-  }
-}
-
-class _CategoryListingCard extends StatelessWidget {
-  const _CategoryListingCard({required this.listing, required this.repository});
-
-  final Map<String, dynamic> listing;
-  final CustomerPublicRepository repository;
-
-  @override
-  Widget build(BuildContext context) {
-    final String id = listing['listing_id']?.toString() ?? '';
-    final String title = listing['title']?.toString() ?? '-';
-    final String? image = listing['cover_url']?.toString();
-    final String location = listing['public_location_label']?.toString() ?? '-';
-    final String period = listing['price_period']?.toString() ?? '';
-    final num? price = num.tryParse(listing['price_amount']?.toString() ?? '');
-    final bool verified =
-        listing['agent_verification_status']?.toString() == 'approved';
-    return Card(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () =>
-            _openListingDetails(context, repository: repository, listingId: id),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: Stack(
-                fit: StackFit.expand,
-                children: <Widget>[
-                  if (image == null)
-                    Container(
-                      color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                      child: const Icon(Icons.image_outlined, size: 46),
-                    )
-                  else
-                    _NetworkMediaImage(
-                      imageUrl: image,
-                      cacheKey:
-                          listing['cover_storage_path']?.toString() ?? image,
-                      fit: BoxFit.cover,
-                    ),
-                  if (verified)
-                    const Positioned(
-                      left: 10,
-                      top: 10,
-                      child: KodimaliStatusBadge(
-                        label: 'Imethibitishwa',
-                        tone: KodimaliStatusTone.active,
-                      ),
-                    ),
-                  Positioned(
-                    right: 8,
-                    top: 8,
-                    child: AnimatedBuilder(
-                      animation: CustomerActivityStore.instance,
-                      builder: (BuildContext context, _) {
-                        final bool saved = CustomerActivityStore.instance
-                            .isSaved(id);
-                        return Material(
-                          color: Colors.white.withValues(alpha: 0.94),
-                          shape: const CircleBorder(),
-                          child: IconButton(
-                            onPressed: () => CustomerActivityStore.instance
-                                .toggleSaved(listing),
-                            icon: Icon(
-                              saved
-                                  ? Icons.favorite_rounded
-                                  : Icons.favorite_border_rounded,
-                              color: saved ? Colors.red : KodimaliColors.navy,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    'TZS ${price?.toStringAsFixed(0) ?? '-'} / $period',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: KodimaliColors.greenStrong,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Row(
-                    children: <Widget>[
-                      const Icon(Icons.location_on_outlined, size: 16),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          location,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -3407,6 +3319,55 @@ class PublicListingCard extends StatelessWidget {
       }
     } catch (_) {
       // The local favourite stays responsive and sync can retry after sign-in.
+    }
+  }
+
+  Future<void> _openWhatsApp(BuildContext context) async {
+    try {
+      final id = listing['listing_id'].toString();
+      final detail = await repository.fetchListingDetail(
+        id,
+        forceRefresh: true,
+      );
+      if (!context.mounted) return;
+      String? phone =
+          (detail['agent_summary'] as Map?)?['phone_number'] as String?;
+      if (phone == null && repository.savedContactAccess(id) != null) {
+        final verified = await repository.checkListingContactPayment(id);
+        phone = verified['phone_number'] as String?;
+      }
+      if (!context.mounted) return;
+      phone ??= await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (_) => _ListingContactUnlockScreen(
+          repository: repository,
+          listingId: id,
+          agentDisplayName:
+              listing['agent_display_name']?.toString() ?? 'Agent',
+        ),
+      );
+      if (!context.mounted || phone == null) return;
+      final uri = whatsAppUri(phone);
+      if (uri == null ||
+          !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: LocalizedUiText(
+                'WhatsApp is not available on this device.',
+              ),
+            ),
+          );
+        }
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: LocalizedUiText(_readableErrorMessage(error))),
+        );
+      }
     }
   }
 
@@ -3499,8 +3460,8 @@ class PublicListingCard extends StatelessWidget {
                     ),
                   ),
                   if (verified)
-                    const KodimaliStatusBadge(
-                      label: "Verified",
+                    KodimaliStatusBadge(
+                      label: mobileUi(context, "Verified"),
                       tone: KodimaliStatusTone.active,
                     )
                   else
@@ -3604,7 +3565,7 @@ class PublicListingCard extends StatelessWidget {
                             color: theme.colorScheme.primary,
                             shape: const CircleBorder(),
                             child: IconButton(
-                              tooltip: 'Chat with agent',
+                              tooltip: mobileUi(context, 'Chat with agent'),
                               color: theme.colorScheme.onPrimary,
                               icon: const Icon(
                                 Icons.chat_bubble_outline_rounded,
@@ -3618,6 +3579,24 @@ class PublicListingCard extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if (listing['has_whatsapp'] == true)
+                          Positioned(
+                            left: KodimaliSpacing.sm,
+                            bottom: KodimaliSpacing.sm,
+                            child: Material(
+                              color: const Color(0xff125f58),
+                              shape: const CircleBorder(),
+                              child: IconButton(
+                                tooltip: mobileUi(
+                                  context,
+                                  'Unlock agent WhatsApp',
+                                ),
+                                color: Colors.white,
+                                icon: const WhatsAppIcon(),
+                                onPressed: () => _openWhatsApp(context),
+                              ),
+                            ),
+                          ),
                         Positioned(
                           top: KodimaliSpacing.sm,
                           right: KodimaliSpacing.sm,
@@ -3731,10 +3710,12 @@ class PublicListingCard extends StatelessWidget {
                         icon: const Icon(Icons.calendar_month_outlined),
                         label: Text(
                           bookingMode == 'instant_booking'
-                              ? (context.isSwahili ? 'Book sasa' : 'Book Now')
+                              ? (context.isSwahili
+                                    ? mobileUi(context, 'Book sasa')
+                                    : mobileUi(context, 'Book Now'))
                               : (context.isSwahili
-                                    ? 'Tuma booking'
-                                    : 'Request Booking'),
+                                    ? mobileUi(context, 'Tuma booking')
+                                    : mobileUi(context, 'Request Booking')),
                         ),
                       ),
                     ),
@@ -3860,22 +3841,22 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     final String? value = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Price-drop alert'),
+        title: const LocalizedUiText('Price-drop alert'),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: 'Notify me at or below (TZS)',
+          decoration: InputDecoration(
+            labelText: mobileUi(context, 'Notify me at or below (TZS)'),
           ),
         ),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+            child: const LocalizedUiText('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, controller.text),
-            child: const Text('Save alert'),
+            child: const LocalizedUiText('Save alert'),
           ),
         ],
       ),
@@ -3885,9 +3866,9 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     }
     await account.setPriceAlert(widget.listingId, num.tryParse(value));
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Price alert saved.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: LocalizedUiText('Price alert saved.')),
+      );
     }
   }
 
@@ -3903,9 +3884,9 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     }
     await account.setCompared(widget.listingId, true);
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Added to comparison.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: LocalizedUiText('Added to comparison.')),
+      );
     }
   }
 
@@ -4099,10 +4080,12 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                 },
                 child: Text(
                   bookingMode == 'instant_booking'
-                      ? (context.isSwahili ? 'Book sasa' : 'Book Now')
+                      ? (context.isSwahili
+                            ? mobileUi(context, 'Book sasa')
+                            : mobileUi(context, 'Book Now'))
                       : (context.isSwahili
-                            ? 'Tuma booking'
-                            : 'Request Booking'),
+                            ? mobileUi(context, 'Tuma booking')
+                            : mobileUi(context, 'Request Booking')),
                 ),
               ),
             ),
@@ -4113,7 +4096,7 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                 child: OutlinedButton.icon(
                   onPressed: _addPriceAlert,
                   icon: const Icon(Icons.trending_down_outlined),
-                  label: const Text('Price alert'),
+                  label: const LocalizedUiText('Price alert'),
                 ),
               ),
               const SizedBox(width: 10),
@@ -4121,7 +4104,7 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                 child: OutlinedButton.icon(
                   onPressed: _addToComparison,
                   icon: const Icon(Icons.compare_arrows_outlined),
-                  label: const Text('Compare'),
+                  label: const LocalizedUiText('Compare'),
                 ),
               ),
             ],
@@ -4159,7 +4142,7 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                 ),
               ),
               icon: const Icon(Icons.chat_bubble_outline_rounded),
-              label: const Text('Chat with agent • 7-day access'),
+              label: const LocalizedUiText('Chat with agent • 7-day access'),
             ),
           ),
           if ((category?["slug"] as String?) == "farms") ...<Widget>[
@@ -4257,7 +4240,7 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                   }
                   return Padding(
                     padding: const EdgeInsets.only(top: KodimaliSpacing.md),
-                    child: _PromotionBlock(promotions: promotions),
+                    child: _SponsoredRemainder(promotions: promotions),
                   );
                 },
           ),
@@ -4884,8 +4867,8 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
           SnackBar(
             content: Text(
               context.isSwahili
-                  ? 'Ingia ili kukamilisha booking.'
-                  : 'Sign in to complete the booking.',
+                  ? mobileUi(context, 'Ingia ili kukamilisha booking.')
+                  : mobileUi(context, 'Sign in to complete the booking.'),
             ),
           ),
         );
@@ -4896,8 +4879,11 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
           SnackBar(
             content: Text(
               context.isSwahili
-                  ? 'Kagua bei na ukubali masharti kwanza.'
-                  : 'Review the price and accept the terms first.',
+                  ? mobileUi(context, 'Kagua bei na ukubali masharti kwanza.')
+                  : mobileUi(
+                      context,
+                      'Review the price and accept the terms first.',
+                    ),
             ),
           ),
         );
@@ -4967,7 +4953,7 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
     final bool isApartment = _isApartment;
     return Scaffold(
       appBar: AppBar(
-        title: Text("Booking"),
+        title: LocalizedUiText("Booking"),
         actions: const <Widget>[_LanguageSwitcherButton()],
       ),
       body: ListView(
@@ -4979,19 +4965,31 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  const KodimaliStatusBadge(
-                    label: "Booking",
+                  KodimaliStatusBadge(
+                    label: mobileUi(context, "Booking"),
                     tone: KodimaliStatusTone.active,
                   ),
                   const SizedBox(height: KodimaliSpacing.sm),
                   Text(
                     widget.bookingMode == 'instant_booking'
                         ? (context.isSwahili
-                              ? "Chagua muda, kagua bei, kisha book."
-                              : "Choose the period, review the price, then book.")
+                              ? mobileUi(
+                                  context,
+                                  "Chagua muda, kagua bei, kisha book.",
+                                )
+                              : mobileUi(
+                                  context,
+                                  "Choose the period, review the price, then book.",
+                                ))
                         : (context.isSwahili
-                              ? "Chagua muda na utume booking request."
-                              : "Choose the period and send a booking request."),
+                              ? mobileUi(
+                                  context,
+                                  "Chagua muda na utume booking request.",
+                                )
+                              : mobileUi(
+                                  context,
+                                  "Choose the period and send a booking request.",
+                                )),
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   if (widget.listingTitle.trim().isNotEmpty) ...<Widget>[
@@ -5014,7 +5012,7 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                   controller: _nameController,
                   decoration: InputDecoration(
                     labelText: context.tr("request.fullName"),
-                    helperText: "Mfano: Amina Said",
+                    helperText: mobileUi(context, "Mfano: Amina Said"),
                   ),
                   validator: (String? value) =>
                       value == null || value.trim().length < 2
@@ -5028,10 +5026,16 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                   decoration: InputDecoration(
                     labelText: isApartment
                         ? context.tr("request.email")
-                        : "${context.tr("request.email")} (${context.isSwahili ? "si lazima" : "optional"})",
+                        : "${context.tr("request.email")} (${context.isSwahili ? mobileUi(context, "si lazima") : mobileUi(context, "optional")})",
                     helperText: context.isSwahili
-                        ? "Weka email ili upokee taarifa za booking kwa maandishi."
-                        : "Add an email to receive written booking updates.",
+                        ? mobileUi(
+                            context,
+                            "Weka email ili upokee taarifa za booking kwa maandishi.",
+                          )
+                        : mobileUi(
+                            context,
+                            "Add an email to receive written booking updates.",
+                          ),
                   ),
                   validator: (String? value) {
                     final String text = value?.trim() ?? "";
@@ -5052,8 +5056,14 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                   decoration: InputDecoration(
                     labelText: context.tr("request.phoneOptional"),
                     helperText: context.isSwahili
-                        ? "Weka simu, email, au zote mbili ili upokee majibu ya booking."
-                        : "Add a phone, email, or both to receive a booking response.",
+                        ? mobileUi(
+                            context,
+                            "Weka simu, email, au zote mbili ili upokee majibu ya booking.",
+                          )
+                        : mobileUi(
+                            context,
+                            "Add a phone, email, or both to receive a booking response.",
+                          ),
                   ),
                   validator: (String? value) {
                     final String text = value?.trim() ?? "";
@@ -5154,8 +5164,14 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                             : _quote == null
                             ? Text(
                                 context.isSwahili
-                                    ? 'Chagua tarehe kuona bei.'
-                                    : 'Choose dates to see the price.',
+                                    ? mobileUi(
+                                        context,
+                                        'Chagua tarehe kuona bei.',
+                                      )
+                                    : mobileUi(
+                                        context,
+                                        'Choose dates to see the price.',
+                                      ),
                               )
                             : Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -5168,7 +5184,7 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
-                                    '${context.isSwahili ? 'Deposit sasa' : 'Deposit now'}: TZS ${_quote!['deposit_tzs']} · ${context.isSwahili ? 'Baadaye' : 'Later'}: TZS ${_quote!['balance_tzs']}',
+                                    '${context.isSwahili ? mobileUi(context, 'Deposit sasa') : mobileUi(context, 'Deposit now')}: TZS ${_quote!['deposit_tzs']} · ${context.isSwahili ? mobileUi(context, 'Baadaye') : mobileUi(context, 'Later')}: TZS ${_quote!['balance_tzs']}',
                                   ),
                                   CheckboxListTile(
                                     contentPadding: EdgeInsets.zero,
@@ -5178,8 +5194,14 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                                     ),
                                     title: Text(
                                       context.isSwahili
-                                          ? 'Nakubali bei na masharti ya cancellation.'
-                                          : 'I accept the price and cancellation terms.',
+                                          ? mobileUi(
+                                              context,
+                                              'Nakubali bei na masharti ya cancellation.',
+                                            )
+                                          : mobileUi(
+                                              context,
+                                              'I accept the price and cancellation terms.',
+                                            ),
                                     ),
                                     controlAffinity:
                                         ListTileControlAffinity.leading,
@@ -5206,12 +5228,14 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                     onPressed: _submitting ? null : _submit,
                     child: Text(
                       _submitting
-                          ? "Inatuma booking..."
+                          ? mobileUi(context, "Inatuma booking...")
                           : widget.bookingMode == 'instant_booking'
-                          ? (context.isSwahili ? 'Book sasa' : 'Book Now')
+                          ? (context.isSwahili
+                                ? mobileUi(context, 'Book sasa')
+                                : mobileUi(context, 'Book Now'))
                           : (context.isSwahili
-                                ? 'Tuma booking'
-                                : 'Request Booking'),
+                                ? mobileUi(context, 'Tuma booking')
+                                : mobileUi(context, 'Request Booking')),
                     ),
                   ),
                 ),
@@ -5236,7 +5260,7 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                           padding: const EdgeInsets.only(
                             top: KodimaliSpacing.md,
                           ),
-                          child: _PromotionBlock(promotions: promotions),
+                          child: _SponsoredRemainder(promotions: promotions),
                         );
                       },
                 ),
@@ -5274,16 +5298,16 @@ class RequestSuccessScreen extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    const KodimaliStatusBadge(
-                      label: "Booking",
+                    KodimaliStatusBadge(
+                      label: mobileUi(context, "Booking"),
                       tone: KodimaliStatusTone.active,
                     ),
                     const SizedBox(height: KodimaliSpacing.sm),
                     Text(
                       instantReservation
                           ? (context.isSwahili
-                                ? "Kamilisha deposit"
-                                : "Complete the deposit")
+                                ? mobileUi(context, "Kamilisha deposit")
+                                : mobileUi(context, "Complete the deposit"))
                           : context.tr("request.successTitle"),
                       style: Theme.of(context).textTheme.headlineSmall,
                       textAlign: TextAlign.center,
@@ -5292,8 +5316,14 @@ class RequestSuccessScreen extends StatelessWidget {
                     Text(
                       instantReservation
                           ? (context.isSwahili
-                                ? "Lipa deposit kuthibitisha booking yako."
-                                : "Pay the deposit to confirm your booking.")
+                                ? mobileUi(
+                                    context,
+                                    "Lipa deposit kuthibitisha booking yako.",
+                                  )
+                                : mobileUi(
+                                    context,
+                                    "Pay the deposit to confirm your booking.",
+                                  ))
                           : context.tr("request.successBody"),
                       textAlign: TextAlign.center,
                     ),
@@ -5322,7 +5352,7 @@ class RequestSuccessScreen extends StatelessWidget {
                             if (promotions.isEmpty) {
                               return const SizedBox.shrink();
                             }
-                            return _PromotionBlock(promotions: promotions);
+                            return _SponsoredRemainder(promotions: promotions);
                           },
                     ),
                     const SizedBox(height: KodimaliSpacing.lg),
@@ -5351,8 +5381,11 @@ class RequestSuccessScreen extends StatelessWidget {
                           label: Text(
                             instantReservation
                                 ? (context.isSwahili
-                                      ? 'Endelea kulipa'
-                                      : 'Continue to payment')
+                                      ? mobileUi(context, 'Endelea kulipa')
+                                      : mobileUi(
+                                          context,
+                                          'Continue to payment',
+                                        ))
                                 : context.tr('requests.track'),
                           ),
                         ),
@@ -5377,431 +5410,6 @@ class RequestSuccessScreen extends StatelessWidget {
   }
 }
 
-class LocationSelectorSheet extends StatefulWidget {
-  const LocationSelectorSheet({
-    super.key,
-    required this.repository,
-    this.initialRegionId,
-    this.initialDistrictId,
-    this.initialWardId,
-    this.initialAreaId,
-  });
-
-  final CustomerPublicRepository repository;
-  final String? initialRegionId;
-  final String? initialDistrictId;
-  final String? initialWardId;
-  final String? initialAreaId;
-
-  @override
-  State<LocationSelectorSheet> createState() => _LocationSelectorSheetState();
-}
-
-class _LocationSelectorSheetState extends State<LocationSelectorSheet> {
-  List<Map<String, dynamic>> _regions = <Map<String, dynamic>>[];
-  List<Map<String, dynamic>> _districts = <Map<String, dynamic>>[];
-  List<Map<String, dynamic>> _wards = <Map<String, dynamic>>[];
-  List<Map<String, dynamic>> _areas = <Map<String, dynamic>>[];
-  String? _regionId;
-  String? _districtId;
-  String? _wardId;
-  String? _areaId;
-  bool _loading = true;
-  bool _loadingChildren = false;
-  String? _errorMessage;
-
-  @override
-  void initState() {
-    super.initState();
-    _bootstrap();
-  }
-
-  Future<void> _bootstrap() async {
-    try {
-      _errorMessage = null;
-      final List<Map<String, dynamic>> countries = await widget.repository
-          .fetchLocations(parentId: null, locationType: "country");
-      List<Map<String, dynamic>> regions = <Map<String, dynamic>>[];
-      final String? countryId = countries.isNotEmpty
-          ? countries.first["id"] as String
-          : null;
-      if (countryId != null) {
-        regions = await widget.repository.fetchLocations(
-          parentId: countryId,
-          locationType: "region",
-        );
-      }
-      if (regions.isEmpty) {
-        regions = await widget.repository.fetchLocations(
-          parentId: null,
-          locationType: "region",
-        );
-      }
-      if (!mounted) {
-        return;
-      }
-      _regions = regions;
-      _regionId = _pickExistingId(_regions, widget.initialRegionId);
-      if (_regionId != null) {
-        await _loadDistricts(
-          _regionId!,
-          initialDistrictId: widget.initialDistrictId,
-          initialWardId: widget.initialWardId,
-          initialAreaId: widget.initialAreaId,
-        );
-      }
-      if (mounted) {
-        setState(() => _loading = false);
-      }
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _loading = false;
-        _errorMessage = _readableErrorMessage(error);
-      });
-    }
-  }
-
-  String? _pickExistingId(
-    List<Map<String, dynamic>> items,
-    String? requestedId,
-  ) {
-    if (requestedId == null) {
-      return null;
-    }
-    for (final Map<String, dynamic> item in items) {
-      if (item["id"] == requestedId) {
-        return requestedId;
-      }
-    }
-    return null;
-  }
-
-  Future<void> _loadDistricts(
-    String regionId, {
-    String? initialDistrictId,
-    String? initialWardId,
-    String? initialAreaId,
-  }) async {
-    setState(() {
-      _loadingChildren = true;
-      _districts = <Map<String, dynamic>>[];
-      _wards = <Map<String, dynamic>>[];
-      _areas = <Map<String, dynamic>>[];
-      _districtId = null;
-      _wardId = null;
-      _areaId = null;
-    });
-    try {
-      final List<Map<String, dynamic>> districts = await widget.repository
-          .fetchLocations(parentId: regionId, locationType: "district");
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _districts = districts;
-        _districtId = _pickExistingId(districts, initialDistrictId);
-        _errorMessage = null;
-        _loadingChildren = false;
-      });
-      if (_districtId != null) {
-        await _loadWards(
-          _districtId!,
-          initialWardId: initialWardId,
-          initialAreaId: initialAreaId,
-        );
-      }
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _loadingChildren = false;
-        _errorMessage = _readableErrorMessage(error);
-      });
-    }
-  }
-
-  Future<void> _loadWards(
-    String districtId, {
-    String? initialWardId,
-    String? initialAreaId,
-  }) async {
-    if (mounted) {
-      setState(() {
-        _loadingChildren = true;
-        _wards = <Map<String, dynamic>>[];
-        _areas = <Map<String, dynamic>>[];
-        _wardId = null;
-        _areaId = null;
-      });
-    }
-
-    try {
-      final List<Map<String, dynamic>> wards = await widget.repository
-          .fetchLocations(parentId: districtId, locationType: "ward");
-      final String? nextWardId = _pickExistingId(wards, initialWardId);
-      List<Map<String, dynamic>> areas = <Map<String, dynamic>>[];
-      if (nextWardId != null) {
-        areas = await widget.repository.fetchLocations(
-          parentId: nextWardId,
-          locationType: "area",
-        );
-      }
-
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _wards = wards;
-        _areas = areas;
-        _wardId = nextWardId;
-        _areaId = _pickExistingId(areas, initialAreaId);
-        _errorMessage = null;
-        _loadingChildren = false;
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _loadingChildren = false;
-        _errorMessage = _readableErrorMessage(error);
-      });
-    }
-  }
-
-  Future<void> _loadAreasForWard(String? wardId) async {
-    setState(() {
-      _loadingChildren = true;
-      _wardId = wardId;
-      _areas = <Map<String, dynamic>>[];
-      _areaId = null;
-    });
-    if (wardId == null) {
-      setState(() {
-        _loadingChildren = false;
-      });
-      return;
-    }
-    try {
-      final List<Map<String, dynamic>> areas = await widget.repository
-          .fetchLocations(parentId: wardId, locationType: "area");
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _areas = areas;
-        _errorMessage = null;
-        _loadingChildren = false;
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _loadingChildren = false;
-        _errorMessage = _readableErrorMessage(error);
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) {
-      return const Padding(
-        padding: EdgeInsets.all(24),
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-    if (_errorMessage != null) {
-      return Padding(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 20,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Text(context.tr("location.failed")),
-            const SizedBox(height: 8),
-            Text(
-              _errorMessage!,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () {
-                  setState(() => _loading = true);
-                  _bootstrap();
-                },
-                child: Text(context.tr("location.retry")),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          DropdownButtonFormField<String>(
-            initialValue: _regionId,
-            decoration: InputDecoration(
-              labelText: context.tr("location.region"),
-            ),
-            items: _regions
-                .map(
-                  (Map<String, dynamic> region) => DropdownMenuItem<String>(
-                    value: region["id"] as String,
-                    child: Text(region["name"] as String? ?? "-"),
-                  ),
-                )
-                .toList(),
-            onChanged: (String? value) async {
-              setState(() {
-                _regionId = value;
-                _districts = <Map<String, dynamic>>[];
-                _wards = <Map<String, dynamic>>[];
-                _areas = <Map<String, dynamic>>[];
-                _districtId = null;
-                _wardId = null;
-                _areaId = null;
-              });
-              if (value != null) {
-                await _loadDistricts(value);
-              }
-            },
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _districtId,
-            decoration: InputDecoration(
-              labelText: context.tr("location.district"),
-              helperText: context.tr("location.chooseOptional"),
-            ),
-            items: <DropdownMenuItem<String>>[
-              DropdownMenuItem<String>(
-                value: "",
-                child: Text(context.tr("location.clearDistrict")),
-              ),
-              ..._districts.map(
-                (Map<String, dynamic> district) => DropdownMenuItem<String>(
-                  value: district["id"] as String,
-                  child: Text(district["name"] as String? ?? "-"),
-                ),
-              ),
-            ],
-            onChanged: (String? value) async {
-              final String? nextDistrictId = value == null || value.isEmpty
-                  ? null
-                  : value;
-              setState(() {
-                _districtId = nextDistrictId;
-                _wards = <Map<String, dynamic>>[];
-                _areas = <Map<String, dynamic>>[];
-                _wardId = null;
-                _areaId = null;
-              });
-              if (nextDistrictId != null) {
-                await _loadWards(nextDistrictId);
-              }
-            },
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _wardId ?? "",
-            decoration: InputDecoration(
-              labelText: context.tr("location.ward"),
-              helperText: context.tr("location.chooseOptional"),
-            ),
-            items: <DropdownMenuItem<String>>[
-              DropdownMenuItem<String>(
-                value: "",
-                child: Text(context.tr("location.clearWard")),
-              ),
-              ..._wards.map(
-                (Map<String, dynamic> ward) => DropdownMenuItem<String>(
-                  value: ward["id"] as String,
-                  child: Text(ward["name"] as String? ?? "-"),
-                ),
-              ),
-            ],
-            onChanged: _districtId == null || _loadingChildren
-                ? null
-                : (String? value) {
-                    final String? nextWardId = value == null || value.isEmpty
-                        ? null
-                        : value;
-                    _loadAreasForWard(nextWardId);
-                  },
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _areaId ?? "",
-            decoration: InputDecoration(
-              labelText: context.tr("location.area"),
-              helperText: context.tr("location.chooseOptional"),
-            ),
-            items: <DropdownMenuItem<String>>[
-              DropdownMenuItem<String>(
-                value: "",
-                child: Text(context.tr("location.clearArea")),
-              ),
-              ..._areas.map(
-                (Map<String, dynamic> area) => DropdownMenuItem<String>(
-                  value: area["id"] as String,
-                  child: Text(area["name"] as String? ?? "-"),
-                ),
-              ),
-            ],
-            onChanged: _loadingChildren
-                ? null
-                : (String? value) {
-                    setState(() {
-                      _areaId = value == null || value.isEmpty ? null : value;
-                    });
-                  },
-          ),
-          if (_loadingChildren) ...<Widget>[
-            const SizedBox(height: 16),
-            const LinearProgressIndicator(),
-          ],
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: _regionId == null
-                  ? null
-                  : () => Navigator.of(context).pop(<String, String?>{
-                      "regionId": _regionId,
-                      "districtId": _districtId,
-                      "wardId": _wardId,
-                      "areaId": _areaId,
-                    }),
-              child: Text(context.tr("location.useThis")),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _FeedSection extends StatelessWidget {
   const _FeedSection({
     required this.title,
@@ -5820,7 +5428,7 @@ class _FeedSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (listings.isEmpty) {
-      return const SizedBox.shrink();
+      return _SponsoredRemainder(promotions: promotions);
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -5846,6 +5454,7 @@ List<Widget> _buildListingChildren({
   bool showAds = false,
 }) {
   final List<Widget> children = <Widget>[];
+  final layout = sponsoredLayout(promotions, listings.length);
   int promotionIndex = 0;
   for (int index = 0; index < listings.length; index += 1) {
     children.add(
@@ -5858,24 +5467,21 @@ List<Widget> _buildListingChildren({
       ),
     );
     final bool hasMoreListings = index < listings.length - 1;
-    if (promotions.isNotEmpty && (index + 1) % 3 == 0) {
-      final Map<String, dynamic> promotion =
-          promotions[promotionIndex % promotions.length];
+    if (promotionIndex < layout.inline.length &&
+        (index + 1) % listingsPerSponsoredCard == 0) {
+      final Map<String, dynamic> promotion = layout.inline[promotionIndex];
       promotionIndex += 1;
       children.add(
         _PromotionBlock(promotions: <Map<String, dynamic>>[promotion]),
       );
-    }
-    if (showAds && (index + 1) % 8 == 0 && hasMoreListings) {
+    } else if (showAds &&
+        (index + 1) % listingsPerSponsoredCard == 0 &&
+        hasMoreListings) {
       children.add(const CustomerNativeFeedAdCard());
     }
   }
-  // A campaign should still be visible when a category has fewer than the
-  // normal three-listing insertion interval.
-  if (promotions.isNotEmpty && promotionIndex == 0 && listings.isNotEmpty) {
-    children.add(
-      _PromotionBlock(promotions: <Map<String, dynamic>>[promotions.first]),
-    );
+  if (layout.remaining.isNotEmpty) {
+    children.add(_SponsoredRemainder(promotions: layout.remaining));
   }
   return children;
 }
@@ -6005,34 +5611,13 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
     _searchFocusNode.unfocus();
   }
 
-  List<PopupMenuEntry<String>> _buildCategoryMenuItems(BuildContext context) {
-    final List<PopupMenuEntry<String>> items = <PopupMenuEntry<String>>[
-      PopupMenuItem<String>(
-        value: "__all__",
-        child: Text(context.tr("nav.categories")),
-      ),
-    ];
-    if (widget.categoryMenuItems.isNotEmpty) {
-      items.add(const PopupMenuDivider());
-      items.addAll(
-        widget.categoryMenuItems.map(
-          (Map<String, dynamic> category) => PopupMenuItem<String>(
-            value: "slug:${category["slug"]}",
-            child: Text(category["name"] as String? ?? "-"),
-          ),
-        ),
-      );
-    }
-    return items;
-  }
-
   @override
   Widget build(BuildContext context) {
     const Color heroBlueDark = Color(0xFF0B1F3A);
     const Color heroBlueLight = Color(0xFF1F5D8F);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: <Color>[heroBlueDark, heroBlueLight],
@@ -6048,19 +5633,24 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Text(
-                "KODIMALI",
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.4,
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: LocalizedUiText(
+                    "KODIMALI",
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.4,
+                    ),
+                  ),
                 ),
               ),
-              const Spacer(),
               IconButton(
                 constraints: const BoxConstraints.tightFor(
-                  width: 32,
-                  height: 32,
+                  width: 48,
+                  height: 48,
                 ),
                 padding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,
@@ -6076,51 +5666,24 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
               const _LanguageSwitcherButton(compact: true),
             ],
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  SizedBox(
-                    width: 32,
-                    height: 32,
-                    child: PopupMenuButton<String>(
-                      tooltip: context.tr("nav.categories"),
-                      onSelected: (String value) {
-                        if (value == "__all__") {
-                          widget.onOpenCategoriesOverview();
-                          return;
-                        }
-                        final String slug = value.replaceFirst("slug:", "");
-                        for (final Map<String, dynamic> category
-                            in widget.categoryMenuItems) {
-                          if (category["slug"] == slug) {
-                            widget.onOpenCategory(category);
-                            return;
-                          }
-                        }
-                      },
-                      itemBuilder: (BuildContext context) =>
-                          _buildCategoryMenuItems(context),
-                      icon: const Icon(
-                        Icons.menu_rounded,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 4),
+              if (!_searchExpanded)
+                CustomerCategoryMenu(
+                  categories: widget.categoryMenuItems,
+                  onOpenAll: widget.onOpenCategoriesOverview,
+                  onOpenCategory: widget.onOpenCategory,
+                ),
+              if (!_searchExpanded) const SizedBox(width: 10),
               Expanded(
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: _searchExpanded ? null : _toggleSearch,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
-                    height: 32,
+                    height: 48,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(KodimaliRadii.input),
@@ -6129,6 +5692,7 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
                     child: Row(
                       children: <Widget>[
                         IconButton(
+                          tooltip: context.tr('search.label'),
                           onPressed: _searchExpanded
                               ? _submitSearch
                               : _toggleSearch,
@@ -6148,7 +5712,10 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
                               cursorColor: Colors.white,
                               decoration: InputDecoration(
                                 isDense: true,
+                                filled: false,
                                 border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
                                 hintText: context.tr("search.label"),
                                 hintStyle: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.7),
@@ -6157,15 +5724,16 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
                               ),
                             ),
                           )
-                        else
+                        else if (MediaQuery.sizeOf(context).width >= 360 &&
+                            MediaQuery.textScalerOf(context).scale(14) <= 18)
                           Expanded(
                             child: GestureDetector(
                               onTap: _toggleSearch,
                               child: Align(
                                 alignment: Alignment.centerLeft,
-                                child: Text(
+                                child: LocalizedUiText(
                                   "Search",
-                                  style: Theme.of(context).textTheme.bodySmall
+                                  style: Theme.of(context).textTheme.bodyMedium
                                       ?.copyWith(
                                         color: Colors.white.withValues(
                                           alpha: 0.78,
@@ -6204,8 +5772,8 @@ class _ThemeModeButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeMode current = context.themeMode;
     return SizedBox(
-      width: 32,
-      height: 32,
+      width: 48,
+      height: 48,
       child: PopupMenuButton<ThemeMode>(
         padding: EdgeInsets.zero,
         tooltip: context.tr('settings.appearance'),
@@ -6257,6 +5825,8 @@ class _LanguageSwitcherButton extends StatelessWidget {
         PopupMenuItem<String>(value: "en", child: Text(context.tr("lang.en"))),
       ],
       child: Container(
+        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+        alignment: Alignment.center,
         padding: EdgeInsets.symmetric(
           horizontal: compact ? 7 : 12,
           vertical: compact ? 6 : 10,
@@ -6273,7 +5843,7 @@ class _LanguageSwitcherButton extends StatelessWidget {
             if (!compact) const SizedBox(width: 8),
             if (!compact)
               Text(
-                swahili ? "SW" : "EN",
+                swahili ? mobileUi(context, "SW") : mobileUi(context, "EN"),
                 style: TextStyle(
                   color: compact ? null : Colors.white,
                   fontWeight: FontWeight.w700,
@@ -6298,141 +5868,312 @@ class _PublicHomeData {
   final List<Map<String, dynamic>> promotions;
 }
 
-class _PromotionBlock extends StatelessWidget {
+class CustomerSponsoredCards extends StatelessWidget {
+  const CustomerSponsoredCards({
+    super.key,
+    required this.promotions,
+    this.inline = false,
+  });
+  final List<Map<String, dynamic>> promotions;
+  final bool inline;
+  @override
+  Widget build(BuildContext context) => inline
+      ? _PromotionBlock(promotions: promotions)
+      : _SponsoredRemainder(promotions: promotions);
+}
+
+class _SponsoredRemainder extends StatelessWidget {
+  const _SponsoredRemainder({required this.promotions});
+  final List<Map<String, dynamic>> promotions;
+  @override
+  Widget build(BuildContext context) {
+    final ads = sponsoredLayout(promotions, 0).remaining;
+    if (ads.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 28, bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(),
+          const SizedBox(height: 12),
+          const LocalizedUiText('Sponsored by KODIMALI'),
+          if (ads.length > 1)
+            const LocalizedUiText(
+              'Swipe or scroll sideways to see all sponsored ads.',
+            ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = math.min(
+                constraints.maxWidth * (ads.length > 1 ? .86 : 1),
+                390.0,
+              );
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final ad in ads)
+                      Padding(
+                        key: ValueKey(ad['promotion_id']),
+                        padding: const EdgeInsets.only(right: 16),
+                        child: SizedBox(
+                          width: width,
+                          child: _PromotionBlock(promotions: [ad]),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PromotionBlock extends StatefulWidget {
   const _PromotionBlock({required this.promotions});
 
   final List<Map<String, dynamic>> promotions;
 
   @override
+  State<_PromotionBlock> createState() => _PromotionBlockState();
+}
+
+class _PromotionBlockState extends State<_PromotionBlock> {
+  @override
   Widget build(BuildContext context) {
-    return Column(
-      children: promotions.map((Map<String, dynamic> promotion) {
-        final String? mediaType = promotion["media_type"] as String?;
-        final String? mediaUrl = promotion["media_url"] as String?;
-        final String? thumbnailUrl = promotion["thumbnail_url"] as String?;
-        final String? mediaPath = promotion["media_path"] as String?;
-        final String? thumbnailPath = promotion["thumbnail_path"] as String?;
-        final String description = promotion["description"] as String? ?? "";
-        final String ctaLabel =
-            (promotion["cta_label"] as String?)?.trim().isNotEmpty == true
-            ? (promotion["cta_label"] as String).trim()
-            : "Open promotion";
-        final Uri? targetUri = Uri.tryParse(
-          promotion["target_url"] as String? ?? "",
-        );
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(KodimaliRadii.card),
-              border: Border.all(
-                color: Theme.of(context).colorScheme.outlineVariant,
-              ),
-              boxShadow: KodimaliShadows.soft(KodimaliColors.navy),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(KodimaliSpacing.md),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
+    final promotions = widget.promotions;
+    return Theme(
+      data: KodimaliTheme.dark(),
+      child: Builder(
+        builder: (context) => Column(
+          children: [
+            ...promotions.map((Map<String, dynamic> promotion) {
+              final String? mediaType = promotion["media_type"] as String?;
+              final String? mediaUrl = promotion["media_url"] as String?;
+              final String? thumbnailUrl =
+                  promotion["thumbnail_url"] as String?;
+              final String? mediaPath = promotion["media_path"] as String?;
+              final String? thumbnailPath =
+                  promotion["thumbnail_path"] as String?;
+              final String description =
+                  promotion["description"] as String? ?? "";
+              final String ctaLabel =
+                  (promotion["cta_label"] as String?)?.trim().isNotEmpty == true
+                  ? (promotion["cta_label"] as String).trim()
+                  : "Open promotion";
+              final requested = Uri.tryParse(
+                promotion["target_url"] as String? ?? '',
+              );
+              final hasTarget =
+                  requested != null &&
+                  {'http', 'https'}.contains(requested.scheme);
+              final targetUri = hasTarget
+                  ? requested
+                  : Uri.parse('https://kodimali.com/listings');
+              Future<void> openPromotion() async {
+                recordCustomerPromotion(
+                  promotion['promotion_id'].toString(),
+                  'click',
+                );
+                if (!hasTarget) {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => Scaffold(
+                        appBar: AppBar(
+                          title: const LocalizedUiText('Browse listings'),
                         ),
-                        decoration: BoxDecoration(
-                          color: KodimaliColors.navy,
-                          borderRadius: BorderRadius.circular(999),
+                        body: PublicSearchScreen(
+                          repository: CustomerPublicRepository(
+                            Supabase.instance.client,
+                          ),
+                          regionId: null,
+                          districtId: null,
+                          wardId: null,
+                          areaId: null,
+                          latitude: null,
+                          longitude: null,
+                          refreshTick: 0,
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            const Icon(
-                              Icons.campaign_rounded,
-                              size: 15,
-                              color: Colors.white,
+                      ),
+                    ),
+                  );
+                } else {
+                  final opened = await launchUrl(
+                    targetUri,
+                    mode: LaunchMode.externalApplication,
+                  );
+                  if (!opened && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: LocalizedUiText(
+                          'Could not open this promotion. Please try again.',
+                        ),
+                      ),
+                    );
+                  }
+                }
+              }
+
+              return PromotionExposure(
+                key: ValueKey(promotion['promotion_id']),
+                promotionId: promotion['promotion_id'].toString(),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          KodimaliColors.blueSurfaceStrong,
+                          KodimaliColors.navy,
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(KodimaliRadii.card),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                      boxShadow: KodimaliShadows.soft(KodimaliColors.navy),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(KodimaliSpacing.md),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Row(
+                            children: <Widget>[
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: KodimaliColors.navy,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    const Icon(
+                                      Icons.campaign_rounded,
+                                      size: 15,
+                                      color: Colors.white,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      context.tr("promotion.label"),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelMedium
+                                          ?.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Spacer(),
+                              Icon(
+                                mediaType == "video"
+                                    ? Icons.videocam_outlined
+                                    : Icons.photo_outlined,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                            ],
+                          ),
+                          if (mediaUrl != null) ...<Widget>[
+                            const SizedBox(height: KodimaliSpacing.sm),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(
+                                KodimaliRadii.card,
+                              ),
+                              child: AspectRatio(
+                                aspectRatio: 1,
+                                child: mediaType == "video"
+                                    ? _TapToPlayPromotionVideo(
+                                        key: ValueKey(mediaUrl),
+                                        videoUrl: mediaUrl,
+                                        cacheKey: mediaPath ?? mediaUrl,
+                                        thumbnailUrl: thumbnailUrl,
+                                        thumbnailCacheKey:
+                                            thumbnailPath ??
+                                            thumbnailUrl ??
+                                            mediaUrl,
+                                      )
+                                    : GestureDetector(
+                                        onTap: openPromotion,
+                                        child: _NetworkMediaImage(
+                                          imageUrl: mediaUrl,
+                                          cacheKey: mediaPath ?? mediaUrl,
+                                          fit: BoxFit.contain,
+                                        ),
+                                      ),
+                              ),
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              context.tr("promotion.label"),
-                              style: Theme.of(context).textTheme.labelMedium
-                                  ?.copyWith(
+                          ] else ...<Widget>[
+                            const SizedBox(height: KodimaliSpacing.sm),
+                            AspectRatio(
+                              aspectRatio: 1,
+                              child: ColoredBox(
+                                color: KodimaliColors.navy,
+                                child: Center(
+                                  child: Icon(
+                                    Icons.campaign_rounded,
                                     color: Colors.white,
-                                    fontWeight: FontWeight.w700,
+                                    size: 48,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: KodimaliSpacing.sm),
+                          Text(
+                            promotion["title"] as String? ??
+                                context.tr("promotion.titleFallback"),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          if (description.isNotEmpty) ...<Widget>[
+                            const SizedBox(height: KodimaliSpacing.xs),
+                            Text(
+                              description,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                   ),
                             ),
                           ],
-                        ),
-                      ),
-                      const Spacer(),
-                      Icon(
-                        mediaType == "video"
-                            ? Icons.videocam_outlined
-                            : Icons.photo_outlined,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ],
-                  ),
-                  if (mediaUrl != null) ...<Widget>[
-                    const SizedBox(height: KodimaliSpacing.sm),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(KodimaliRadii.card),
-                      child: AspectRatio(
-                        aspectRatio: 16 / 9,
-                        child: mediaType == "video"
-                            ? _TapToPlayPromotionVideo(
-                                videoUrl: mediaUrl,
-                                cacheKey: mediaPath ?? mediaUrl,
-                                thumbnailUrl: thumbnailUrl,
-                                thumbnailCacheKey:
-                                    thumbnailPath ?? thumbnailUrl ?? mediaUrl,
-                              )
-                            : _NetworkMediaImage(
-                                imageUrl: mediaUrl,
-                                cacheKey: mediaPath ?? mediaUrl,
-                                fit: BoxFit.cover,
+                          const SizedBox(height: KodimaliSpacing.sm),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: openPromotion,
+                              icon: const Icon(Icons.open_in_new_rounded),
+                              label: LocalizedUiText(
+                                hasTarget ? ctaLabel : "Browse listings",
                               ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                  const SizedBox(height: KodimaliSpacing.sm),
-                  Text(
-                    promotion["title"] as String? ??
-                        context.tr("promotion.titleFallback"),
-                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  if (description.isNotEmpty) ...<Widget>[
-                    const SizedBox(height: KodimaliSpacing.xs),
-                    Text(
-                      description,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: KodimaliSpacing.sm),
-                  if (targetUri != null &&
-                      <String>{"http", "https"}.contains(targetUri.scheme))
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: () => launchUrl(
-                          targetUri,
-                          mode: LaunchMode.externalApplication,
-                        ),
-                        icon: const Icon(Icons.open_in_new_rounded),
-                        label: Text(ctaLabel),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }).toList(),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -6506,17 +6247,14 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard> {
   }
 
   Future<void> _whatsApp(String phone) async {
-    final String normalized = phone
-        .replaceAll(RegExp(r'[^0-9]'), '')
-        .replaceFirst(RegExp(r'^0'), '255');
-    final bool opened = await launchUrl(
-      Uri.parse('https://wa.me/$normalized'),
-      mode: LaunchMode.externalApplication,
-    );
+    final uri = whatsAppUri(phone);
+    final opened =
+        uri != null &&
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!opened && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('WhatsApp is not available on this device.'),
+          content: LocalizedUiText('WhatsApp is not available on this device.'),
         ),
       );
     }
@@ -6653,7 +6391,7 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard> {
                           children: <Widget>[
                             IconButton(
                               onPressed: () => _call(visiblePhoneNumber),
-                              tooltip: 'Call',
+                              tooltip: mobileUi(context, 'Call'),
                               icon: const Icon(Icons.call_rounded),
                             ),
                             Expanded(
@@ -6667,7 +6405,7 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard> {
                             ),
                             IconButton(
                               onPressed: () => _whatsApp(visiblePhoneNumber),
-                              tooltip: 'WhatsApp',
+                              tooltip: mobileUi(context, 'WhatsApp'),
                               icon: const Icon(
                                 Icons.chat_rounded,
                                 color: Color(0xFF25D366),
@@ -6720,24 +6458,32 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard> {
                 Chip(
                   avatar: const Icon(Icons.speed_rounded, size: 18),
                   label: Text(
-                    '${agentSummary['response_minutes'] ?? '-'} min response',
+                    mobileUiFormat(context, "{0} min response", [
+                      agentSummary['response_minutes'] ?? '-',
+                    ]),
                   ),
                 ),
                 Chip(
                   avatar: const Icon(Icons.task_alt_rounded, size: 18),
-                  label: Text('${agentSummary['completed'] ?? 0} completed'),
+                  label: Text(
+                    mobileUiFormat(context, "{0} completed", [
+                      agentSummary['completed'] ?? 0,
+                    ]),
+                  ),
                 ),
                 Chip(
                   avatar: const Icon(Icons.calendar_today_outlined, size: 18),
                   label: Text(
-                    '${agentSummary['account_age_days'] ?? 0} days on KODIMALI',
+                    mobileUiFormat(context, "{0} days on KODIMALI", [
+                      agentSummary['account_age_days'] ?? 0,
+                    ]),
                   ),
                 ),
                 if (agentSummary['plan'] == 'pro' ||
                     agentSummary['plan'] == 'business')
                   const Chip(
                     avatar: Icon(Icons.workspace_premium, size: 18),
-                    label: Text('Priority agent'),
+                    label: LocalizedUiText('Priority agent'),
                   ),
               ],
             ),
@@ -7100,7 +6846,7 @@ class _ListingContactUnlockScreenState
                       const SizedBox(height: KodimaliSpacing.xs),
                       TextButton(
                         onPressed: _startAgain,
-                        child: const Text("Start a new payment"),
+                        child: const LocalizedUiText("Start a new payment"),
                       ),
                     ],
                   ),
@@ -7141,7 +6887,10 @@ class _CustomerAgentAvatar extends StatelessWidget {
           ? null
           : NetworkImage(imageUrl!),
       child: imageUrl == null || imageUrl!.isEmpty
-          ? Text((fallbackText.isEmpty ? "A" : fallbackText[0]).toUpperCase())
+          ? Text(
+              (fallbackText.isEmpty ? mobileUi(context, "A") : fallbackText[0])
+                  .toUpperCase(),
+            )
           : null,
     );
     if (!verified) {
@@ -7491,6 +7240,7 @@ class _HighlightTile extends StatelessWidget {
 
 class _TapToPlayPromotionVideo extends StatefulWidget {
   const _TapToPlayPromotionVideo({
+    super.key,
     required this.videoUrl,
     required this.cacheKey,
     this.thumbnailUrl,
@@ -7511,18 +7261,33 @@ class _TapToPlayPromotionVideoState extends State<_TapToPlayPromotionVideo> {
   VideoPlayerController? _controller;
   Future<void>? _initialization;
   bool _muted = true;
+  bool _visible = false;
+  void _visibilityChanged(bool visible) {
+    if (!mounted || visible == _visible) return;
+    _visible = visible;
+    if (visible && _initialization == null) {
+      setState(() {
+        _initialization = _initialize();
+      });
+    } else if (_controller?.value.isInitialized == true) {
+      if (visible) {
+        unawaited(_controller!.play());
+      } else {
+        unawaited(_controller!.pause());
+      }
+    }
+  }
 
   Future<void> _initialize() async {
-    final File mediaFile = await CustomerMediaCacheManager.instance
-        .getSingleFile(widget.videoUrl, key: widget.cacheKey);
-    final VideoPlayerController controller = VideoPlayerController.file(
-      mediaFile,
+    final VideoPlayerController controller = VideoPlayerController.networkUrl(
+      Uri.parse(widget.videoUrl),
     );
     _controller = controller;
     await controller.initialize();
+    if (!mounted) return;
     await controller.setLooping(true);
     await controller.setVolume(0);
-    await controller.play();
+    if (_visible) await controller.play();
   }
 
   @override
@@ -7574,7 +7339,7 @@ class _TapToPlayPromotionVideoState extends State<_TapToPlayPromotionVideo> {
                 widget.thumbnailCacheKey ??
                 widget.thumbnailUrl ??
                 widget.videoUrl,
-            fit: BoxFit.cover,
+            fit: BoxFit.contain,
           )
         else
           Container(color: Colors.black12),
@@ -7591,90 +7356,95 @@ class _TapToPlayPromotionVideoState extends State<_TapToPlayPromotionVideo> {
       ],
     );
 
-    return FutureBuilder<void>(
-      future: _initialization,
-      builder: (BuildContext context, AsyncSnapshot<void> snapshot) {
-        final VideoPlayerController? controller = _controller;
-        if (_initialization == null) {
-          return GestureDetector(onTap: _togglePlayPause, child: placeholder);
-        }
-        if (snapshot.connectionState != ConnectionState.done) {
-          return placeholder;
-        }
-        if (snapshot.hasError || controller == null) {
-          return GestureDetector(onTap: _togglePlayPause, child: placeholder);
-        }
+    return PromotionExposure(
+      promotionId: '',
+      trackImpression: false,
+      onVisibilityChanged: _visibilityChanged,
+      child: FutureBuilder<void>(
+        future: _initialization,
+        builder: (BuildContext context, AsyncSnapshot<void> snapshot) {
+          final VideoPlayerController? controller = _controller;
+          if (_initialization == null) {
+            return GestureDetector(onTap: _togglePlayPause, child: placeholder);
+          }
+          if (snapshot.connectionState != ConnectionState.done) {
+            return placeholder;
+          }
+          if (snapshot.hasError || controller == null) {
+            return GestureDetector(onTap: _togglePlayPause, child: placeholder);
+          }
 
-        return GestureDetector(
-          onTap: _togglePlayPause,
-          child: Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
-              FittedBox(
-                fit: BoxFit.cover,
-                clipBehavior: Clip.hardEdge,
-                child: SizedBox(
-                  width: controller.value.size.width,
-                  height: controller.value.size.height,
-                  child: VideoPlayer(controller),
+          return GestureDetector(
+            onTap: _togglePlayPause,
+            child: Stack(
+              fit: StackFit.expand,
+              children: <Widget>[
+                FittedBox(
+                  fit: BoxFit.contain,
+                  clipBehavior: Clip.hardEdge,
+                  child: SizedBox(
+                    width: controller.value.size.width,
+                    height: controller.value.size.height,
+                    child: VideoPlayer(controller),
+                  ),
                 ),
-              ),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: <Color>[
-                      Colors.black.withValues(alpha: 0.10),
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.38),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: <Color>[
+                        Colors.black.withValues(alpha: 0.10),
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.38),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: 12,
+                  top: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      context.tr("media.tapToPlay"),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: Row(
+                    children: <Widget>[
+                      _MediaActionButton(
+                        icon: _muted
+                            ? Icons.volume_off_rounded
+                            : Icons.volume_up_rounded,
+                        onTap: _toggleMuted,
+                      ),
+                      const SizedBox(width: 8),
+                      _MediaActionButton(
+                        icon: controller.value.isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        onTap: _togglePlayPause,
+                      ),
                     ],
                   ),
                 ),
-              ),
-              Positioned(
-                left: 12,
-                top: 12,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    context.tr("media.tapToPlay"),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 12,
-                bottom: 12,
-                child: Row(
-                  children: <Widget>[
-                    _MediaActionButton(
-                      icon: _muted
-                          ? Icons.volume_off_rounded
-                          : Icons.volume_up_rounded,
-                      onTap: _toggleMuted,
-                    ),
-                    const SizedBox(width: 8),
-                    _MediaActionButton(
-                      icon: controller.value.isPlaying
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                      onTap: _togglePlayPause,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }

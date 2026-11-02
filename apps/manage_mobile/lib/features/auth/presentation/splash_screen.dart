@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shared_constants/shared_constants.dart';
+import 'package:flutter_design_system/flutter_design_system.dart';
+import 'package:flutter_core/localized_ui.dart';
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
@@ -7,22 +8,7 @@ class SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Text(appName, style: Theme.of(context).textTheme.displaySmall),
-            const SizedBox(height: 12),
-            Text(
-              appTagline,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-            const SizedBox(height: 24),
-            const CircularProgressIndicator(),
-          ],
-        ),
-      ),
+      body: KodimaliLoading(label: mobileUi(context, 'Loading...')),
     );
   }
 }

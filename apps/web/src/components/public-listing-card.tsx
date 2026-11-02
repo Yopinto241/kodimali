@@ -1,3 +1,4 @@
+import { UiText } from "@/components/ui-text";
 import Link from "next/link";
 import { DirectMediaImage } from "@/components/direct-media-image";
 import { SquareMediaVideo } from "@/components/square-media-video";
@@ -16,6 +17,7 @@ type Listing = {
   featured?: boolean;
   featured_placement?: string | null;
   booking_mode?: "not_bookable" | "request_booking" | "instant_booking";
+  has_whatsapp?: boolean;
 };
 
 const reservableCategories = new Set([
@@ -60,23 +62,22 @@ export function PublicListingCard({
               priority={priority}
             />
           ) : (
-            <div className="listing-card-empty">Hakuna picha</div>
+            <div className="listing-card-empty"><UiText text={"Hakuna picha"} /></div>
           )}
           <div className="listing-card-shade" />
           <div className="listing-card-badges">
-            <span>{listing.category_name}</span>
-            {listing.featured ? <span>Featured</span> : null}
+            <span><UiText text={listing.category_name} /></span>
+            {listing.featured ? <span><UiText text={"Featured"} /></span> : null}
           </div>
           <span className="listing-card-price">
-            TZS {formattedPrice} / {listing.price_period}
+            TZS {formattedPrice} / <UiText text={listing.price_period} />
           </span>
           <div className="listing-card-copy">
             <h3>{listing.title}</h3>
             <p>{listing.public_location_label}</p>
           </div>
         </div>
-        <p className="listing-card-link">
-          Tazama mali <span aria-hidden="true">→</span>
+        <p className="listing-card-link"><UiText text={"Tazama mali"} /><span aria-hidden="true">→</span>
         </p>
       </Link>
       <ListingActions
@@ -85,6 +86,7 @@ export function PublicListingCard({
           canBook ? `/listing/${listing.listing_id}#booking` : undefined
         }
         bookingMode={bookingMode}
+        hasWhatsApp={listing.has_whatsapp}
       />
     </article>
   );

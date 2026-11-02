@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
@@ -57,7 +58,7 @@ class _ApplyAgentScreenState extends State<ApplyAgentScreen> {
     }
     if (_document == null || _document!.bytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Pakia kitambulisho au hati.")),
+        const SnackBar(content: LocalizedUiText("Pakia kitambulisho au hati.")),
       );
       return;
     }
@@ -79,7 +80,9 @@ class _ApplyAgentScreenState extends State<ApplyAgentScreen> {
       }
       messenger.showSnackBar(
         const SnackBar(
-          content: Text("Application submitted. Awaiting admin verification."),
+          content: LocalizedUiText(
+            "Application submitted. Awaiting admin verification.",
+          ),
         ),
       );
     } catch (error) {
@@ -98,7 +101,7 @@ class _ApplyAgentScreenState extends State<ApplyAgentScreen> {
   Widget build(BuildContext context) {
     final profile = AppScope.of(context).controller.profile;
     return Scaffold(
-      appBar: AppBar(title: const Text("Apply to become an agent")),
+      appBar: AppBar(title: const LocalizedUiText("Apply to become an agent")),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -108,18 +111,22 @@ class _ApplyAgentScreenState extends State<ApplyAgentScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 Text(
-                  "Karibu ${profile?.fullName ?? ''}",
+                  mobileUiFormat(context, "Karibu {0}", [
+                    profile?.fullName ?? '',
+                  ]),
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 8),
-                Text(
+                LocalizedUiText(
                   "Ukishaomba kuwa wakala, admin atahakiki taarifa zako kabla ya kukupa dashboard ya uendeshaji.",
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
                 const SizedBox(height: 24),
                 TextFormField(
                   controller: _businessNameController,
-                  decoration: const InputDecoration(labelText: "Business name"),
+                  decoration: InputDecoration(
+                    labelText: mobileUi(context, "Business name"),
+                  ),
                   validator: (String? value) {
                     if (value == null || value.trim().isEmpty) {
                       return "Weka jina la biashara.";
@@ -131,7 +138,9 @@ class _ApplyAgentScreenState extends State<ApplyAgentScreen> {
                 TextFormField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: "Phone number"),
+                  decoration: InputDecoration(
+                    labelText: mobileUi(context, "Phone number"),
+                  ),
                   validator: (String? value) {
                     if (value == null || value.trim().length < 8) {
                       return "Weka namba sahihi.";
@@ -143,8 +152,11 @@ class _ApplyAgentScreenState extends State<ApplyAgentScreen> {
                 TextFormField(
                   controller: _descriptionController,
                   maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: "Business description (optional)",
+                  decoration: InputDecoration(
+                    labelText: mobileUi(
+                      context,
+                      "Business description (optional)",
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -153,7 +165,10 @@ class _ApplyAgentScreenState extends State<ApplyAgentScreen> {
                   icon: const Icon(Icons.upload_file_outlined),
                   label: Text(
                     _document == null
-                        ? "Upload ID or verification document"
+                        ? mobileUi(
+                            context,
+                            "Upload ID or verification document",
+                          )
                         : _document!.name,
                   ),
                 ),
@@ -163,7 +178,9 @@ class _ApplyAgentScreenState extends State<ApplyAgentScreen> {
                   child: FilledButton(
                     onPressed: _submitting ? null : _submit,
                     child: Text(
-                      _submitting ? "Inatuma ombi..." : "Submit application",
+                      _submitting
+                          ? mobileUi(context, "Inatuma ombi...")
+                          : mobileUi(context, "Submit application"),
                     ),
                   ),
                 ),

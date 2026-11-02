@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -77,7 +78,13 @@ class _EventLocationPickerState extends State<_EventLocationPicker> {
   Widget build(BuildContext context) {
     final sw = widget.swahili;
     return Scaffold(
-      appBar: AppBar(title: Text(sw ? 'Chagua eneo' : 'Choose location')),
+      appBar: AppBar(
+        title: Text(
+          sw
+              ? mobileUi(context, 'Chagua eneo')
+              : mobileUi(context, 'Choose location'),
+        ),
+      ),
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -86,7 +93,9 @@ class _EventLocationPickerState extends State<_EventLocationPicker> {
                 DropdownButtonFormField<String>(
                   initialValue: regionId,
                   decoration: InputDecoration(
-                    labelText: sw ? 'Mkoa' : 'Region',
+                    labelText: sw
+                        ? mobileUi(context, 'Mkoa')
+                        : mobileUi(context, 'Region'),
                   ),
                   items: regions
                       .map(
@@ -112,8 +121,8 @@ class _EventLocationPickerState extends State<_EventLocationPicker> {
                   initialValue: districtId,
                   decoration: InputDecoration(
                     labelText: sw
-                        ? 'Wilaya (si lazima)'
-                        : 'District (optional)',
+                        ? mobileUi(context, 'Wilaya (si lazima)')
+                        : mobileUi(context, 'District (optional)'),
                   ),
                   items: districts
                       .map(
@@ -146,7 +155,9 @@ class _EventLocationPickerState extends State<_EventLocationPicker> {
                 DropdownButtonFormField<String>(
                   initialValue: wardId,
                   decoration: InputDecoration(
-                    labelText: sw ? 'Kata (si lazima)' : 'Ward (optional)',
+                    labelText: sw
+                        ? mobileUi(context, 'Kata (si lazima)')
+                        : mobileUi(context, 'Ward (optional)'),
                   ),
                   items: wards
                       .map(
@@ -171,7 +182,9 @@ class _EventLocationPickerState extends State<_EventLocationPicker> {
                 DropdownButtonFormField<String>(
                   initialValue: areaId,
                   decoration: InputDecoration(
-                    labelText: sw ? 'Eneo (si lazima)' : 'Area (optional)',
+                    labelText: sw
+                        ? mobileUi(context, 'Eneo (si lazima)')
+                        : mobileUi(context, 'Area (optional)'),
                   ),
                   items: areas
                       .map(
@@ -203,7 +216,11 @@ class _EventLocationPickerState extends State<_EventLocationPicker> {
                             _EventLocationSelection(id, names.join(', ')),
                           );
                         },
-                  child: Text(sw ? 'Tumia eneo hili' : 'Use this location'),
+                  child: Text(
+                    sw
+                        ? mobileUi(context, 'Tumia eneo hili')
+                        : mobileUi(context, 'Use this location'),
+                  ),
                 ),
               ],
             ),
@@ -361,7 +378,11 @@ class _EventsProviderWorkspaceScreenState
     final sw = context.isSwahili;
     return Scaffold(
       appBar: AppBar(
-        title: Text(sw ? 'Usimamizi wa Matukio' : 'Events workspace'),
+        title: Text(
+          sw
+              ? mobileUi(context, 'Usimamizi wa Matukio')
+              : mobileUi(context, 'Events workspace'),
+        ),
         actions: <Widget>[
           IconButton(
             onPressed: serviceProfile == null ? _registerService : _addOffering,
@@ -380,13 +401,21 @@ class _EventsProviderWorkspaceScreenState
           ? FloatingActionButton.extended(
               onPressed: _addEquipment,
               icon: const Icon(Icons.add),
-              label: Text(sw ? 'Ongeza vifaa' : 'Add equipment'),
+              label: Text(
+                sw
+                    ? mobileUi(context, 'Ongeza vifaa')
+                    : mobileUi(context, 'Add equipment'),
+              ),
             )
           : serviceProfile == null
           ? FloatingActionButton.extended(
               onPressed: _registerService,
               icon: const Icon(Icons.person_add_alt),
-              label: Text(sw ? 'Sajili huduma' : 'Register service'),
+              label: Text(
+                sw
+                    ? mobileUi(context, 'Sajili huduma')
+                    : mobileUi(context, 'Register service'),
+              ),
             )
           : null,
       body: loading
@@ -407,7 +436,7 @@ class _EventsProviderWorkspaceScreenState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        const Text(
+                        const LocalizedUiText(
                           'KODIMALI EVENTS',
                           style: TextStyle(
                             color: Color(0xFFD6A75B),
@@ -417,8 +446,14 @@ class _EventsProviderWorkspaceScreenState
                         const SizedBox(height: 8),
                         Text(
                           sw
-                              ? 'Vifaa, huduma na ratiba zako'
-                              : 'Your equipment, services and schedules',
+                              ? mobileUi(
+                                  context,
+                                  'Vifaa, huduma na ratiba zako',
+                                )
+                              : mobileUi(
+                                  context,
+                                  'Your equipment, services and schedules',
+                                ),
                           style: Theme.of(context).textTheme.headlineSmall
                               ?.copyWith(
                                 color: Colors.white,
@@ -431,7 +466,7 @@ class _EventsProviderWorkspaceScreenState
                   if (error != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 16),
-                      child: Text(error!),
+                      child: LocalizedUiText(error!),
                     ),
                   _section(
                     sw ? 'Vifaa vyangu' : 'My equipment',
@@ -461,15 +496,20 @@ class _EventsProviderWorkspaceScreenState
                               ),
                             ),
                             Text(
-                              sw ? 'Maeneo ya huduma' : 'Service areas',
+                              sw
+                                  ? mobileUi(context, 'Maeneo ya huduma')
+                                  : mobileUi(context, 'Service areas'),
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             const SizedBox(height: 8),
                             if (serviceAreas.isEmpty)
                               Text(
                                 sw
-                                    ? 'Hakuna eneo lililowekwa.'
-                                    : 'No service area set.',
+                                    ? mobileUi(
+                                        context,
+                                        'Hakuna eneo lililowekwa.',
+                                      )
+                                    : mobileUi(context, 'No service area set.'),
                               ),
                             ...serviceAreas.map((row) {
                               final location = row['locations'] as Map?;
@@ -490,8 +530,8 @@ class _EventsProviderWorkspaceScreenState
                               icon: const Icon(Icons.add_location_alt_outlined),
                               label: Text(
                                 sw
-                                    ? 'Ongeza eneo la huduma'
-                                    : 'Add service area',
+                                    ? mobileUi(context, 'Ongeza eneo la huduma')
+                                    : mobileUi(context, 'Add service area'),
                               ),
                             ),
                           ],
@@ -530,10 +570,20 @@ class _EventsProviderWorkspaceScreenState
                   (row['name'] ?? row['status'] ?? row['id']).toString(),
                 ),
                 subtitle: Text(
-                  (row['verification_status'] ?? row['status'] ?? '')
+                  (row['publication_status'] ??
+                          row['verification_status'] ??
+                          row['status'] ??
+                          '')
                       .toString()
                       .replaceAll('_', ' '),
                 ),
+                trailing: row['owner_id'] != null
+                    ? IconButton(
+                        onPressed: () => _retryEquipmentImage(row),
+                        icon: const Icon(Icons.add_photo_alternate_outlined),
+                        tooltip: mobileUi(context, 'Add or retry photo'),
+                      )
+                    : null,
               ),
             ),
           ),
@@ -573,27 +623,131 @@ class _EventsProviderWorkspaceScreenState
               child: ListTile(
                 title: Text((plan?['reference'] ?? row['id']).toString()),
                 subtitle: Text('${row['_request_kind']} · ${row['status']}'),
-                trailing: pending && individual?['status'] == 'requested'
-                    ? FilledButton(
-                        onPressed: () => _confirmRequest(row),
-                        child: Text(
-                          context.isSwahili ? 'Thibitisha' : 'Confirm',
-                        ),
-                      )
-                    : individual?['status'] == 'provider_approved'
-                    ? FilledButton.tonal(
-                        onPressed: () => _sendIndividualQuote(individual!),
-                        child: Text(
-                          context.isSwahili ? 'Tuma quotation' : 'Send quote',
-                        ),
-                      )
-                    : null,
+                trailing: Wrap(
+                  spacing: 6,
+                  children: <Widget?>[
+                    pending &&
+                            (individual == null ||
+                                individual['status'] == 'requested')
+                        ? FilledButton(
+                            onPressed: () => _confirmRequest(row),
+                            child: Text(
+                              context.isSwahili
+                                  ? mobileUi(context, 'Thibitisha')
+                                  : mobileUi(context, 'Confirm'),
+                            ),
+                          )
+                        : individual?['status'] == 'provider_approved'
+                        ? FilledButton.tonal(
+                            onPressed: () => _sendIndividualQuote(individual!),
+                            child: Text(
+                              context.isSwahili
+                                  ? mobileUi(context, 'Tuma quotation')
+                                  : mobileUi(context, 'Send quote'),
+                            ),
+                          )
+                        : null,
+                    if (![
+                      'cancelled',
+                      'completed',
+                      'provider_declined',
+                    ].contains(row['status']))
+                      IconButton(
+                        onPressed: () => _cancelRequest(row),
+                        icon: const Icon(Icons.cancel_outlined),
+                        tooltip: context.isSwahili
+                            ? 'Kataa au ghairi'
+                            : 'Decline or cancel',
+                      ),
+                  ].whereType<Widget>().toList(),
+                ),
               ),
             );
           }),
       ],
     ),
   );
+
+  Future<void> _retryEquipmentImage(Map<String, dynamic> row) async {
+    try {
+      final path = await _uploadEventImage(
+        entityId: row['id'].toString(),
+        folder: 'equipment',
+      );
+      if (path == null) return;
+      await Supabase.instance.client
+          .from('event_equipment_items')
+          .update({
+            'media_paths': [path],
+          })
+          .eq('id', row['id']);
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              mobileUiFormat(
+                context,
+                "Photo upload failed. The saved item is available for retry: {0}",
+                [e],
+              ),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _cancelRequest(Map<String, dynamic> row) async {
+    final reason = TextEditingController();
+    try {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(
+            context.isSwahili
+                ? mobileUi(context, 'Ghairi ombi')
+                : mobileUi(context, 'Cancel request'),
+          ),
+          content: TextField(
+            controller: reason,
+            decoration: InputDecoration(
+              labelText: mobileUi(
+                context,
+                'Reason (customer will be notified)',
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const LocalizedUiText('Back'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const LocalizedUiText('Confirm cancellation'),
+            ),
+          ],
+        ),
+      );
+      if (ok == true) {
+        await Supabase.instance.client.rpc(
+          'provider_cancel_event_item',
+          params: {'p_plan_item_id': row['id'], 'p_reason': reason.text.trim()},
+        );
+        await _load();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      reason.dispose();
+    }
+  }
 
   Future<void> _confirmRequest(Map<String, dynamic> row) async {
     try {
@@ -644,20 +798,26 @@ class _EventsProviderWorkspaceScreenState
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(sw ? 'Quotation ya booking' : 'Booking quotation'),
+        title: Text(
+          sw
+              ? mobileUi(context, 'Quotation ya booking')
+              : mobileUi(context, 'Booking quotation'),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             TextField(
               controller: amount,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'TZS'),
+              decoration: InputDecoration(labelText: mobileUi(context, 'TZS')),
             ),
             TextField(
               controller: terms,
               maxLines: 3,
               decoration: InputDecoration(
-                labelText: sw ? 'Maelezo na masharti' : 'Description and terms',
+                labelText: sw
+                    ? mobileUi(context, 'Maelezo na masharti')
+                    : mobileUi(context, 'Description and terms'),
               ),
             ),
           ],
@@ -665,11 +825,15 @@ class _EventsProviderWorkspaceScreenState
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(sw ? 'Ghairi' : 'Cancel'),
+            child: Text(
+              sw ? mobileUi(context, 'Ghairi') : mobileUi(context, 'Cancel'),
+            ),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(sw ? 'Tuma' : 'Send'),
+            child: Text(
+              sw ? mobileUi(context, 'Tuma') : mobileUi(context, 'Send'),
+            ),
           ),
         ],
       ),
@@ -712,7 +876,9 @@ class _EventsProviderWorkspaceScreenState
       context: context,
       builder: (c) => AlertDialog(
         title: Text(
-          sw ? 'Sajili huduma ya kitaalamu' : 'Register professional service',
+          sw
+              ? mobileUi(context, 'Sajili huduma ya kitaalamu')
+              : mobileUi(context, 'Register professional service'),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -720,7 +886,9 @@ class _EventsProviderWorkspaceScreenState
             TextField(
               controller: name,
               decoration: InputDecoration(
-                labelText: sw ? 'Jina la huduma' : 'Display name',
+                labelText: sw
+                    ? mobileUi(context, 'Jina la huduma')
+                    : mobileUi(context, 'Display name'),
               ),
             ),
             DropdownButtonFormField<String>(
@@ -728,16 +896,25 @@ class _EventsProviderWorkspaceScreenState
               items: const <DropdownMenuItem<String>>[
                 DropdownMenuItem(
                   value: 'planner',
-                  child: Text('Event planner'),
+                  child: LocalizedUiText('Event planner'),
                 ),
-                DropdownMenuItem(value: 'decorator', child: Text('Decorator')),
+                DropdownMenuItem(
+                  value: 'decorator',
+                  child: LocalizedUiText('Decorator'),
+                ),
                 DropdownMenuItem(
                   value: 'photographer',
-                  child: Text('Photographer'),
+                  child: LocalizedUiText('Photographer'),
                 ),
-                DropdownMenuItem(value: 'dj', child: Text('DJ')),
-                DropdownMenuItem(value: 'caterer', child: Text('Caterer')),
-                DropdownMenuItem(value: 'mc_host', child: Text('MC / Host')),
+                DropdownMenuItem(value: 'dj', child: LocalizedUiText('DJ')),
+                DropdownMenuItem(
+                  value: 'caterer',
+                  child: LocalizedUiText('Caterer'),
+                ),
+                DropdownMenuItem(
+                  value: 'mc_host',
+                  child: LocalizedUiText('MC / Host'),
+                ),
               ],
               onChanged: (v) {
                 if (v != null) kind = v;
@@ -747,7 +924,9 @@ class _EventsProviderWorkspaceScreenState
               controller: bio,
               maxLines: 3,
               decoration: InputDecoration(
-                labelText: sw ? 'Kuhusu huduma' : 'About the service',
+                labelText: sw
+                    ? mobileUi(context, 'Kuhusu huduma')
+                    : mobileUi(context, 'About the service'),
               ),
             ),
           ],
@@ -755,11 +934,17 @@ class _EventsProviderWorkspaceScreenState
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(c, false),
-            child: Text(sw ? 'Ghairi' : 'Cancel'),
+            child: Text(
+              sw ? mobileUi(context, 'Ghairi') : mobileUi(context, 'Cancel'),
+            ),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(c, true),
-            child: Text(sw ? 'Tuma kwa uhakiki' : 'Submit for review'),
+            child: Text(
+              sw
+                  ? mobileUi(context, 'Tuma kwa uhakiki')
+                  : mobileUi(context, 'Submit for review'),
+            ),
           ),
         ],
       ),
@@ -850,7 +1035,11 @@ class _EventsProviderWorkspaceScreenState
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text(sw ? 'Ongeza vifaa' : 'Add equipment'),
+        title: Text(
+          sw
+              ? mobileUi(context, 'Ongeza vifaa')
+              : mobileUi(context, 'Add equipment'),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
@@ -873,21 +1062,27 @@ class _EventsProviderWorkspaceScreenState
             TextField(
               controller: name,
               decoration: InputDecoration(
-                labelText: sw ? 'Jina la vifaa' : 'Equipment name',
+                labelText: sw
+                    ? mobileUi(context, 'Jina la vifaa')
+                    : mobileUi(context, 'Equipment name'),
               ),
             ),
             TextField(
               controller: quantity,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: sw ? 'Idadi iliyopo' : 'Total quantity',
+                labelText: sw
+                    ? mobileUi(context, 'Idadi iliyopo')
+                    : mobileUi(context, 'Total quantity'),
               ),
             ),
             TextField(
               controller: price,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: sw ? 'Bei kwa tukio (TZS)' : 'Price per event (TZS)',
+                labelText: sw
+                    ? mobileUi(context, 'Bei kwa tukio (TZS)')
+                    : mobileUi(context, 'Price per event (TZS)'),
               ),
             ),
           ],
@@ -895,11 +1090,17 @@ class _EventsProviderWorkspaceScreenState
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(c, false),
-            child: Text(sw ? 'Ghairi' : 'Cancel'),
+            child: Text(
+              sw ? mobileUi(context, 'Ghairi') : mobileUi(context, 'Cancel'),
+            ),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(c, true),
-            child: Text(sw ? 'Tuma kwa uhakiki' : 'Submit for review'),
+            child: Text(
+              sw
+                  ? mobileUi(context, 'Tuma kwa uhakiki')
+                  : mobileUi(context, 'Submit for review'),
+            ),
           ),
         ],
       ),
@@ -958,31 +1159,45 @@ class _EventsProviderWorkspaceScreenState
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text(sw ? 'Ongeza huduma' : 'Add service offering'),
+        title: Text(
+          sw
+              ? mobileUi(context, 'Ongeza huduma')
+              : mobileUi(context, 'Add service offering'),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             TextField(
               controller: title,
               decoration: InputDecoration(
-                labelText: sw ? 'Jina la huduma' : 'Service title',
+                labelText: sw
+                    ? mobileUi(context, 'Jina la huduma')
+                    : mobileUi(context, 'Service title'),
               ),
             ),
             TextField(
               controller: description,
               maxLines: 3,
               decoration: InputDecoration(
-                labelText: sw ? 'Maelezo' : 'Description',
+                labelText: sw
+                    ? mobileUi(context, 'Maelezo')
+                    : mobileUi(context, 'Description'),
               ),
             ),
             DropdownButtonFormField<String>(
               initialValue: mode,
               items: const <DropdownMenuItem<String>>[
-                DropdownMenuItem(value: 'fixed', child: Text('Fixed price')),
-                DropdownMenuItem(value: 'from', child: Text('Starting from')),
+                DropdownMenuItem(
+                  value: 'fixed',
+                  child: LocalizedUiText('Fixed price'),
+                ),
+                DropdownMenuItem(
+                  value: 'from',
+                  child: LocalizedUiText('Starting from'),
+                ),
                 DropdownMenuItem(
                   value: 'custom_quote',
-                  child: Text('Custom quotation'),
+                  child: LocalizedUiText('Custom quotation'),
                 ),
               ],
               onChanged: (value) {
@@ -994,8 +1209,8 @@ class _EventsProviderWorkspaceScreenState
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
                 labelText: sw
-                    ? 'Bei (TZS, si lazima kwa custom)'
-                    : 'Price (TZS, optional for custom)',
+                    ? mobileUi(context, 'Bei (TZS, si lazima kwa custom)')
+                    : mobileUi(context, 'Price (TZS, optional for custom)'),
               ),
             ),
           ],
@@ -1003,11 +1218,15 @@ class _EventsProviderWorkspaceScreenState
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(c, false),
-            child: Text(sw ? 'Ghairi' : 'Cancel'),
+            child: Text(
+              sw ? mobileUi(context, 'Ghairi') : mobileUi(context, 'Cancel'),
+            ),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(c, true),
-            child: Text(sw ? 'Hifadhi' : 'Save'),
+            child: Text(
+              sw ? mobileUi(context, 'Hifadhi') : mobileUi(context, 'Save'),
+            ),
           ),
         ],
       ),

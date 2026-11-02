@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -82,7 +83,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
     final List<Map<String, dynamic>> messages = conversationId == null
         ? <Map<String, dynamic>>[]
         : await repository.fetchBookingMessages(conversationId);
-    if (conversationId != null) {
+    if (conversationId != null && !widget.isAdmin) {
       await repository.markBookingConversationRead(conversationId);
     }
     return <String, dynamic>{
@@ -126,9 +127,9 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(userFacingError(error))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: LocalizedUiText(userFacingError(error))),
+      );
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -165,7 +166,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setDialogState) {
             return AlertDialog(
-              title: const Text("Propose viewing"),
+              title: const LocalizedUiText("Propose viewing"),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -173,7 +174,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.calendar_today_outlined),
-                      title: const Text("Date"),
+                      title: const LocalizedUiText("Date"),
                       subtitle: Text(
                         MaterialLocalizations.of(
                           context,
@@ -196,7 +197,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.schedule_outlined),
-                      title: const Text("Start time"),
+                      title: const LocalizedUiText("Start time"),
                       subtitle: Text(selectedTime.format(context)),
                       onTap: () async {
                         final TimeOfDay? picked = await showTimePicker(
@@ -214,11 +215,11 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
               actions: <Widget>[
                 TextButton(
                   onPressed: () => Navigator.of(dialogContext).pop(false),
-                  child: const Text("Cancel"),
+                  child: const LocalizedUiText("Cancel"),
                 ),
                 FilledButton(
                   onPressed: () => Navigator.of(dialogContext).pop(true),
-                  child: const Text("Send proposal"),
+                  child: const LocalizedUiText("Send proposal"),
                 ),
               ],
             );
@@ -268,21 +269,31 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(approve ? "Approve cancellation" : "Decline cancellation"),
+        title: Text(
+          approve
+              ? mobileUi(context, "Approve cancellation")
+              : mobileUi(context, "Decline cancellation"),
+        ),
         content: TextField(
           controller: controller,
           minLines: 2,
           maxLines: 5,
-          decoration: const InputDecoration(labelText: "Review notes"),
+          decoration: InputDecoration(
+            labelText: mobileUi(context, "Review notes"),
+          ),
         ),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text("Back"),
+            child: const LocalizedUiText("Back"),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(approve ? "Approve" : "Decline"),
+            child: Text(
+              approve
+                  ? mobileUi(context, "Approve")
+                  : mobileUi(context, "Decline"),
+            ),
           ),
         ],
       ),
@@ -308,7 +319,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
         title: Text(_booking["request_reference"] as String? ?? "Request"),
         actions: <Widget>[
           IconButton(
-            tooltip: "Refresh",
+            tooltip: mobileUi(context, "Refresh"),
             onPressed: _busy ? null : _refresh,
             icon: const Icon(Icons.refresh_rounded),
           ),
@@ -326,7 +337,9 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                 return const Center(child: CircularProgressIndicator());
               }
               if (snapshot.hasError) {
-                return Center(child: Text(userFacingError(snapshot.error!)));
+                return Center(
+                  child: LocalizedUiText(userFacingError(snapshot.error!)),
+                );
               }
               final Map<String, dynamic> data =
                   snapshot.data ?? <String, dynamic>{};
@@ -408,8 +421,8 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
             agent?["display_name"] as String? ??
                 agent?["business_name"] as String? ??
                 (widget.isAdmin
-                    ? "Unassigned agent record"
-                    : "Assigned to you"),
+                    ? mobileUi(context, "Unassigned agent record")
+                    : mobileUi(context, "Assigned to you")),
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
@@ -433,14 +446,14 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                     ? null
                     : () => Launchers.callPhone(phone),
                 icon: const Icon(Icons.call_outlined),
-                label: const Text("Call customer"),
+                label: const LocalizedUiText("Call customer"),
               ),
               OutlinedButton.icon(
                 onPressed: phone.isEmpty
                     ? null
                     : () => Launchers.openWhatsApp(phone),
                 icon: const Icon(Icons.chat_outlined),
-                label: const Text("WhatsApp"),
+                label: const LocalizedUiText("WhatsApp"),
               ),
             ],
           ),
@@ -467,24 +480,44 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
     }.contains(currentStatus);
     final bool instantHold = currentStatus == "reserved" && !paid;
     return ManagePanel(
-      title: "Respond and move request",
-      subtitle:
-          "Verified availability is reserved automatically. Every stage change is retained in booking history.",
+      title: mobileUi(context, "Respond and move request"),
+      subtitle: mobileUi(
+        context,
+        "Verified availability is reserved automatically. Every stage change is retained in booking history.",
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
             paid
-                ? "Payment confirmed. The booking is secured and can continue to completion."
+                ? mobileUi(
+                    context,
+                    "Payment confirmed. The booking is secured and can continue to completion.",
+                  )
                 : instantHold
-                ? "The period is temporarily held for this customer. No manual acceptance is needed; payment confirmation secures it."
+                ? mobileUi(
+                    context,
+                    "The period is temporarily held for this customer. No manual acceptance is needed; payment confirmation secures it.",
+                  )
                 : ownerApproval == "pending"
-                ? "Waiting for the verified owner or manager to approve before payment."
+                ? mobileUi(
+                    context,
+                    "Waiting for the verified owner or manager to approve before payment.",
+                  )
                 : _booking["payment_ready_at"] != null
-                ? "Customer has been notified to pay and secure this booking."
+                ? mobileUi(
+                    context,
+                    "Customer has been notified to pay and secure this booking.",
+                  )
                 : currentStatus == "new"
-                ? "Accept this request to unlock the customer's next step."
-                : "Availability is being handled; payment becomes available after required approval.",
+                ? mobileUi(
+                    context,
+                    "Accept this request to unlock the customer's next step.",
+                  )
+                : mobileUi(
+                    context,
+                    "Availability is being handled; payment becomes available after required approval.",
+                  ),
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 14),
@@ -497,21 +530,21 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                     ? null
                     : () => _updateStatus(BookingStatus.checkingAvailability),
                 icon: const Icon(Icons.check_circle_outline),
-                label: const Text("Accept request"),
+                label: const LocalizedUiText("Accept request"),
               ),
               OutlinedButton.icon(
                 onPressed: _busy || terminal
                     ? null
                     : () => _updateStatus(BookingStatus.contacted),
                 icon: const Icon(Icons.mark_chat_read_outlined),
-                label: const Text("Mark contacted"),
+                label: const LocalizedUiText("Mark contacted"),
               ),
               OutlinedButton.icon(
                 onPressed: _busy || terminal || !_hasCustomerAccount
                     ? null
                     : _proposeViewing,
                 icon: const Icon(Icons.event_available_outlined),
-                label: const Text("Schedule viewing"),
+                label: const LocalizedUiText("Schedule viewing"),
               ),
               PopupMenuButton<BookingStatus>(
                 enabled: !_busy,
@@ -530,7 +563,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                     .toList(growable: false),
                 child: const Chip(
                   avatar: Icon(Icons.account_tree_outlined, size: 18),
-                  label: Text("All stages"),
+                  label: LocalizedUiText("All stages"),
                 ),
               ),
               TextButton.icon(
@@ -538,7 +571,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                     ? null
                     : () => _updateStatus(BookingStatus.rejected),
                 icon: const Icon(Icons.close_rounded),
-                label: const Text("Reject"),
+                label: const LocalizedUiText("Reject"),
               ),
             ],
           ),
@@ -563,19 +596,21 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
             .toList(growable: false);
 
     if (terms == null && intents.isEmpty && payables.isEmpty) {
-      return const ManagePanel(
-        title: "Booking payment",
-        subtitle: "No confirmed price yet.",
-        child: Text(
+      return ManagePanel(
+        title: mobileUi(context, "Booking payment"),
+        subtitle: mobileUi(context, "No confirmed price yet."),
+        child: LocalizedUiText(
           "Payment starts only after the customer accepts a clear booking price and terms.",
         ),
       );
     }
 
     return ManagePanel(
-      title: "Booking payment",
-      subtitle:
-          "See what the customer agreed and paid. Financial records are controlled by the platform.",
+      title: mobileUi(context, "Booking payment"),
+      subtitle: mobileUi(
+        context,
+        "See what the customer agreed and paid. Financial records are controlled by the platform.",
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -602,8 +637,8 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                 ),
                 title: Text(
                   intent["product"] == "booking_deposit"
-                      ? "Booking deposit"
-                      : "Booking balance",
+                      ? mobileUi(context, "Booking deposit")
+                      : mobileUi(context, "Booking balance"),
                 ),
                 subtitle: Text(
                   DateFormatters.formatCurrency(intent["amount_minor"] as num?),
@@ -617,7 +652,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
           ],
           if (payables.isNotEmpty) ...<Widget>[
             const Divider(height: 28),
-            Text(
+            LocalizedUiText(
               "Provider settlement",
               style: Theme.of(context).textTheme.titleSmall,
             ),
@@ -630,7 +665,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                     payable["amount_minor"] as num?,
                   ),
                 ),
-                subtitle: const Text(
+                subtitle: const LocalizedUiText(
                   "Released only after fulfillment and protection checks.",
                 ),
                 trailing: KodimaliStatusChip(
@@ -659,7 +694,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
             .map((Map item) => item.cast<String, dynamic>())
             .toList(growable: false);
     return ManagePanel(
-      title: "Fulfillment",
+      title: mobileUi(context, "Fulfillment"),
       subtitle: milestones.isEmpty
           ? "Fulfillment steps appear after booking terms are confirmed."
           : "Confirm only a step you have actually completed. Customer or admin verification remains separate.",
@@ -668,7 +703,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
           if (milestones.isEmpty)
             const Align(
               alignment: Alignment.centerLeft,
-              child: Text("No fulfillment step is due yet."),
+              child: LocalizedUiText("No fulfillment step is due yet."),
             )
           else
             ...milestones.map((Map<String, dynamic> milestone) {
@@ -686,7 +721,11 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                 subtitle: milestone["due_at"] == null
                     ? null
                     : Text(
-                        "Due ${DateFormatters.formatDateTime(milestone["due_at"] as String?)}",
+                        mobileUiFormat(context, "Due {0}", [
+                          DateFormatters.formatDateTime(
+                            milestone["due_at"] as String?,
+                          ),
+                        ]),
                       ),
                 trailing: canConfirm
                     ? FilledButton.tonal(
@@ -694,7 +733,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                             ? null
                             : () =>
                                   _confirmMilestone(milestone["id"] as String),
-                        child: const Text("Confirm done"),
+                        child: const LocalizedUiText("Confirm done"),
                       )
                     : KodimaliStatusChip(
                         label: status,
@@ -706,7 +745,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
             const Divider(height: 28),
             Align(
               alignment: Alignment.centerLeft,
-              child: Text(
+              child: LocalizedUiText(
                 "Protection cases",
                 style: Theme.of(context).textTheme.titleSmall,
               ),
@@ -741,18 +780,20 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
             .map((Map item) => item.cast<String, dynamic>())
             .toList(growable: false);
     if (cases.isEmpty) {
-      return const ManagePanel(
-        title: "Cancellation and refund",
-        subtitle: "No cancellation has been requested.",
-        child: Text(
+      return ManagePanel(
+        title: mobileUi(context, "Cancellation and refund"),
+        subtitle: mobileUi(context, "No cancellation has been requested."),
+        child: LocalizedUiText(
           "Booking, refund and settlement remain active independently.",
         ),
       );
     }
     return ManagePanel(
-      title: "Cancellation and refund",
-      subtitle:
-          "Review the calculated allocation. Approval releases inventory and creates liabilities; it does not send money automatically.",
+      title: mobileUi(context, "Cancellation and refund"),
+      subtitle: mobileUi(
+        context,
+        "Review the calculated allocation. Approval releases inventory and creates liabilities; it does not send money automatically.",
+      ),
       child: Column(
         children: cases
             .map((item) {
@@ -804,7 +845,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                                     true,
                                   ),
                             icon: const Icon(Icons.check_rounded),
-                            label: const Text("Approve"),
+                            label: const LocalizedUiText("Approve"),
                           ),
                           OutlinedButton.icon(
                             onPressed: _busy
@@ -814,7 +855,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                                     false,
                                   ),
                             icon: const Icon(Icons.close_rounded),
-                            label: const Text("Decline"),
+                            label: const LocalizedUiText("Decline"),
                           ),
                         ],
                       ),
@@ -836,22 +877,28 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
         ? null
         : appointments.first;
     return ManagePanel(
-      title: "Viewing appointment",
+      title: mobileUi(context, "Viewing appointment"),
       subtitle: !_hasCustomerAccount
           ? "A signed-in customer must be linked before an in-app viewing can be scheduled."
           : latest == null
           ? "No viewing has been proposed yet."
           : "Latest appointment and response are shown below.",
       action: IconButton(
-        tooltip: "Propose another time",
+        tooltip: mobileUi(context, "Propose another time"),
         onPressed: _busy || !_hasCustomerAccount ? null : _proposeViewing,
         icon: const Icon(Icons.add_rounded),
       ),
       child: latest == null
           ? Text(
               _hasCustomerAccount
-                  ? "Choose Schedule viewing to send the customer a date and time."
-                  : "Use Call or WhatsApp to coordinate this guest request. Once the customer signs in and claims it, in-app appointments become available.",
+                  ? mobileUi(
+                      context,
+                      "Choose Schedule viewing to send the customer a date and time.",
+                    )
+                  : mobileUi(
+                      context,
+                      "Use Call or WhatsApp to coordinate this guest request. Once the customer signs in and claims it, in-app appointments become available.",
+                    ),
             )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -884,7 +931,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                               latest["id"] as String,
                               "confirmed",
                             ),
-                      child: const Text("Confirm"),
+                      child: const LocalizedUiText("Confirm"),
                     ),
                     OutlinedButton(
                       onPressed: _busy
@@ -893,7 +940,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                               latest["id"] as String,
                               "completed",
                             ),
-                      child: const Text("Viewing completed"),
+                      child: const LocalizedUiText("Viewing completed"),
                     ),
                     TextButton(
                       onPressed: _busy
@@ -902,7 +949,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                               latest["id"] as String,
                               "cancelled",
                             ),
-                      child: const Text("Cancel viewing"),
+                      child: const LocalizedUiText("Cancel viewing"),
                     ),
                   ],
                 ),
@@ -921,19 +968,22 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
         : null;
     final String? conversationId = conversation?["id"] as String?;
     if (!_hasCustomerAccount) {
-      return const ManagePanel(
-        title: "Request follow-up",
-        subtitle: "Structured responses require a linked customer account.",
-        child: Text(
+      return ManagePanel(
+        title: mobileUi(context, "Request follow-up"),
+        subtitle: mobileUi(
+          context,
+          "Structured responses require a linked customer account.",
+        ),
+        child: LocalizedUiText(
           "This guest request can be followed through status changes and viewing appointments. Free-text messaging is not available.",
         ),
       );
     }
     if (conversationId == null) {
-      return const ManagePanel(
-        title: "Request follow-up",
-        subtitle: "The customer account is linked.",
-        child: Text(
+      return ManagePanel(
+        title: mobileUi(context, "Request follow-up"),
+        subtitle: mobileUi(context, "The customer account is linked."),
+        child: LocalizedUiText(
           "Structured responses are not available from the server yet.",
         ),
       );
@@ -941,16 +991,20 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
     final String currentUserId =
         AppScope.of(context).controller.currentUser?.id ?? "";
     return ManagePanel(
-      title: "Request follow-up",
-      subtitle:
-          "Only safe predefined responses are allowed. Private conversation remains in paid listing chat.",
+      title: mobileUi(context, "Request follow-up"),
+      subtitle: mobileUi(
+        context,
+        "Only safe predefined responses are allowed. Private conversation remains in paid listing chat.",
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           if (messages.isEmpty)
             const Padding(
               padding: EdgeInsets.only(bottom: 12),
-              child: Text("No messages yet. Send the first response."),
+              child: LocalizedUiText(
+                "No messages yet. Send the first response.",
+              ),
             )
           else
             ...messages.take(30).map((Map<String, dynamic> message) {
@@ -987,7 +1041,7 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
               );
             }),
           if (widget.isAdmin)
-            const Text(
+            const LocalizedUiText(
               "Administrators can review this follow-up but cannot send responses or contact details.",
             )
           else
@@ -1029,18 +1083,26 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
         ? rawReview.cast<String, dynamic>()
         : null;
     return ManagePanel(
-      title: "Completion and review",
-      subtitle:
-          "A completed, account-linked request becomes eligible for a verified customer review.",
+      title: mobileUi(context, "Completion and review"),
+      subtitle: mobileUi(
+        context,
+        "A completed, account-linked request becomes eligible for a verified customer review.",
+      ),
       child: status != "completed"
-          ? const Text(
+          ? const LocalizedUiText(
               "Mark the request completed only after the real rental is finished.",
             )
           : review == null
           ? Text(
               _hasCustomerAccount
-                  ? "Rental completed. The customer can now submit a verified review."
-                  : "Rental completed, but this guest request has no signed-in customer account for a verified review.",
+                  ? mobileUi(
+                      context,
+                      "Rental completed. The customer can now submit a verified review.",
+                    )
+                  : mobileUi(
+                      context,
+                      "Rental completed, but this guest request has no signed-in customer account for a verified review.",
+                    ),
             )
           : Row(
               children: <Widget>[
@@ -1048,7 +1110,16 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    "Verified review received: ${review["rating"] ?? "-"}/5${(review["comment"] as String?)?.isNotEmpty == true ? " — ${review["comment"]}" : ""}",
+                    mobileUiFormat(
+                      context,
+                      "Verified review received: {0}/5{1}",
+                      [
+                        review["rating"] ?? "-",
+                        (review["comment"] as String?)?.isNotEmpty == true
+                            ? " — ${review["comment"]}"
+                            : "",
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -1061,11 +1132,13 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
     List<Map<String, dynamic>> history,
   ) {
     return ManagePanel(
-      title: "Status history",
-      subtitle:
-          "An audit trail of how this request moved through the workflow.",
+      title: mobileUi(context, "Status history"),
+      subtitle: mobileUi(
+        context,
+        "An audit trail of how this request moved through the workflow.",
+      ),
       child: history.isEmpty
-          ? const Text("No status history is available yet.")
+          ? const LocalizedUiText("No status history is available yet.")
           : Column(
               children: history
                   .map((Map<String, dynamic> item) {

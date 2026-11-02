@@ -1,4 +1,6 @@
 "use client";
+import { translateUiPrompt } from "@/lib/ui-translation";
+import { UiInput, UiText } from "@/components/ui-text";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
@@ -29,7 +31,7 @@ export function AdminAccessPanel() {
 
   async function assign(userId: string, roleId: string, enabled: boolean) {
     const roleName = String(roles.find((role) => role.id === roleId)?.name ?? roleId);
-    if (!window.confirm(`${enabled ? "Assign" : "Remove"} ${roleName}? Administrative access changes immediately and will be audited.`)) return;
+    if (!window.confirm(translateUiPrompt(`${enabled ? "Assign" : "Remove"} ${roleName}? Administrative access changes immediately and will be audited.`))) return;
     const key = `${userId}:${roleId}`; setBusyKey(key); setMessage("");
     const result = await supabase.rpc("assign_admin_role", { p_user_id: userId, p_role_id: roleId, p_assign: enabled } as never);
     setMessage(result.error?.message ?? `${roleName} ${enabled ? "assigned" : "removed"}.`);
@@ -38,10 +40,10 @@ export function AdminAccessPanel() {
 
   const filtered = users.filter((user) => `${user.full_name ?? ""} ${user.account_email ?? ""}`.toLowerCase().includes(query.toLowerCase()));
   return <section className="surface-card p-5 sm:p-7">
-    <h2 className="font-heading text-3xl font-semibold">Admin access and roles</h2>
-    <p className="mt-2 text-muted">Only a Super Admin can assign these roles. Every change is stored in the audit log.</p>
-    <label className="field-label mt-5">Find a registered account<input className="field-input mt-2" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name or account email" /></label>
-    {message ? <p className="mt-4 rounded-xl bg-brand-info-soft p-4 text-sm" role="status">{message}</p> : null}
+    <h2 className="font-heading text-3xl font-semibold"><UiText text={"Admin access and roles"} /></h2>
+    <p className="mt-2 text-muted"><UiText text={"Only a Super Admin can assign these roles. Every change is stored in the audit log."} /></p>
+    <label className="field-label mt-5"><UiText text={"Find a registered account"} /><UiInput className="field-input mt-2" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name or account email" /></label>
+    {message ? <p className="mt-4 rounded-xl bg-brand-info-soft p-4 text-sm" role="status"><UiText text={message} /></p> : null}
     <div className="mt-6 grid gap-5">{filtered.map((user) => {
       const assigned = (user.roles as AssignedRole[] | null) ?? [];
       const assignedIds = new Set(assigned.map((role) => role.id));
@@ -50,9 +52,9 @@ export function AdminAccessPanel() {
         <div className="mt-4 grid gap-3 md:grid-cols-2">{roles.map((role) => {
           const roleId = String(role.id); const enabled = assignedIds.has(roleId); const key = `${user.user_id}:${roleId}`;
           return <label className={`flex items-start justify-between gap-3 rounded-xl border p-4 ${enabled ? "border-brand-green bg-brand-green-soft" : "border-brand-border bg-white"}`} key={roleId}>
-            <span><strong>{String(role.name)}</strong><span className="mt-1 block text-xs text-muted">{String(role.description)}</span></span>
-            <input type="checkbox" checked={enabled} disabled={Boolean(busyKey)} onChange={(event) => void assign(String(user.user_id), roleId, event.target.checked)} aria-label={`${enabled ? "Remove" : "Assign"} ${String(role.name)}`} />
-            {busyKey === key ? <span className="text-xs">Saving...</span> : null}
+            <span><strong><UiText text={String(role.name)} /></strong><span className="mt-1 block text-xs text-muted"><UiText text={String(role.description)} /></span></span>
+            <UiInput type="checkbox" checked={enabled} disabled={Boolean(busyKey)} onChange={(event) => void assign(String(user.user_id), roleId, event.target.checked)} aria-label={`${enabled ? "Remove" : "Assign"} ${String(role.name)}`} />
+            {busyKey === key ? <span className="text-xs"><UiText text={"Saving..."} /></span> : null}
           </label>;
         })}</div>
       </article>;

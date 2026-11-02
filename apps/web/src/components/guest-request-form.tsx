@@ -1,4 +1,5 @@
 "use client";
+import { UiInput, UiText, UiTextarea } from "@/components/ui-text";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -73,9 +74,13 @@ export function GuestRequestForm({
   const [requestReference, setRequestReference] = useState<string | null>(null);
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [instantReservation, setInstantReservation] = useState(false);
-  const [quote, setQuote] = useState<BookingQuote | null>(null);
-  const [quoteLoading, setQuoteLoading] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(false);
+  const quoteKey = JSON.stringify([listingId, bookingMode, requestedStartAt, requestedEndAt, usesTime]);
+  const [quoteResult, setQuoteResult] = useState<{ key: string; value: BookingQuote | null } | null>(null);
+  const quote = quoteResult?.key === quoteKey ? quoteResult.value : null;
+  const [loadingQuoteKey, setLoadingQuoteKey] = useState<string | null>(null);
+  const quoteLoading = loadingQuoteKey === quoteKey;
+  const [acceptedQuote, setAcceptedQuote] = useState<string | null>(null);
+  const termsAccepted = Boolean(quote && acceptedQuote === `${quoteKey}:${quote.quote_fingerprint}`);
   const supabase = useMemo(() => getBrowserSupabase(), []);
   const [errors, setErrors] = useState<{
     customerName?: string;
@@ -87,13 +92,11 @@ export function GuestRequestForm({
   }>({});
 
   useEffect(() => {
-    setTermsAccepted(false);
     if (
       bookingMode !== "instant_booking" ||
       !requestedStartAt ||
       !requestedEndAt
     ) {
-      setQuote(null);
       return;
     }
     const start = new Date(
@@ -103,12 +106,12 @@ export function GuestRequestForm({
       usesTime ? requestedEndAt : `${requestedEndAt}T00:00:00`,
     );
     if (!Number.isFinite(start.getTime()) || end <= start) {
-      setQuote(null);
       return;
     }
+    let active = true;
     const timeout = window.setTimeout(() => {
       void (async () => {
-        setQuoteLoading(true);
+        setLoadingQuoteKey(quoteKey);
         try {
           const { data, error } = await supabase.rpc(
             "get_public_listing_booking_quote",
@@ -118,20 +121,21 @@ export function GuestRequestForm({
           p_end_at: end.toISOString(),
             } as never,
           );
+          if (!active) return;
           if (error) {
-            setQuote(null);
+            setQuoteResult({key:quoteKey,value:null});
             setErrors((current) => ({ ...current, form: error.message }));
             return;
           }
           const value = data as BookingQuote | null;
-          setQuote(value?.booking_mode === "instant_booking" ? value : null);
+          setQuoteResult({ key:quoteKey, value:value?.booking_mode === "instant_booking" ? value : null });
         } finally {
-          setQuoteLoading(false);
+          if(active) setLoadingQuoteKey(null);
         }
       })();
     }, 350);
-    return () => window.clearTimeout(timeout);
-  }, [bookingMode, listingId, requestedEndAt, requestedStartAt, supabase, usesTime]);
+    return () => { active = false; window.clearTimeout(timeout); };
+  }, [bookingMode, listingId, requestedEndAt, requestedStartAt, supabase, usesTime, quoteKey]);
 
   function validateForm() {
     const nextErrors: {
@@ -195,12 +199,8 @@ export function GuestRequestForm({
     return (
       <div id="booking" className="surface-card scroll-mt-28 rounded-[20px] p-6">
         <p className="eyebrow">Booking</p>
-        <h2 className="mt-3 font-heading text-2xl font-semibold text-brand-ink">
-          Booking haijawashwa
-        </h2>
-        <p className="section-copy mt-3 text-sm">
-          Mali hii haipokei booking kwa sasa.
-        </p>
+        <h2 className="mt-3 font-heading text-2xl font-semibold text-brand-ink"><UiText text={"Booking haijawashwa"} /></h2>
+        <p className="section-copy mt-3 text-sm"><UiText text={"Mali hii haipokei booking kwa sasa."} /></p>
       </div>
     );
   }
@@ -328,28 +328,25 @@ export function GuestRequestForm({
         className="surface-card scroll-mt-28 rounded-[20px] p-6"
       >
         <span className="status-badge status-active">
-          {instantReservation ? "Malipo yanahitajika" : "Booking imetumwa"}
+          <UiText text={instantReservation ? "Malipo yanahitajika" : "Booking imetumwa"} />
         </span>
         <p className="mt-4 font-heading text-2xl font-semibold text-brand-ink">
-          {instantReservation
+          <UiText text={instantReservation
             ? "Kamilisha deposit kuthibitisha booking yako."
-            : "Booking yako imetumwa kwa wakala."}
+            : "Booking yako imetumwa kwa wakala."} />
         </p>
         <p className="section-copy mt-3 text-base">
-          {instantReservation
+          <UiText text={instantReservation
             ? "Lipa deposit sasa. Booking itathibitishwa malipo yakihakikiwa."
-            : "Wakala atakujibu kwa email au simu."}
+            : "Wakala atakujibu kwa email au simu."} />
         </p>
-        <p className="mt-4 text-sm font-bold text-brand-navy">
-          Reference: {requestReference}
+        <p className="mt-4 text-sm font-bold text-brand-navy"><UiText text={"Reference:"} />{requestReference}
         </p>
         {instantReservation && bookingId ? (
           <a
             className="button-primary mt-5 inline-flex"
             href={`/account/request/${bookingId}`}
-          >
-            Lipa deposit
-          </a>
+          ><UiText text={"Lipa deposit"} /></a>
         ) : null}
       </div>
     );
@@ -359,20 +356,20 @@ export function GuestRequestForm({
     <div id="booking" className="surface-card scroll-mt-28 rounded-[20px] p-6">
       <p className="eyebrow">Booking</p>
       <h2 className="mt-3 font-heading text-2xl font-semibold text-brand-ink">
-        {bookingMode === "instant_booking" ? "Book Now" : "Request Booking"}: {listingTitle}
+        <UiText text={bookingMode === "instant_booking" ? "Book Now" : "Request Booking"} />: {listingTitle}
       </h2>
       <p className="section-copy mt-3 text-sm">
-        {bookingMode === "instant_booking"
+        <UiText text={bookingMode === "instant_booking"
           ? "Chagua muda, tuma booking na ulipe deposit. Viewing ni hiari."
-          : "Chagua muda na utume booking request. Utapata jibu kwenye akaunti yako."}
+          : "Chagua muda na utume booking request. Utapata jibu kwenye akaunti yako."} />
       </p>
       <p className="mt-3 text-sm font-semibold text-brand-ink">
         {listingTitle}
       </p>
       <div className="mt-5 grid gap-4">
         <label className="grid gap-2">
-          <span className="field-label">Jina kamili</span>
-          <input
+          <span className="field-label"><UiText text={"Jina kamili"} /></span>
+          <UiInput
             value={customerName}
             onChange={(event) => {
               setCustomerName(event.target.value);
@@ -392,9 +389,9 @@ export function GuestRequestForm({
         </label>
         <label className="grid gap-2">
           <span className="field-label">
-            {isApartment ? "Email" : "Email (si lazima)"}
+            <UiText text={isApartment ? "Email" : "Email (si lazima)"} />
           </span>
-          <input
+          <UiInput
             value={customerEmail}
             onChange={(event) => {
               setCustomerEmail(event.target.value);
@@ -413,17 +410,15 @@ export function GuestRequestForm({
             <span className="field-error">{errors.customerEmail}</span>
           ) : (
             <span className="field-help">
-              {isApartment
+              <UiText text={isApartment
                 ? "Hii ndiyo njia kuu ya mawasiliano kwa wageni wa ndani na wa kimataifa."
-                : "Si lazima ikiwa umeweka simu; inasaidia kupata taarifa za booking kwa maandishi."}
+                : "Si lazima ikiwa umeweka simu; inasaidia kupata taarifa za booking kwa maandishi."} />
             </span>
           )}
         </label>
         <label className="grid gap-2">
-          <span className="field-label">
-            Namba ya simu / WhatsApp (si lazima)
-          </span>
-          <input
+          <span className="field-label"><UiText text={"Namba ya simu / WhatsApp (si lazima)"} /></span>
+          <UiInput
             value={customerPhoneNumber}
             onChange={(event) => {
               setCustomerPhoneNumber(event.target.value);
@@ -441,9 +436,9 @@ export function GuestRequestForm({
             <span className="field-error">{errors.customerPhoneNumber}</span>
           ) : (
             <span className="field-help">
-              {isApartment
+              <UiText text={isApartment
                 ? "Taarifa hii hutumika kwa WhatsApp au simu ikiwa umeiweka."
-                : "Weka simu, email, au zote mbili ili upokee majibu ya booking."}
+                : "Weka simu, email, au zote mbili ili upokee majibu ya booking."} />
             </span>
           )}
         </label>
@@ -491,19 +486,19 @@ export function GuestRequestForm({
             {bookingMode === "instant_booking" ? (
               <div className="rounded-2xl border border-brand-border-strong bg-brand-card-soft p-4">
                 {quoteLoading ? (
-                  <p className="text-sm font-semibold">Inakokotoa bei…</p>
+                  <p className="text-sm font-semibold"><UiText text={"Inakokotoa bei…"} /></p>
                 ) : quote ? (
                   <>
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="field-label">Jumla</p>
+                        <p className="field-label"><UiText text={"Jumla"} /></p>
                         <p className="mt-1 text-xl font-bold text-brand-ink">
                           TZS {Number(quote.total_tzs).toLocaleString("sw-TZ")}
                         </p>
                       </div>
                       <div className="text-right text-sm">
-                        <p>Deposit: TZS {Number(quote.deposit_tzs).toLocaleString("sw-TZ")}</p>
-                        <p>Baadaye: TZS {Number(quote.balance_tzs).toLocaleString("sw-TZ")}</p>
+                        <p><UiText text={"Deposit: TZS "} />{Number(quote.deposit_tzs).toLocaleString("sw-TZ")}</p>
+                        <p><UiText text={"Baadaye: TZS "} />{Number(quote.balance_tzs).toLocaleString("sw-TZ")}</p>
                       </div>
                     </div>
                     <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm">
@@ -511,14 +506,12 @@ export function GuestRequestForm({
                         type="checkbox"
                         checked={termsAccepted}
                         onChange={(event) => {
-                          setTermsAccepted(event.target.checked);
+                          setAcceptedQuote(event.target.checked && quote ? `${quoteKey}:${quote.quote_fingerprint}` : null);
                           setErrors((current) => ({ ...current, terms: undefined }));
                         }}
                         className="mt-1"
                       />
-                      <span>
-                        Nakubali bei hii na masharti ya cancellation
-                        {quote.cancellation_policy?.title
+                      <span><UiText text={"Nakubali bei hii na masharti ya cancellation"} />{quote.cancellation_policy?.title
                           ? `: ${quote.cancellation_policy.title}`
                           : "."}
                       </span>
@@ -526,14 +519,14 @@ export function GuestRequestForm({
                     {errors.terms ? <span className="field-error mt-2 block">{errors.terms}</span> : null}
                   </>
                 ) : (
-                  <p className="text-sm">Chagua muda sahihi kuona bei.</p>
+                  <p className="text-sm"><UiText text={"Chagua muda sahihi kuona bei."} /></p>
                 )}
               </div>
             ) : null}
             {isApartment ? (
               <label className="grid gap-2">
-                <span className="field-label">Idadi ya wageni (si lazima)</span>
-                <input
+                <span className="field-label"><UiText text={"Idadi ya wageni (si lazima)"} /></span>
+                <UiInput
                   value={guestCount}
                   onChange={(event) => setGuestCount(event.target.value)}
                   className="field-input"
@@ -546,7 +539,7 @@ export function GuestRequestForm({
             ) : null}
             {isApartment && availableServices.length > 0 ? (
               <div className="grid gap-2">
-                <span className="field-label">Services to confirm</span>
+                <span className="field-label"><UiText text={"Services to confirm"} /></span>
                 <div className="flex flex-wrap gap-2">
                   {availableServices.map((service) => {
                     const selected = requestedServiceCodes.includes(
@@ -563,7 +556,7 @@ export function GuestRequestForm({
                             : "border-brand-border-strong bg-brand-card-soft text-brand-navy"
                         }`}
                       >
-                        {service.label}
+                        <UiText text={service.label} />
                       </button>
                     );
                   })}
@@ -571,8 +564,8 @@ export function GuestRequestForm({
               </div>
             ) : null}
             <label className="grid gap-2">
-              <span className="field-label">Ujumbe (si lazima)</span>
-              <textarea
+              <span className="field-label"><UiText text={"Ujumbe (si lazima)"} /></span>
+              <UiTextarea
                 value={requestMessage}
                 onChange={(event) => setRequestMessage(event.target.value)}
                 className="field-input min-h-28"
@@ -587,11 +580,11 @@ export function GuestRequestForm({
           disabled={submitting}
           className="btn btn-success"
         >
-          {submitting
+          <UiText text={submitting
             ? "Inatuma booking..."
             : bookingMode === "instant_booking"
               ? "Book Now"
-              : "Request Booking"}
+              : "Request Booking"} />
         </button>
         {errors.form ? <p className="field-error">{errors.form}</p> : null}
       </div>

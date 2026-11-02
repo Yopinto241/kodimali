@@ -1,13 +1,15 @@
-import { BackNavButton } from "@/components/back-nav-button";
+import { UiText } from "@/components/ui-text";
+import { CatalogFilters } from "@/components/catalog-filters";
+import { catalogLocation } from "@/lib/catalog-location";
+import { catalogMetadata, type SearchParams } from "@/lib/seo";
 import Link from "next/link";
 import { cookies } from "next/headers";
 
 import { GoogleAdSlot } from "@/components/google-ad-slot";
-import { ListingLocationFilter } from "@/components/listing-location-filter";
 import { PageShell } from "@/components/page-shell";
-import { PromotionStrip } from "@/components/promotion-strip";
 import { PublicListingGrid } from "@/components/public-listing-grid";
 import { SaveSearchButton } from "@/components/save-search-button";
+import { optionalNumber } from "@/lib/listing-search";
 import {
   fetchCategories,
   fetchCountryId,
@@ -16,6 +18,10 @@ import {
   fetchPublicListings,
   fetchActiveFeaturedListingIds,
 } from "@/lib/supabase-public";
+
+export async function generateMetadata({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  return catalogMetadata("Mali za kukodisha Tanzania", "Linganisha nyumba, apartments, magari, ofisi, kumbi na vifaa vya kukodisha. Chagua eneo na bajeti, kisha tuma ombi kupitia KODIMALI.", "/listings", await searchParams);
+}
 
 export const revalidate = 60;
 
@@ -59,25 +65,12 @@ export default async function ListingsPage({
     1,
     typeof params.page === "string" ? Number.parseInt(params.page, 10) || 1 : 1,
   );
-  const regionId =
-    typeof params.regionId === "string" ? params.regionId : undefined;
-  const districtId =
-    typeof params.districtId === "string" ? params.districtId : undefined;
-  const wardId = typeof params.wardId === "string" ? params.wardId : undefined;
-  const areaId = typeof params.areaId === "string" ? params.areaId : undefined;
-  const latitude =
-    typeof params.lat === "string" ? Number(params.lat) : undefined;
-  const longitude =
-    typeof params.lng === "string" ? Number(params.lng) : undefined;
+  const { regionId, districtId, wardId, areaId } = await catalogLocation(params);
   const searchText = typeof params.q === "string" ? params.q.trim() : undefined;
   const categorySlug =
     typeof params.category === "string" ? params.category : undefined;
-  const parsedMinPrice =
-    typeof params.minPrice === "string" ? Number(params.minPrice) : NaN;
-  const parsedMaxPrice =
-    typeof params.maxPrice === "string" ? Number(params.maxPrice) : NaN;
-  const minPrice = Number.isFinite(parsedMinPrice) ? parsedMinPrice : undefined;
-  const maxPrice = Number.isFinite(parsedMaxPrice) ? parsedMaxPrice : undefined;
+  const minPrice = optionalNumber(params.minPrice, true);
+  const maxPrice = optionalNumber(params.maxPrice, true);
   const pricePeriod =
     typeof params.pricePeriod === "string" ? params.pricePeriod : undefined;
   const requestedSort =
@@ -88,7 +81,7 @@ export default async function ListingsPage({
     ? (requestedSort as "recommended" | "newest" | "price_low" | "price_high")
     : "recommended";
   const countryId = await fetchCountryId();
-  const [categories, rawFeed, promotions, featuredRows, regions, selectedDistricts] = await Promise.all([
+  const [categories, rawFeed, promotions, featuredRows, regions, selectedDistricts, selectedWards, selectedAreas] = await Promise.all([
     fetchCategories(),
     fetchPublicListings({
       limit: pageSize,
@@ -97,8 +90,6 @@ export default async function ListingsPage({
       districtId,
       wardId,
       areaId,
-      latitude,
-      longitude,
       sessionSeed: "listings",
       searchText,
       categorySlug,
@@ -107,10 +98,12 @@ export default async function ListingsPage({
       pricePeriod,
       sort,
     }),
-    fetchPromotions({ surface: "website", placement: "website", limit: 2 }),
+    fetchPromotions({ surface: "website", placement: "website", categorySlug, regionId, districtId, wardId, areaId }),
     fetchActiveFeaturedListingIds(),
     countryId ? fetchLocations({ locationType: "region", parentId: countryId }) : Promise.resolve([]),
     regionId ? fetchLocations({ locationType: "district", parentId: regionId }) : Promise.resolve([]),
+    districtId ? fetchLocations({ locationType: "ward", parentId: districtId }) : Promise.resolve([]),
+    wardId ? fetchLocations({ locationType: "area", parentId: wardId }) : Promise.resolve([]),
   ]);
   const featured = new Map(
     featuredRows.map((row) => [row.listing_id, row.placement]),
@@ -126,77 +119,8 @@ export default async function ListingsPage({
 
   return (
     <PageShell className="pb-20">
-      <form
-        id="filters"
-        className="search-results-head"
-        action="/listings"
-      >
-        <div className="search-results-bar">
-          <BackNavButton fallbackHref="/" label={sw ? "Nyuma" : "Back"} />
-          <svg className="search-field-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="2"/><path d="m16 16 4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-          <input
-            name="q"
-            defaultValue={searchText}
-            placeholder={sw ? "Tafuta nyumba, gari, ofisi..." : "Search house, car, office..."}
-          />
-          <button aria-label={sw ? "Tafuta" : "Search"}>→</button>
-        </div>
-        <div className="search-filter-chips">
-          <select
-            name="category"
-            defaultValue={categorySlug ?? ""}
-            aria-label={sw ? "Aina ya mali" : "Category"}
-          >
-            <option value="">{sw ? "Aina zote" : "All categories"}</option>
-            {categories.map(
-              (category: { id: string; slug: string; name: string }) => (
-                <option key={category.id} value={category.slug}>
-                  {category.name}
-                </option>
-              ),
-            )}
-          </select>
-          <ListingLocationFilter
-            regions={regions.map((item: { id: string; name: string }) => ({ id: item.id, name: item.name }))}
-            initialRegionId={regionId}
-            initialDistrictId={districtId}
-            initialRegionName={regions.find((item: { id: string }) => item.id === regionId)?.name}
-            initialDistrictName={selectedDistricts.find((item: { id: string }) => item.id === districtId)?.name}
-          />
-          <details className="search-price-filter">
-            <summary>{sw ? "Bei" : "Price"}</summary>
-            <div className="search-price-popover">
-              <label>{sw ? "Bei ya chini" : "Minimum price"}<input name="minPrice" type="number" min="0" defaultValue={minPrice ?? ""} /></label>
-              <label>{sw ? "Bei ya juu" : "Maximum price"}<input name="maxPrice" type="number" min="0" defaultValue={maxPrice ?? ""} /></label>
-              <select name="pricePeriod" defaultValue={pricePeriod ?? ""} aria-label={sw ? "Kipindi cha bei" : "Price period"}>
-                <option value="">{sw ? "Kipindi chochote" : "Any period"}</option>
-                <option value="hour">{sw ? "Kwa saa" : "Per hour"}</option><option value="day">{sw ? "Kwa siku" : "Per day"}</option><option value="week">{sw ? "Kwa wiki" : "Per week"}</option><option value="month">{sw ? "Kwa mwezi" : "Per month"}</option><option value="year">{sw ? "Kwa mwaka" : "Per year"}</option>
-              </select>
-              <button>{sw ? "Tumia" : "Apply"}</button>
-            </div>
-          </details>
-        </div>
-        <div className="search-results-meta">
-          <strong>{sw ? `Matokeo ${totalCount}` : `${totalCount} results`}</strong>
-          <label>{sw ? "Panga kwa" : "Sort by"}
-            <select name="sort" defaultValue={sort}>
-            <option value="recommended">
-              {sw ? "Zilizopendekezwa" : "Recommended"}
-            </option>
-            <option value="newest">
-              {sw ? "Mpya kwanza" : "Newest first"}
-            </option>
-            <option value="price_low">
-              {sw ? "Bei ndogo kwanza" : "Lowest price"}
-            </option>
-            <option value="price_high">
-              {sw ? "Bei kubwa kwanza" : "Highest price"}
-            </option>
-          </select>
-          </label>
-          <button className="search-sort-apply">{sw ? "Tumia" : "Apply"}</button>
-        </div>
-      </form>
+      <h1 className="sr-only"><UiText text={sw ? "Mali za kukodisha Tanzania" : "Rentals in Tanzania"} /></h1>
+      <CatalogFilters path="/listings" sw={sw} totalCount={totalCount} categories={categories} regions={regions} selectedDistricts={selectedDistricts} selectedWards={selectedWards} selectedAreas={selectedAreas} regionId={regionId} districtId={districtId} wardId={wardId} areaId={areaId} searchText={searchText} categorySlug={categorySlug} minPrice={minPrice} maxPrice={maxPrice} pricePeriod={pricePeriod} sort={sort} />
       <div className="mt-4">
         <SaveSearchButton
           filters={{
@@ -204,6 +128,8 @@ export default async function ListingsPage({
             category: categorySlug ?? "",
             regionId: regionId ?? "",
             districtId: districtId ?? "",
+            wardId: wardId ?? "",
+            areaId: areaId ?? "",
             minPrice: minPrice == null ? "" : String(minPrice),
             maxPrice: maxPrice == null ? "" : String(maxPrice),
             pricePeriod: pricePeriod ?? "",
@@ -212,31 +138,27 @@ export default async function ListingsPage({
         />
       </div>
 
-      <PromotionStrip promotions={promotions as never} />
       <PublicListingGrid
         listings={feed as Array<{ listing_id: string }>}
+        promotions={promotions as never}
         adSlot="home"
         clientId={adsenseClientId}
         slotId={adsenseHomeSlot}
       />
       <section className="mt-8 flex flex-wrap items-center justify-between gap-3">
-        <p className="section-copy text-sm">Ukurasa {currentPage}</p>
+        <p className="section-copy text-sm"><UiText text={"Ukurasa "} />{currentPage}</p>
         <div className="flex flex-wrap gap-3">
           {currentPage > 1 ? (
             <Link
               href={buildPageHref(params, currentPage - 1)}
               className="btn btn-outline"
-            >
-              Iliyopita
-            </Link>
+            ><UiText text={"Iliyopita"} /></Link>
           ) : null}
           {feed.length === pageSize ? (
             <Link
               href={buildPageHref(params, currentPage + 1)}
               className="btn btn-primary"
-            >
-              Inayofuata
-            </Link>
+            ><UiText text={"Inayofuata"} /></Link>
           ) : null}
         </div>
       </section>

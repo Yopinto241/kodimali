@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/app_scope.dart';
@@ -21,12 +22,12 @@ class AccessDeniedScreen extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(
+                      LocalizedUiText(
                         "Hakuna ruhusa ya Manage App",
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: 12),
-                      const Text(
+                      const LocalizedUiText(
                         "KODIMALI Manage App inatumika na agent na admin tu. Tumia akaunti iliyopewa ruhusa sahihi.",
                       ),
                       const SizedBox(height: 24),
@@ -35,7 +36,7 @@ class AccessDeniedScreen extends StatelessWidget {
                         child: FilledButton(
                           onPressed: () =>
                               AppScope.of(context).controller.signOut(),
-                          child: const Text("Toka"),
+                          child: const LocalizedUiText("Toka"),
                         ),
                       ),
                     ],

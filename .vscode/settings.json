@@ -1,0 +1,15 @@
+{
+  "Codegeex.SidebarUI.LanguagePreference": "English",
+  "deno.enable": true,
+  "deno.enablePaths": [
+    "supabase/functions"
+  ],
+  "deno.config": "supabase/functions/deno.json",
+  "dart.analysisExcludedFolders": [
+    "tmp",
+    "builds",
+    "apps/web/node_modules",
+    "apps/web/.next",
+    "apps/web/.open-next"
+  ]
+}

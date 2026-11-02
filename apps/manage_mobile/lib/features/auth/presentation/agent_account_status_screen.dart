@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/app_scope.dart';
@@ -26,18 +27,27 @@ class AgentAccountStatusScreen extends StatelessWidget {
                     children: <Widget>[
                       Text(
                         suspended
-                            ? "Akaunti imesimamishwa"
-                            : "Akaunti yako haijawashwa kwa sasa.",
+                            ? mobileUi(context, "Akaunti imesimamishwa")
+                            : mobileUi(
+                                context,
+                                "Akaunti yako haijawashwa kwa sasa.",
+                              ),
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: 12),
                       Text(
                         suspended
-                            ? "Wasiliana na KODIMALI ili kuthibitisha hali ya akaunti yako."
-                            : "Usajili wako umepokelewa, lakini admin bado anahitaji kuidhinisha access ya agent kabla hujaingia kwenye workspace.",
+                            ? mobileUi(
+                                context,
+                                "Wasiliana na KODIMALI ili kuthibitisha hali ya akaunti yako.",
+                              )
+                            : mobileUi(
+                                context,
+                                "Usajili wako umepokelewa, lakini admin bado anahitaji kuidhinisha access ya agent kabla hujaingia kwenye workspace.",
+                              ),
                       ),
                       const SizedBox(height: 12),
-                      const Text(
+                      const LocalizedUiText(
                         "Kwa msaada zaidi, piga au WhatsApp 0684684972 au 0628621737.",
                       ),
                       const SizedBox(height: 24),
@@ -46,7 +56,7 @@ class AgentAccountStatusScreen extends StatelessWidget {
                         child: FilledButton(
                           onPressed: () =>
                               AppScope.of(context).controller.signOut(),
-                          child: const Text("Toka"),
+                          child: const LocalizedUiText("Toka"),
                         ),
                       ),
                     ],

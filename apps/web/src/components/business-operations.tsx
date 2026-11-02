@@ -1,7 +1,12 @@
 "use client";
+import { translateUiPrompt } from "@/lib/ui-translation";
+import { UiInput, UiText } from "@/components/ui-text";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
+
+import { ReferralFinancePanel } from "@/components/information-admin-workspace";
+import { hasPermission } from "@/lib/manage-access";
 
 type Row = Record<string, unknown>;
 const switches = [
@@ -52,9 +57,11 @@ const switches = [
 export function BusinessOperations({
   role,
   agentId,
+  permissions = [],
 }: {
   role: "admin" | "agent";
   agentId: string | null;
+  permissions?: readonly string[];
 }) {
   const supabase = useMemo(() => getBrowserSupabase(), []);
   const [dashboard, setDashboard] = useState<Row>({});
@@ -74,6 +81,8 @@ export function BusinessOperations({
   const load = useCallback(async () => {
     setMessage("");
     if (role === "admin") {
+      const allowed = (permission: string) => hasPermission(permissions, permission);
+      const empty = { data: null, error: null };
       const [
         analytics,
         config,
@@ -83,40 +92,42 @@ export function BusinessOperations({
         refundRows,
         performanceRows,
       ] = await Promise.all([
-        supabase.rpc("get_admin_business_analytics", { p_days: 30 } as never),
-        supabase
+        allowed("analytics.view") ? supabase.rpc("get_admin_business_analytics", { p_days: 30 } as never) : Promise.resolve(empty),
+        allowed("*") ? supabase
           .from("marketplace_settings")
           .select("*")
           .eq("id", true)
-          .maybeSingle(),
-        supabase
+          .maybeSingle() : Promise.resolve(empty),
+        allowed("payments.manage") ? supabase
           .from("agent_commercial_payments")
           .select(
             "id, product_type, requested_amount, payment_status, created_at, agents(business_name)",
           )
           .order("created_at", { ascending: false })
-          .limit(50),
-        supabase
+          .limit(50) : Promise.resolve(empty),
+        allowed("boosts.manage") ? supabase
           .from("listing_boosts")
           .select(
             "id, listing_id, placement, duration_days, amount_tzs, status, starts_at, ends_at, listings(title), agents(business_name)",
           )
           .order("created_at", { ascending: false })
-          .limit(50),
-        supabase
+          .limit(50) : Promise.resolve(empty),
+        allowed("risk.manage") ? supabase
           .from("platform_risk_flags")
           .select("*")
           .order("created_at", { ascending: false })
-          .limit(50),
-        supabase
+          .limit(50) : Promise.resolve(empty),
+        allowed("refunds.manage") ? supabase
           .from("payment_refunds")
           .select("*")
           .order("created_at", { ascending: false })
-          .limit(50),
-        supabase.rpc("get_platform_promotion_performance", {
+          .limit(50) : Promise.resolve(empty),
+        allowed("analytics.view") ? supabase.rpc("get_platform_promotion_performance", {
           p_days: 30,
-        } as never),
+        } as never) : Promise.resolve(empty),
       ]);
+      const failed = [analytics, config, paymentRows, boostRows, riskRows, refundRows, performanceRows].find((result) => result.error);
+      if (failed?.error) setMessage(failed.error.message);
       setDashboard((analytics.data as Row | null) ?? {});
       setSettings((config.data as Row | null) ?? {});
       setPayments((paymentRows.data as Row[] | null) ?? []);
@@ -154,7 +165,7 @@ export function BusinessOperations({
       setReceipts((receiptRows.data as Row[] | null) ?? []);
       setListings((listingRows.data as Row[] | null) ?? []);
     }
-  }, [agentId, role, supabase]);
+  }, [agentId, role, supabase, permissions]);
 
   useEffect(() => {
     queueMicrotask(() => void load());
@@ -167,8 +178,7 @@ export function BusinessOperations({
         ? "Pause payments"
         : "Make free";
     if (
-      !window.confirm(
-        `${action} for this service? This affects every app and remains active after logout.`,
+      !window.confirm(translateUiPrompt(`${action} for this service? This affects every app and remains active after logout.`),
       )
     )
       return;
@@ -242,7 +252,7 @@ export function BusinessOperations({
   }
 
   async function update(table: string, id: string, status: string) {
-    if (!window.confirm(`Change this record to ${status}?`)) return;
+    if (!window.confirm(translateUiPrompt(`Change this record to ${status}?`))) return;
     setBusy(true);
     const result = await supabase
       .from(table)
@@ -262,11 +272,9 @@ export function BusinessOperations({
     <div className="grid gap-6">
       <section className="surface-card p-6">
         <h2 className="font-heading text-3xl font-semibold">
-          {role === "admin" ? "Business operations" : "Agent business centre"}
+          <UiText text={role === "admin" ? "Business operations" : "Agent business centre"} />
         </h2>
-        <p className="mt-2 text-muted">
-          Live Supabase analytics and commercial workflows.
-        </p>
+        <p className="mt-2 text-muted"><UiText text={"Live Supabase analytics and commercial workflows."} /></p>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {Object.entries(dashboard)
             .filter(([, value]) => typeof value !== "object")
@@ -274,28 +282,24 @@ export function BusinessOperations({
             .map(([key, value]) => (
               <div className="soft-panel p-4" key={key}>
                 <p className="text-xs font-bold uppercase text-muted">
-                  {key.replaceAll("_", " ")}
+                  <UiText text={key.replaceAll("_", " ")} />
                 </p>
                 <p className="mt-2 text-xl font-bold">{String(value ?? 0)}</p>
               </div>
             ))}
         </div>
       </section>
+      {role === "admin" && hasPermission(permissions, "payments.manage") ? <ReferralFinancePanel /> : null}
       {message ? (
         <p className="rounded-xl bg-brand-info-soft p-4" role="status">
-          {message}
+          <UiText text={message} />
         </p>
       ) : null}
       {role === "admin" ? (
         <>
-          <section className="surface-card p-6">
-            <h2 className="font-heading text-2xl font-semibold">
-              Global payment switches
-            </h2>
-            <p className="mt-2 text-sm text-muted">
-              Admin-only settings shared by the website and mobile apps. Paused
-              checkout does not grant paid products for free.
-            </p>
+          {hasPermission(permissions, "*") ? <section className="surface-card p-6">
+            <h2 className="font-heading text-2xl font-semibold"><UiText text={"Global payment switches"} /></h2>
+            <p className="mt-2 text-sm text-muted"><UiText text={"Admin-only settings shared by the website and mobile apps. Paused checkout does not grant paid products for free."} /></p>
             <div className="mt-5 grid gap-3">
               {switches.map(({ key, label, on, off }) => (
                 <label
@@ -303,9 +307,9 @@ export function BusinessOperations({
                   key={key}
                 >
                   <span>
-                    <strong>{label}</strong>
+                    <strong><UiText text={label} /></strong>
                     <span className="block text-xs text-muted">
-                      {settings[key] === true ? on : off}
+                      <UiText text={settings[key] === true ? on : off} />
                     </span>
                   </span>
                   <input
@@ -317,17 +321,17 @@ export function BusinessOperations({
                 </label>
               ))}
             </div>
-          </section>
-          <OperationList title="Commercial payments" rows={payments} />
-          <OperationList
+          </section> : null}
+          {hasPermission(permissions, "payments.manage") ? <OperationList title="Commercial payments" rows={payments} /> : null}
+          {hasPermission(permissions, "analytics.view") ? <OperationList
             title="Sponsored campaign performance (30 days)"
             rows={campaignPerformance.map((row) => ({
               ...row,
               id: row.promotion_id,
               status: `${row.impressions} impressions · ${row.clicks} clicks · ${row.click_through_rate}% CTR`,
             }))}
-          />
-          <OperationList
+          /> : null}
+          {hasPermission(permissions, "boosts.manage") ? <OperationList
             title="Featured campaigns"
             rows={boosts}
             actions={(row) =>
@@ -337,13 +341,11 @@ export function BusinessOperations({
                   onClick={() =>
                     void update("listing_boosts", String(row.id), "active")
                   }
-                >
-                  Approve
-                </button>
+                ><UiText text={"Approve"} /></button>
               ) : null
             }
-          />
-          <OperationList
+          /> : null}
+          {hasPermission(permissions, "risk.manage") ? <OperationList
             title="Risk and fraud flags"
             rows={risks}
             actions={(row) => (
@@ -352,12 +354,10 @@ export function BusinessOperations({
                 onClick={() =>
                   void update("platform_risk_flags", String(row.id), "resolved")
                 }
-              >
-                Resolve
-              </button>
+              ><UiText text={"Resolve"} /></button>
             )}
-          />
-          <OperationList
+          /> : null}
+          {hasPermission(permissions, "refunds.manage") ? <OperationList
             title="Refund requests"
             rows={refunds}
             actions={(row) => (
@@ -367,30 +367,22 @@ export function BusinessOperations({
                   onClick={() =>
                     void update("payment_refunds", String(row.id), "approved")
                   }
-                >
-                  Approve
-                </button>
+                ><UiText text={"Approve"} /></button>
                 <button
                   className="btn btn-outline"
                   onClick={() =>
                     void update("payment_refunds", String(row.id), "rejected")
                   }
-                >
-                  Reject
-                </button>
+                ><UiText text={"Reject"} /></button>
               </>
             )}
-          />
+          /> : null}
         </>
       ) : (
         <>
           <section className="surface-card p-6">
-            <h2 className="font-heading text-2xl font-semibold">
-              Choose a subscription
-            </h2>
-            <label className="field-label mt-4">
-              Payment phone
-              <input
+            <h2 className="font-heading text-2xl font-semibold"><UiText text={"Choose a subscription"} /></h2>
+            <label className="field-label mt-4"><UiText text={"Payment phone"} /><UiInput
                 className="field-input mt-2"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -404,13 +396,11 @@ export function BusinessOperations({
                     {String(plan.name)}
                   </h3>
                   <p className="mt-2 text-xl font-bold">
-                    TZS {String(plan.monthly_price_tzs)} / month
-                  </p>
+                    TZS {String(plan.monthly_price_tzs)}<UiText text={" / month"} /></p>
                   <p className="mt-2 text-sm text-muted">
-                    {plan.listing_limit == null
+                    <UiText text={plan.listing_limit == null
                       ? "Unlimited listings"
-                      : `${String(plan.listing_limit)} listings`}{" "}
-                    · Publication fee TZS {String(plan.publication_fee_tzs)}
+                      : `${String(plan.listing_limit)} listings`} />{" "}<UiText text={"· Publication fee TZS"} />{String(plan.publication_fee_tzs)}
                   </p>
                   <button
                     disabled={busy}
@@ -418,23 +408,20 @@ export function BusinessOperations({
                     onClick={() =>
                       void commercialPayment("subscription", String(plan.id))
                     }
-                  >
-                    Select {String(plan.name)}
+                  ><UiText text={"Select"} />{String(plan.name)}
                   </button>
                 </article>
               ))}
             </div>
           </section>
           <section className="surface-card p-6">
-            <h2 className="font-heading text-2xl font-semibold">
-              Promote a listing
-            </h2>
+            <h2 className="font-heading text-2xl font-semibold"><UiText text={"Promote a listing"} /></h2>
             <form
               className="mt-5 grid gap-4 sm:grid-cols-3"
               onSubmit={(e) => void createBoost(e)}
             >
               <select className="field-input" name="listing" required>
-                <option value="">Select listing</option>
+                <option value=""><UiText text={"Select listing"} /></option>
                 {listings.map((row) => (
                   <option key={String(row.id)} value={String(row.id)}>
                     {String(row.title)}
@@ -442,20 +429,18 @@ export function BusinessOperations({
                 ))}
               </select>
               <select className="field-input" name="placement">
-                <option value="featured">Featured</option>
-                <option value="homepage">Homepage</option>
-                <option value="search_top">Top of search</option>
-                <option value="regional">Regional</option>
-                <option value="category">Category</option>
+                <option value="featured"><UiText text={"Featured"} /></option>
+                <option value="homepage"><UiText text={"Homepage"} /></option>
+                <option value="search_top"><UiText text={"Top of search"} /></option>
+                <option value="regional"><UiText text={"Regional"} /></option>
+                <option value="category"><UiText text={"Category"} /></option>
               </select>
               <select className="field-input" name="duration">
-                <option value="3">3 days · TZS 5,000</option>
-                <option value="7">7 days · TZS 10,000</option>
-                <option value="30">30 days · TZS 30,000</option>
+                <option value="3"><UiText text={"3 days · TZS 5,000"} /></option>
+                <option value="7"><UiText text={"7 days · TZS 10,000"} /></option>
+                <option value="30"><UiText text={"30 days · TZS 30,000"} /></option>
               </select>
-              <button className="btn btn-success" disabled={busy}>
-                Create and pay
-              </button>
+              <button className="btn btn-success" disabled={busy}><UiText text={"Create and pay"} /></button>
             </form>
           </section>
           <OperationList title="My featured campaigns" rows={boosts} />
@@ -477,10 +462,10 @@ function OperationList({
 }) {
   return (
     <section className="surface-card p-6">
-      <h2 className="font-heading text-2xl font-semibold">{title}</h2>
+      <h2 className="font-heading text-2xl font-semibold"><UiText text={title} /></h2>
       <div className="mt-4 grid gap-3">
         {rows.length === 0 ? (
-          <p className="text-muted">No records.</p>
+          <p className="text-muted"><UiText text={"No records."} /></p>
         ) : (
           rows.map((row) => (
             <article

@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_design_system/flutter_design_system.dart';
 
@@ -72,8 +73,8 @@ class ManageHeroCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    const KodimaliStatusBadge(
-                      label: "Trusted workspace",
+                    KodimaliStatusBadge(
+                      label: mobileUi(context, "Trusted workspace"),
                       tone: KodimaliStatusTone.info,
                     ),
                     const SizedBox(height: KodimaliSpacing.sm),
@@ -103,7 +104,10 @@ class ManageHeroCard extends StatelessWidget {
           ),
           if (bottom != null) ...<Widget>[
             const SizedBox(height: KodimaliSpacing.md),
-            bottom!,
+            DefaultTextStyle.merge(
+              style: const TextStyle(color: Colors.white),
+              child: bottom!,
+            ),
           ],
         ],
       ),
@@ -347,6 +351,9 @@ class ManageMetaWrap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final foreground =
+        DefaultTextStyle.of(context).style.color ??
+        Theme.of(context).colorScheme.onSurface;
     return Wrap(
       spacing: KodimaliSpacing.sm,
       runSpacing: KodimaliSpacing.sm,
@@ -359,15 +366,15 @@ class ManageMetaWrap extends StatelessWidget {
                 vertical: KodimaliSpacing.xs,
               ),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
+                color: foreground.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(KodimaliRadii.pill),
-                border: Border.all(color: Colors.white24),
+                border: Border.all(color: foreground.withValues(alpha: 0.22)),
               ),
               child: Text(
                 item,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.9),
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: foreground),
               ),
             ),
           )

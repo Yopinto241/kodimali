@@ -1,10 +1,11 @@
 "use client";
+import { UiButton, UiInput, UiNav, UiText } from "@/components/ui-text";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useLanguage } from "@/components/language-provider";
+import { ListingSearchForm } from "@/components/listing-search-form";
 
-type Category = { id: string; slug: string; name: string };
 type Copy = { label: string; title: string; body: string };
 type Slide = { src: string; slug: string; position: string; sw: Copy; en: Copy };
 const slide = (src: string, slug: string, sw: Copy, en: Copy, position = "center"): Slide => ({ src, slug, sw, en, position });
@@ -22,9 +23,15 @@ const slides = [
   slide("/hero-events-edited.jpg", "events", { label: "Matukio", title: "Panga tukio kwa urahisi.", body: "Pata ukumbi, vifaa na wataalamu mahali pamoja." }, { label: "Events", title: "Plan your event with ease.", body: "Find venues, equipment and professionals together." }),
 ];
 
-export function CinematicHero({ categories }: { categories: Category[] }) {
+export function CinematicHero() {
   const { language } = useLanguage();
-  const [active, setActive] = useState(0);
+  const [{ active, visited }, setSlide] = useState({ active: 0, visited: [0] });
+  function setActive(next: number | ((value: number) => number)) {
+    setSlide(previous => {
+      const active = typeof next === "function" ? next(previous.active) : next;
+      return { active, visited: previous.visited.includes(active) ? previous.visited : [...previous.visited, active] };
+    });
+  }
   const [paused, setPaused] = useState(false);
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -35,25 +42,24 @@ export function CinematicHero({ categories }: { categories: Category[] }) {
   }, [paused]);
   const activeSlide = slides[active];
   const copy = activeSlide[language];
-  const localizedCategory = (category: Category) => language === "sw" ? ({ house: "Nyumba", apartment: "Apartment", car: "Magari", motorcycle: "Pikipiki", office: "Ofisi", "meeting-hall": "Kumbi za mikutano", "ceremony-hall": "Kumbi za sherehe", equipment: "Vifaa", farms: "Mashamba", "other-asset": "Mali nyingine", events: "Matukio" }[category.slug] ?? category.name) : category.name;
   const href = activeSlide.slug === "events" ? "/events" : `/category/${activeSlide.slug}`;
   return <section className="cinematic-hero" aria-roledescription="carousel">
-    <div className="absolute inset-0 -z-20">{slides.map((item, index) => <Image key={item.slug} src={item.src} alt="" fill priority={index === 0} sizes="100vw" style={{ objectPosition: item.position }} className={`cinematic-slide object-cover ${index === active ? "is-active" : ""}`} />)}</div>
+    <div className="absolute inset-0 -z-20">{slides.map((item, index) => visited.includes(index) ? <Image key={item.slug} src={item.src} alt="" fill priority={index === 0} sizes="100vw" style={{ objectPosition: item.position }} className={`cinematic-slide object-cover ${index === active ? "is-active" : ""}`} /> : null)}</div>
     <div className="cinematic-overlay" />
     <div className="app-shell relative z-10 flex min-h-[360px] items-center py-7"><div className="hero-content w-full max-w-3xl text-white">
-      <p className="hero-kicker">{copy.label}</p>
+      <p className="hero-kicker"><UiText text={copy.label} /></p>
       <h1 key={`${activeSlide.slug}-${language}`} className="hero-slide-copy mt-2 max-w-2xl font-heading text-4xl font-extrabold leading-[1.02] tracking-[-0.045em] sm:text-5xl">{copy.title}</h1>
       <p className="mt-3 max-w-xl text-sm leading-6 text-white/85 sm:text-base">{copy.body}</p>
-      <form action="/listings" className="hero-search-form mt-5 flex items-center rounded-full bg-white p-1.5 shadow-2xl">
+      <ListingSearchForm className="hero-search-form mt-5 flex items-center rounded-full bg-white p-1.5 shadow-2xl">
         <span className="hero-search-icon" aria-hidden="true">⌕</span>
-        <input name="q" aria-label={language === "sw" ? "Unatafuta nini?" : "What are you looking for?"} className="hero-search-input h-12 min-w-0 flex-1 bg-transparent px-2 text-brand-ink outline-none" placeholder={language === "sw" ? "Nyumba, gari, ofisi..." : "House, car, office..."} />
-        <button className="hero-search-button" aria-label={language === "sw" ? "Tafuta" : "Search"}>→</button>
-      </form>
-      <nav className="hero-tabs mt-4 flex items-center gap-2 overflow-x-auto pb-1" aria-label={language === "sw" ? "Aina za mali" : "Categories"}>{slides.slice(0, 8).map((item, index) => {
+        <UiInput name="q" aria-label={language === "sw" ? "Unatafuta nini?" : "What are you looking for?"} className="hero-search-input h-12 min-w-0 flex-1 bg-transparent px-2 text-brand-ink outline-none" placeholder={language === "sw" ? "Nyumba, gari, ofisi..." : "House, car, office..."} />
+        <UiButton className="hero-search-button" aria-label={language === "sw" ? "Tafuta" : "Search"}>→</UiButton>
+      </ListingSearchForm>
+      <UiNav className="hero-tabs mt-4 flex items-center gap-2 overflow-x-auto pb-1" aria-label={language === "sw" ? "Aina za mali" : "Categories"}>{slides.slice(0, 8).map((item, index) => {
         const categoryHref = item.slug === "events" ? "/events" : `/category/${item.slug}`;
-        return <Link key={item.slug} href={categoryHref} aria-current={index === active ? "page" : undefined} onPointerEnter={() => setActive(index)} onFocus={() => setActive(index)} className={`hero-tab ${index === active ? "is-active" : ""}`}>{item[language].label}</Link>;
-      })}</nav>
-      <div className="mt-3 flex items-center gap-4"><Link className="inline-flex text-xs font-bold text-white underline decoration-white/35 underline-offset-4" href={href}>{language === "sw" ? `Angalia ${copy.label}` : `View ${copy.label}`} →</Link><button type="button" className="hero-pause" onClick={() => setPaused((value) => !value)}>{paused ? (language === "sw" ? "Endelea" : "Resume") : (language === "sw" ? "Sitisha" : "Pause")}</button></div>
+        return <Link key={item.slug} href={categoryHref} aria-current={index === active ? "page" : undefined} onPointerEnter={() => setActive(index)} onFocus={() => setActive(index)} className={`hero-tab ${index === active ? "is-active" : ""}`}><UiText text={item[language].label} /></Link>;
+      })}</UiNav>
+      <div className="mt-3 flex items-center gap-4"><Link className="inline-flex text-xs font-bold text-white underline decoration-white/35 underline-offset-4" href={href}><UiText text={language === "sw" ? `Angalia ${copy.label}` : `View ${copy.label}`} /> →</Link><button type="button" className="hero-pause" onClick={() => setPaused((value) => !value)}>{paused ? (language === "sw" ? "Endelea" : "Resume") : (language === "sw" ? "Sitisha" : "Pause")}</button></div>
     </div></div>
   </section>;
 }

@@ -1,0 +1,9 @@
+# Recovery copies and generated release output are not application sources.
+# Each app/package retains its own analysis_options.yaml and lint rules.
+analyzer:
+  exclude:
+    - tmp/**
+    - builds/**
+    - apps/web/node_modules/**
+    - apps/web/.next/**
+    - apps/web/.open-next/**

@@ -48,28 +48,19 @@ Deno.serve(async (request) => {
         error: "This listing does not belong to your active agent account.",
       }, 403);
     }
-    const { data: enabled, error: settingError } = await service.rpc(
-      "agent_listing_payments_enabled",
+    const { data: effectiveFee, error: settingError } = await service.rpc(
+      "agent_listing_publication_fee", { p_agent_id: agent.id },
     );
     if (settingError) throw new Error(settingError.message);
+    const amount = Number(effectiveFee);
+    if (typeof effectiveFee !== "number" || !Number.isFinite(amount) || amount < 0) throw new Error("Publication settings unavailable");
     const { error: capacityError } = await service.rpc(
       "assert_agent_plan_listing_capacity",
       { p_agent_id: agent.id, p_listing_id: listingId },
     );
     if (capacityError) throw new Error(capacityError.message);
-    const { data: subscription } = await service.from("agent_subscriptions")
-      .select("plan_id,agent_subscription_plans(publication_fee_tzs)").eq(
-        "agent_id",
-        agent.id,
-      ).eq("status", "active").or(
-        `expires_at.is.null,expires_at.gt.${new Date().toISOString()}`,
-      ).limit(1).maybeSingle();
-    const planData = subscription?.agent_subscription_plans as unknown as {
-      publication_fee_tzs?: number;
-    } | null;
-    const amount = Number(planData?.publication_fee_tzs ?? 1000);
     const approvalRequired = agent.verification_status !== "approved";
-    if (enabled === false || amount === 0) {
+    if (amount === 0) {
       const { data: published, error: publishError } = await service.rpc(
         "release_agent_listing_if_eligible",
         { p_listing_id: listingId },

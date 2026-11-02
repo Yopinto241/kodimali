@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -52,7 +53,9 @@ class _AgentListingChatsTabState extends State<AgentListingChatsTab> {
       }
       final rows = s.data ?? const <Map<String, dynamic>>[];
       if (rows.isEmpty) {
-        return const Center(child: Text('Customer chats will appear here.'));
+        return const Center(
+          child: LocalizedUiText('Customer chats will appear here.'),
+        );
       }
       return RefreshIndicator(
         onRefresh: () async => _refresh(),
@@ -66,7 +69,7 @@ class _AgentListingChatsTabState extends State<AgentListingChatsTab> {
               leading: const CircleAvatar(child: Icon(Icons.person_outline)),
               title: Text(row['customer_name']?.toString() ?? 'Customer'),
               subtitle: Text(
-                '${row['listing_title'] ?? 'Listing'}\n${lastMessage?.isNotEmpty == true ? lastMessage : 'No messages yet'}',
+                '${row['listing_title'] ?? 'Listing'}\n${lastMessage?.isNotEmpty == true ? lastMessage : mobileUi(context, 'No messages yet')}',
               ),
               isThreeLine: true,
               trailing: unread > 0
@@ -188,7 +191,13 @@ class _AgentListingChatScreenState extends State<AgentListingChatScreen> {
                     return Center(
                       child: Padding(
                         padding: const EdgeInsets.all(20),
-                        child: Text('Messages could not load: ${m.error}'),
+                        child: Text(
+                          mobileUiFormat(
+                            context,
+                            "Messages could not load: {0}",
+                            [m.error],
+                          ),
+                        ),
                       ),
                     );
                   }
@@ -254,7 +263,16 @@ class _AgentListingChatScreenState extends State<AgentListingChatScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            '${10 - sent} messages left today • ${active ? 'Chat active' : 'Chat expired'}',
+                            mobileUiFormat(
+                              context,
+                              "{0} messages left today • {1}",
+                              [
+                                10 - sent,
+                                active
+                                    ? mobileUi(context, 'Chat active')
+                                    : mobileUi(context, 'Chat expired'),
+                              ],
+                            ),
                             style: Theme.of(context).textTheme.labelSmall,
                           ),
                           TextField(
@@ -266,9 +284,12 @@ class _AgentListingChatScreenState extends State<AgentListingChatScreen> {
                             decoration: InputDecoration(
                               hintText: active
                                   ? (sent < 10
-                                        ? 'Message customer…'
-                                        : 'Daily limit reached')
-                                  : 'Access expired',
+                                        ? mobileUi(context, 'Message customer…')
+                                        : mobileUi(
+                                            context,
+                                            'Daily limit reached',
+                                          ))
+                                  : mobileUi(context, 'Access expired'),
                             ),
                           ),
                         ],

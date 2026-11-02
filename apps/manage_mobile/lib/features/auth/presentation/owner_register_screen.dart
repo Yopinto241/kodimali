@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -34,14 +35,18 @@ class _OwnerRegisterScreenState extends State<OwnerRegisterScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          sw ? 'Usajili wa mmiliki au meneja' : 'Owner or manager registration',
+          sw
+              ? mobileUi(context, 'Usajili wa mmiliki au meneja')
+              : mobileUi(context, 'Owner or manager registration'),
         ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: <Widget>[
           Text(
-            sw ? 'Sajili biashara yako' : 'Register your business',
+            sw
+                ? mobileUi(context, 'Sajili biashara yako')
+                : mobileUi(context, 'Register your business'),
             style: Theme.of(
               context,
             ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -49,37 +54,63 @@ class _OwnerRegisterScreenState extends State<OwnerRegisterScreen> {
           const SizedBox(height: 8),
           Text(
             sw
-                ? 'Mmiliki wa ukumbi achague “Mmiliki wa venue”. Meneja asiye mmiliki achague “Meneja mwenye ruhusa”. Admin atathibitisha mamlaka kabla ya kufungua workspace.'
-                : 'Hall owners choose “Venue owner”. A manager acting for an owner chooses “Authorized manager”. Admin verifies authority before workspace access.',
+                ? mobileUi(
+                    context,
+                    'Mmiliki wa ukumbi achague “Mmiliki wa venue”. Meneja asiye mmiliki achague “Meneja mwenye ruhusa”. Admin atathibitisha mamlaka kabla ya kufungua workspace.',
+                  )
+                : mobileUi(
+                    context,
+                    'Hall owners choose “Venue owner”. A manager acting for an owner chooses “Authorized manager”. Admin verifies authority before workspace access.',
+                  ),
           ),
           const SizedBox(height: 20),
           DropdownButtonFormField<String>(
             initialValue: ownerType,
             decoration: InputDecoration(
-              labelText: sw ? 'Aina ya akaunti' : 'Account type',
+              labelText: sw
+                  ? mobileUi(context, 'Aina ya akaunti')
+                  : mobileUi(context, 'Account type'),
             ),
             items: <DropdownMenuItem<String>>[
               DropdownMenuItem(
                 value: 'venue_owner',
                 child: Text(
-                  sw ? 'Mmiliki wa hall au venue' : 'Hall or venue owner',
+                  sw
+                      ? mobileUi(context, 'Mmiliki wa hall au venue')
+                      : mobileUi(context, 'Hall or venue owner'),
                 ),
               ),
               DropdownMenuItem(
                 value: 'authorized_manager',
-                child: Text(sw ? 'Meneja mwenye ruhusa' : 'Authorized manager'),
+                child: Text(
+                  sw
+                      ? mobileUi(context, 'Meneja mwenye ruhusa')
+                      : mobileUi(context, 'Authorized manager'),
+                ),
               ),
               DropdownMenuItem(
                 value: 'equipment_owner',
-                child: Text(sw ? 'Mmiliki wa vifaa' : 'Equipment owner'),
+                child: Text(
+                  sw
+                      ? mobileUi(context, 'Mmiliki wa vifaa')
+                      : mobileUi(context, 'Equipment owner'),
+                ),
               ),
               DropdownMenuItem(
                 value: 'vehicle_owner',
-                child: Text(sw ? 'Mmiliki wa gari' : 'Vehicle owner'),
+                child: Text(
+                  sw
+                      ? mobileUi(context, 'Mmiliki wa gari')
+                      : mobileUi(context, 'Vehicle owner'),
+                ),
               ),
               DropdownMenuItem(
                 value: 'individual',
-                child: Text(sw ? 'Mmiliki binafsi' : 'Individual owner'),
+                child: Text(
+                  sw
+                      ? mobileUi(context, 'Mmiliki binafsi')
+                      : mobileUi(context, 'Individual owner'),
+                ),
               ),
             ],
             onChanged: (value) {
@@ -89,26 +120,32 @@ class _OwnerRegisterScreenState extends State<OwnerRegisterScreen> {
           TextField(
             controller: name,
             decoration: InputDecoration(
-              labelText: sw ? 'Jina la kisheria' : 'Legal name',
+              labelText: sw
+                  ? mobileUi(context, 'Jina la kisheria')
+                  : mobileUi(context, 'Legal name'),
             ),
           ),
           TextField(
             controller: phone,
             keyboardType: TextInputType.phone,
             decoration: InputDecoration(
-              labelText: sw ? 'Namba ya simu' : 'Phone number',
+              labelText: sw
+                  ? mobileUi(context, 'Namba ya simu')
+                  : mobileUi(context, 'Phone number'),
             ),
           ),
           TextField(
             controller: email,
             keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(labelText: 'Email'),
+            decoration: InputDecoration(labelText: mobileUi(context, 'Email')),
           ),
           TextField(
             controller: password,
             obscureText: true,
             decoration: InputDecoration(
-              labelText: sw ? 'Nenosiri' : 'Password',
+              labelText: sw
+                  ? mobileUi(context, 'Nenosiri')
+                  : mobileUi(context, 'Password'),
             ),
           ),
           TextField(
@@ -116,8 +153,14 @@ class _OwnerRegisterScreenState extends State<OwnerRegisterScreen> {
             maxLines: 4,
             decoration: InputDecoration(
               labelText: sw
-                  ? 'Eleza umiliki au ruhusa yako ya kusimamia'
-                  : 'Describe your ownership or management authority',
+                  ? mobileUi(
+                      context,
+                      'Eleza umiliki au ruhusa yako ya kusimamia',
+                    )
+                  : mobileUi(
+                      context,
+                      'Describe your ownership or management authority',
+                    ),
             ),
           ),
           const SizedBox(height: 20),
@@ -125,14 +168,20 @@ class _OwnerRegisterScreenState extends State<OwnerRegisterScreen> {
             onPressed: busy ? null : _submit,
             child: Text(
               busy
-                  ? (sw ? 'Inatuma…' : 'Submitting…')
-                  : (sw ? 'Tuma kwa uhakiki' : 'Submit for verification'),
+                  ? (sw
+                        ? mobileUi(context, 'Inatuma…')
+                        : mobileUi(context, 'Submitting…'))
+                  : (sw
+                        ? mobileUi(context, 'Tuma kwa uhakiki')
+                        : mobileUi(context, 'Submit for verification')),
             ),
           ),
           TextButton(
             onPressed: () => context.go('/login'),
             child: Text(
-              sw ? 'Tayari una akaunti? Ingia' : 'Already registered? Sign in',
+              sw
+                  ? mobileUi(context, 'Tayari una akaunti? Ingia')
+                  : mobileUi(context, 'Already registered? Sign in'),
             ),
           ),
         ],
@@ -169,8 +218,14 @@ class _OwnerRegisterScreenState extends State<OwnerRegisterScreen> {
           SnackBar(
             content: Text(
               context.isSwahili
-                  ? 'Ombi limepokelewa. Thibitisha email kisha subiri uhakiki wa admin.'
-                  : 'Application received. Confirm email, then wait for admin verification.',
+                  ? mobileUi(
+                      context,
+                      'Ombi limepokelewa. Thibitisha email kisha subiri uhakiki wa admin.',
+                    )
+                  : mobileUi(
+                      context,
+                      'Application received. Confirm email, then wait for admin verification.',
+                    ),
             ),
           ),
         );

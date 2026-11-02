@@ -1,4 +1,5 @@
 "use client";
+import { UiInput, UiText } from "@/components/ui-text";
 
 import Link from "next/link";
 import Image from "next/image";
@@ -95,7 +96,8 @@ export function EventsPublicCatalog() {
     });
   }, [supabase]);
   useEffect(() => {
-    void load(true);
+    const task = window.setTimeout(() => { void load(true); }, 0);
+    return () => window.clearTimeout(task);
   }, [mode, filters.category, filters.kind, filters.location]); // eslint-disable-line react-hooks/exhaustive-deps
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -106,16 +108,16 @@ export function EventsPublicCatalog() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow">
-            {sw ? "Vifaa na Huduma" : "Equipment and services"}
+            <UiText text={sw ? "Vifaa na Huduma" : "Equipment and services"} />
           </p>
           <h2 className="mt-3 font-heading text-3xl font-semibold">
-            {sw
+            <UiText text={sw
               ? "Kodisha kitu kimoja bila kuunda package"
-              : "Book one item without building a package"}
+              : "Book one item without building a package"} />
           </h2>
         </div>
         <a className="btn btn-outline" href="#plan-event">
-          {sw ? "Au panga tukio kamili" : "Or plan a complete event"}
+          <UiText text={sw ? "Au panga tukio kamili" : "Or plan a complete event"} />
         </a>
       </div>
       <div className="mt-6 flex gap-2">
@@ -123,13 +125,13 @@ export function EventsPublicCatalog() {
           className={`btn ${mode === "equipment" ? "btn-success" : "btn-outline"}`}
           onClick={() => setMode("equipment")}
         >
-          {sw ? "Vifaa" : "Equipment"}
+          <UiText text={sw ? "Vifaa" : "Equipment"} />
         </button>
         <button
           className={`btn ${mode === "service" ? "btn-success" : "btn-outline"}`}
           onClick={() => setMode("service")}
         >
-          {sw ? "Wataalamu" : "Professionals"}
+          <UiText text={sw ? "Wataalamu" : "Professionals"} />
         </button>
       </div>
       <div className="event-category-rail mt-4 flex gap-3 overflow-x-auto pb-2">
@@ -160,7 +162,7 @@ export function EventsPublicCatalog() {
           }}
         >
           <span aria-hidden>✦</span>
-          {sw ? "Wataalamu" : "Professionals"}
+          <UiText text={sw ? "Wataalamu" : "Professionals"} />
         </button>
       </div>
       <form
@@ -169,9 +171,9 @@ export function EventsPublicCatalog() {
       >
         <label className="grid self-end lg:col-span-2">
           <span className="sr-only">
-            {sw ? "Tafuta vifaa au huduma" : "Search equipment or services"}
+            <UiText text={sw ? "Tafuta vifaa au huduma" : "Search equipment or services"} />
           </span>
-          <input
+          <UiInput
             className="field-input"
             placeholder={
               sw ? "Tafuta jina au maelezo" : "Search name or description"
@@ -183,7 +185,7 @@ export function EventsPublicCatalog() {
         {mode === "equipment" ? (
           <label className="grid self-end lg:col-span-2">
             <span className="sr-only">
-              {sw ? "Chagua aina ya kifaa" : "Choose equipment category"}
+              <UiText text={sw ? "Chagua aina ya kifaa" : "Choose equipment category"} />
             </span>
             <select
               className="field-input"
@@ -192,7 +194,7 @@ export function EventsPublicCatalog() {
                 setFilters({ ...filters, category: e.target.value })
               }
             >
-              <option value="">{sw ? "Vifaa vyote" : "All equipment"}</option>
+              <option value=""><UiText text={sw ? "Vifaa vyote" : "All equipment"} /></option>
               {categories.map((row) => (
                 <option value={String(row.id)} key={String(row.id)}>
                   {String(sw ? row.name_sw : row.name_en)}
@@ -202,14 +204,14 @@ export function EventsPublicCatalog() {
           </label>
         ) : (
           <label className="grid gap-2 text-sm font-semibold lg:col-span-2">
-            <span>{sw ? "Aina ya mtaalamu" : "Professional type"}</span>
+            <span><UiText text={sw ? "Aina ya mtaalamu" : "Professional type"} /></span>
             <select
               className="field-input"
               value={filters.kind}
               onChange={(e) => setFilters({ ...filters, kind: e.target.value })}
             >
               <option value="">
-                {sw ? "Wataalamu wote" : "All professionals"}
+                <UiText text={sw ? "Wataalamu wote" : "All professionals"} />
               </option>
               {[
                 "mc_host",
@@ -223,14 +225,14 @@ export function EventsPublicCatalog() {
                 "transport_delivery",
               ].map((kind) => (
                 <option value={kind} key={kind}>
-                  {kind.replaceAll("_", " ")}
+                  <UiText text={kind.replaceAll("_", " ")} />
                 </option>
               ))}
             </select>
           </label>
         )}
         <fieldset className="event-filter-group sm:col-span-2 lg:col-span-4">
-          <legend>{sw ? "Chagua eneo" : "Choose location"}</legend>
+          <legend><UiText text={sw ? "Chagua eneo" : "Choose location"} /></legend>
           <EventLocationFields
             value={filters.location}
             onChange={(location) =>
@@ -239,7 +241,7 @@ export function EventsPublicCatalog() {
           />
         </fieldset>
         <label className="grid gap-2 text-sm font-semibold">
-          <span>{sw ? "Mwanzo" : "Start"}</span>
+          <span><UiText text={sw ? "Mwanzo" : "Start"} /></span>
           <input
             className="field-input"
             type="datetime-local"
@@ -248,7 +250,7 @@ export function EventsPublicCatalog() {
           />
         </label>
         <label className="grid gap-2 text-sm font-semibold">
-          <span>{sw ? "Mwisho" : "End"}</span>
+          <span><UiText text={sw ? "Mwisho" : "End"} /></span>
           <input
             className="field-input"
             type="datetime-local"
@@ -257,8 +259,8 @@ export function EventsPublicCatalog() {
           />
         </label>
         <label className="grid gap-2 text-sm font-semibold">
-          <span>{sw ? "Bei ya chini" : "Minimum price"}</span>
-          <input
+          <span><UiText text={sw ? "Bei ya chini" : "Minimum price"} /></span>
+          <UiInput
             className="field-input"
             type="number"
             min="0"
@@ -268,8 +270,8 @@ export function EventsPublicCatalog() {
           />
         </label>
         <label className="grid gap-2 text-sm font-semibold">
-          <span>{sw ? "Bei ya juu" : "Maximum price"}</span>
-          <input
+          <span><UiText text={sw ? "Bei ya juu" : "Maximum price"} /></span>
+          <UiInput
             className="field-input"
             type="number"
             min="0"
@@ -279,33 +281,33 @@ export function EventsPublicCatalog() {
           />
         </label>
         <label className="grid gap-2 text-sm font-semibold sm:col-span-1 lg:col-span-2">
-          <span>{sw ? "Panga matokeo" : "Sort results"}</span>
+          <span><UiText text={sw ? "Panga matokeo" : "Sort results"} /></span>
           <select
             className="field-input"
             value={filters.sort}
             onChange={(e) => setFilters({ ...filters, sort: e.target.value })}
           >
             <option value="recommended">
-              {sw ? "Zilizopendekezwa" : "Recommended"}
+              <UiText text={sw ? "Zilizopendekezwa" : "Recommended"} />
             </option>
-            <option value="newest">{sw ? "Mpya" : "Newest"}</option>
+            <option value="newest"><UiText text={sw ? "Mpya" : "Newest"} /></option>
             <option value="price_low">
-              {sw ? "Bei ndogo kwanza" : "Lowest price"}
+              <UiText text={sw ? "Bei ndogo kwanza" : "Lowest price"} />
             </option>
             <option value="price_high">
-              {sw ? "Bei kubwa kwanza" : "Highest price"}
+              <UiText text={sw ? "Bei kubwa kwanza" : "Highest price"} />
             </option>
           </select>
         </label>
         <button className="btn btn-success self-end sm:col-span-1 lg:col-span-2">
-          {sw ? "Tafuta" : "Search"}
+          <UiText text={sw ? "Tafuta" : "Search"} />
         </button>
       </form>
       {loading ? (
-        <p className="mt-6 text-muted">{sw ? "Inapakia…" : "Loading…"}</p>
+        <p className="mt-6 text-muted"><UiText text={sw ? "Inapakia…" : "Loading…"} /></p>
       ) : rows.length === 0 ? (
         <p className="mt-6 text-muted">
-          {sw ? "Hakuna kilichopatikana." : "Nothing found."}
+          <UiText text={sw ? "Hakuna kilichopatikana." : "Nothing found."} />
         </p>
       ) : (
         <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -324,9 +326,9 @@ export function EventsPublicCatalog() {
                 title={String(row.name ?? row.title)}
               />
               <p className="text-xs font-bold uppercase tracking-wider text-brand-teal">
-                {mode === "equipment"
+                <UiText text={mode === "equipment"
                   ? String(sw ? row.category_name_sw : row.category_name_en)
-                  : String(row.provider_kind).replaceAll("_", " ")}
+                  : String(row.provider_kind).replaceAll("_", " ")} />
               </p>
               <h3 className="mt-2 font-heading text-xl font-semibold">
                 {String(row.name ?? row.title)}
@@ -335,20 +337,20 @@ export function EventsPublicCatalog() {
                 {String(row.public_location_label ?? row.display_name ?? "")}
               </p>
               <p className="mt-4 font-bold">
-                {row.price_amount_tzs == null
+                <UiText text={row.price_amount_tzs == null
                   ? sw
                     ? "Omba quotation"
                     : "Request quote"
-                  : `TZS ${Number(row.price_amount_tzs).toLocaleString()}`}
+                  : `TZS ${Number(row.price_amount_tzs).toLocaleString()}`} />
               </p>
               {row.available_quantity != null ? (
                 <p className="mt-1 text-sm text-muted">
-                  {sw ? "Vilivyopo" : "Available"}:{" "}
+                  <UiText text={sw ? "Vilivyopo" : "Available"} />:{" "}
                   {String(row.available_quantity)}
                 </p>
               ) : row.is_available === false ? (
                 <p className="mt-1 text-sm font-semibold text-red-700">
-                  {sw ? "Ratiba imejaa" : "Unavailable for selected time"}
+                  <UiText text={sw ? "Ratiba imejaa" : "Unavailable for selected time"} />
                 </p>
               ) : null}
             </Link>
@@ -361,7 +363,7 @@ export function EventsPublicCatalog() {
           disabled={loading}
           onClick={() => void load(false)}
         >
-          {sw ? "Onyesha zaidi" : "Load more"}
+          <UiText text={sw ? "Onyesha zaidi" : "Load more"} />
         </button>
       ) : null}
     </section>

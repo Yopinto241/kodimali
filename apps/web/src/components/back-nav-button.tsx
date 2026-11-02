@@ -1,6 +1,7 @@
 "use client";
+import { UiButton, UiText } from "@/components/ui-text";
 
-import { useRouter } from "next/navigation";
+import { useNavigate } from "@/components/navigation-progress";
 
 type BackNavButtonProps = {
   fallbackHref?: string;
@@ -11,24 +12,24 @@ export function BackNavButton({
   fallbackHref = "/",
   label = "Back",
 }: BackNavButtonProps) {
-  const router = useRouter();
+  const navigate = useNavigate();
 
   return (
-    <button
+    <UiButton
       type="button"
       onClick={() => {
         if (window.history.length > 1) {
-          router.back();
+          window.history.back();
           return;
         }
-        router.push(fallbackHref);
+        navigate(fallbackHref);
       }}
       className="back-nav-button"
       aria-label={label}
       title={label}
     >
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-      <span className="sr-only">{label}</span>
-    </button>
+      <span className="sr-only"><UiText text={label} /></span>
+    </UiButton>
   );
 }

@@ -1,218 +1,223 @@
 "use client";
-
-import { useEffect, useState } from "react";
+import { UiSelect, UiText } from "@/components/ui-text";
+import { useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/components/language-provider";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
-
-type Option = { id: string; name: string };
-
+type Option = {
+  id: string;
+  name: string;
+  location_type?: string;
+  parent_id?: string | null;
+};
+const levels = ["region", "district", "ward", "area"];
 export function EventLocationFields({
   value,
   onChange,
   inputName,
   required = false,
+  onLabelChange,
 }: {
   value: string;
-  onChange: (locationId: string) => void;
+  onChange: (id: string) => void;
   inputName?: string;
   required?: boolean;
+  onLabelChange?: (label: string) => void;
 }) {
   const { language } = useLanguage();
   const sw = language === "sw";
-  const [regions, setRegions] = useState<Option[]>([]);
-  const [districts, setDistricts] = useState<Option[]>([]);
-  const [wards, setWards] = useState<Option[]>([]);
-  const [areas, setAreas] = useState<Option[]>([]);
-  const [regionId, setRegionId] = useState("");
-  const [districtId, setDistrictId] = useState("");
-  const [wardId, setWardId] = useState("");
-  const [areaId, setAreaId] = useState("");
-
-  async function children(type: string, parentId: string) {
-    if (!parentId) return [];
-    const response = await fetch(
-      `/api/locations?locationType=${type}&parentId=${parentId}`,
-    );
-    return response.ok ? ((await response.json()) as Option[]) : [];
-  }
-
+  const [selected, setSelected] = useState<string[]>(["", "", "", ""]);
+  const [options, setOptions] = useState<Option[][]>([[], [], [], []]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const latest = useRef(0);
+  const ownValue = useRef("");
+  const initial = useRef(true);
   useEffect(() => {
-    let active = true;
+    if (!initial.current && ownValue.current === value) return;
+    initial.current = false;
+    ownValue.current = value;
+    const request = ++latest.current;
+    setLoading(true);
+    setError("");
     void (async () => {
-      const { data } = await getBrowserSupabase()
+      const db = getBrowserSupabase();
+      const country = await db
         .from("locations")
         .select("id")
         .eq("location_type", "country")
         .eq("is_active", true)
         .limit(1)
         .maybeSingle();
-      const country = data as { id: string } | null;
-      if (!active || !country?.id) return;
-      const nextRegions = await children("region", String(country.id));
-      if (!active) return;
-      setRegions(nextRegions);
-      const savedRegion =
-        window.localStorage.getItem("customer_region_id") ?? "";
-      const savedDistrict =
-        window.localStorage.getItem("customer_district_id") ?? "";
-      const savedWard = window.localStorage.getItem("customer_ward_id") ?? "";
-      const savedArea = window.localStorage.getItem("customer_area_id") ?? "";
-      if (!value && savedRegion) {
-        setRegionId(savedRegion);
-        const nextDistricts = await children("district", savedRegion);
-        if (!active) return;
-        setDistricts(nextDistricts);
-        if (savedDistrict) {
-          setDistrictId(savedDistrict);
-          const [nextWards, districtAreas] = await Promise.all([
-            children("ward", savedDistrict),
-            children("area", savedDistrict),
-          ]);
-          if (!active) return;
-          setWards(nextWards);
-          setAreas(districtAreas);
-          if (savedWard) {
-            setWardId(savedWard);
-            setAreas(await children("area", savedWard));
-          }
-          if (savedArea) setAreaId(savedArea);
-          onChange(savedArea || savedWard || savedDistrict || savedRegion);
-        } else onChange(savedRegion);
+      if (country.error || !country.data)
+        throw new Error(
+          sw ? "Imeshindwa kupakia maeneo." : "Could not load locations.",
+        );
+      const countryId = String((country.data as { id: string }).id);
+      const chain: Option[] = [];
+      let id = value;
+      while (id && chain.length < 5) {
+        const r = await db
+          .from("locations")
+          .select("id,name,location_type,parent_id")
+          .eq("id", id)
+          .maybeSingle();
+        if (r.error || !r.data)
+          throw new Error(
+            sw ? "Chagua eneo tena." : "Please choose your location again.",
+          );
+        const item = r.data as Option;
+        chain.unshift(item);
+        id = item.parent_id ?? "";
       }
-    })();
-    return () => {
-      active = false;
-    };
-    // The saved location should be restored once, not whenever the parent rerenders.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function choose(
-    region: string,
-    district: string,
-    ward: string,
-    area: string,
-  ) {
-    const values = {
-      region: region,
-      district: district,
-      ward: ward,
-      area: area,
-    };
-    for (const [level, id] of Object.entries(values)) {
-      const key = `customer_${level}_id`;
-      if (id) window.localStorage.setItem(key, id);
-      else window.localStorage.removeItem(key);
+      const ids = levels.map(
+        (level) => chain.find((item) => item.location_type === level)?.id ?? "",
+      );
+      const all = await Promise.all(
+        levels.map(async (level, i) => {
+          const parent =
+            i === 0 ? countryId : i === 3 ? ids[2] || ids[1] : ids[i - 1];
+          if (!parent) return [];
+          const r = await fetch(
+            `/api/locations?locationType=${level}&parentId=${parent}`,
+          );
+          if (!r.ok)
+            throw new Error(
+              sw ? "Imeshindwa kupakia maeneo." : "Could not load locations.",
+            );
+          return (await r.json()) as Option[];
+        }),
+      );
+      if (request === latest.current) {
+        setSelected(ids);
+        setOptions(all);
+      }
+    })()
+      .catch((e) => {
+        if (request === latest.current) setError(e.message);
+      })
+      .finally(() => {
+        if (request === latest.current) setLoading(false);
+      });
+  }, [value, sw]);
+  async function choose(index: number, id: string) {
+    const ids = selected.map((old, i) =>
+      i < index ? old : i === index ? id : "",
+    );
+    const nextOptions = options.map((old, i) => (i <= index ? old : []));
+    setSelected(ids);
+    setOptions(nextOptions);
+    const next = [...ids].reverse().find(Boolean) ?? "";
+    ownValue.current = next;
+    onChange(next);
+    onLabelChange?.(
+      ids
+        .map((v, i) => options[i].find((o) => o.id === v)?.name)
+        .filter(Boolean)
+        .join(" / "),
+    );
+    if (index === 3 || (!id && index !== 2)) return;
+    const request = ++latest.current;
+    setLoading(true);
+    setError("");
+    try {
+      const parent = id || selected[1];
+      const r = await fetch(
+        `/api/locations?locationType=${levels[index + 1]}&parentId=${parent}`,
+      );
+      if (!r.ok)
+        throw new Error(
+          sw ? "Imeshindwa kupakia maeneo." : "Could not load locations.",
+        );
+      const children = (await r.json()) as Option[];
+      let directAreas: Option[] = [];
+      if (index === 1) {
+        const a = await fetch(
+          `/api/locations?locationType=area&parentId=${id}`,
+        );
+        if (!a.ok)
+          throw new Error(
+            sw ? "Imeshindwa kupakia maeneo." : "Could not load locations.",
+          );
+        directAreas = (await a.json()) as Option[];
+      }
+      if (request === latest.current)
+        setOptions((current) =>
+          current.map((old, i) =>
+            i === index + 1
+              ? children
+              : index === 1 && i === 3
+                ? directAreas
+                : old,
+          ),
+        );
+    } catch (e) {
+      if (request === latest.current) setError((e as Error).message);
+    } finally {
+      if (request === latest.current) setLoading(false);
     }
-    onChange(area || ward || district || region);
   }
-
   return (
-    <div className="event-location-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {inputName ? (
-        <input type="hidden" name={inputName} value={value} />
+    <div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {inputName ? (
+          <input type="hidden" name={inputName} value={value} />
+        ) : null}
+        {levels.map((level, i) =>
+          i === 0 || (i === 3 ? selected[1] : selected[i - 1]) ? (
+            <label
+              className="grid min-w-0 gap-2 text-sm font-semibold"
+              key={level}
+            >
+              <span>
+                {
+                  (sw
+                    ? ["Mkoa", "Wilaya", "Kata (si lazima)", "Eneo (si lazima)"]
+                    : [
+                        "Region",
+                        "District",
+                        "Ward (optional)",
+                        "Area (optional)",
+                      ])[i]
+                }
+              </span>
+              <UiSelect
+                aria-label={
+                  (sw
+                    ? ["Mkoa", "Wilaya", "Kata (si lazima)", "Eneo (si lazima)"]
+                    : [
+                        "Region",
+                        "District",
+                        "Ward (optional)",
+                        "Area (optional)",
+                      ])[i]
+                }
+                className="field-input"
+                value={selected[i]}
+                disabled={loading}
+                required={required && i < 2}
+                onChange={(e) => void choose(i, e.target.value)}
+              >
+                <option value=""><UiText text={sw ? "Chagua" : "Choose"} /></option>
+                {options[i].map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </UiSelect>
+            </label>
+          ) : null,
+        )}
+      </div>
+      {loading ? (
+        <p className="mt-2 text-sm" role="status">
+          <UiText text={sw ? "Inapakia maeneo..." : "Loading locations..."} />
+        </p>
       ) : null}
-      <label className="grid gap-2 text-sm font-semibold">
-        <span>{sw ? "Mkoa" : "Region"}</span>
-        <select
-          className="field-input"
-          value={regionId}
-          required={required}
-          onChange={async (event) => {
-            const id = event.target.value;
-            setRegionId(id);
-            setDistrictId("");
-            setWardId("");
-            setAreaId("");
-            setWards([]);
-            setAreas([]);
-            setDistricts(await children("district", id));
-            choose(id, "", "", "");
-          }}
-        >
-          <option value="">{sw ? "Chagua mkoa" : "Choose region"}</option>
-          {regions.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      {regionId ? <label className="grid gap-2 text-sm font-semibold">
-        <span>{sw ? "Wilaya" : "District"}</span>
-        <select
-          className="field-input"
-          value={districtId}
-          required={required}
-          disabled={!regionId}
-          onChange={async (event) => {
-            const id = event.target.value;
-            setDistrictId(id);
-            setWardId("");
-            setAreaId("");
-            const [nextWards, nextAreas] = await Promise.all([
-              children("ward", id),
-              children("area", id),
-            ]);
-            setWards(nextWards);
-            setAreas(nextAreas);
-            choose(regionId, id, "", "");
-          }}
-        >
-          <option value="">{sw ? "Chagua wilaya" : "Choose district"}</option>
-          {districts.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </select>
-      </label> : null}
-      {districtId ? <label className="grid gap-2 text-sm font-semibold">
-        <span>{sw ? "Kata" : "Ward"}</span>
-        <select
-          className="field-input"
-          value={wardId}
-          disabled={!districtId}
-          onChange={async (event) => {
-            const id = event.target.value;
-            setWardId(id);
-            setAreaId("");
-            setAreas(await children("area", id || districtId));
-            choose(regionId, districtId, id, "");
-          }}
-        >
-          <option value="">
-            {sw ? "Kata (si lazima)" : "Ward (optional)"}
-          </option>
-          {wards.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </select>
-      </label> : null}
-      {districtId ? <label className="grid gap-2 text-sm font-semibold">
-        <span>{sw ? "Eneo" : "Area"}</span>
-        <select
-          className="field-input"
-          value={areaId}
-          disabled={!districtId}
-          onChange={(event) => {
-            const id = event.target.value;
-            setAreaId(id);
-            choose(regionId, districtId, wardId, id);
-          }}
-        >
-          <option value="">
-            {sw ? "Eneo (si lazima)" : "Area (optional)"}
-          </option>
-          {areas.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </select>
-      </label> : null}
+      {error ? (
+        <p className="event-error mt-2" role="alert">
+          <UiText text={error} />
+        </p>
+      ) : null}
     </div>
   );
 }

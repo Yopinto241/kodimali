@@ -1,14 +1,12 @@
+import { UiText } from "@/components/ui-text";
+import { pageMetadata } from "@/lib/seo";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { ContentSection } from "@/components/content-section";
 import { PageHero } from "@/components/page-hero";
 import { PageShell } from "@/components/page-shell";
 
-export const metadata: Metadata = {
-  title: "Masharti | Terms of use | KODIMALI",
-  description:
-    "Booking, payment, cancellation and marketplace terms for KODIMALI.",
-};
+export const metadata: Metadata = pageMetadata('Masharti ya Matumizi', 'Soma masharti ya kutumia KODIMALI, kutuma maombi, kuweka booking na kutumia huduma za kukodisha.', "/terms");
 
 export default async function TermsPage() {
   const sw = (await cookies()).get("kodimali_language")?.value !== "en";
@@ -29,9 +27,9 @@ export default async function TermsPage() {
       />
       <ContentSection title={sw ? "Jukumu la KODIMALI" : "KODIMALI's role"}>
         <p>
-          {sw
+          <UiText text={sw
             ? "KODIMALI huunganisha wateja na wamiliki, mameneja au mawakala waliothibitishwa, na kutoa zana za kutafuta, kufanya booking, kulipa na kufuatilia huduma. Isiposemwa wazi kwenye muamala, KODIMALI si mmiliki wa mali wala mhusika wa mkataba wa upangishaji."
-            : "KODIMALI connects customers with verified owners, managers, or agents and provides tools for discovery, booking, payment, and service tracking. Unless a transaction states otherwise, KODIMALI is not the asset owner or a party to the rental agreement."}
+            : "KODIMALI connects customers with verified owners, managers, or agents and provides tools for discovery, booking, payment, and service tracking. Unless a transaction states otherwise, KODIMALI is not the asset owner or a party to the rental agreement."} />
         </p>
       </ContentSection>
       <div id="booking-payments" className="scroll-mt-24">
@@ -39,14 +37,14 @@ export default async function TermsPage() {
           title={sw ? "Booking na malipo" : "Booking and payment"}
         >
           <p>
-            {sw
+            <UiText text={sw
               ? "Kwa listing inayoruhusu instant booking, booking inathibitishwa baada ya deposit kuthibitishwa. Reservation ambayo haijalipiwa inaweza kuisha ili muda urudi kupatikana."
-              : "For an instant-bookable listing, the booking is confirmed after the deposit is verified. An unpaid reservation may expire so the period becomes available again."}
+              : "For an instant-bookable listing, the booking is confirmed after the deposit is verified. An unpaid reservation may expire so the period becomes available again."} />
           </p>
           <p>
-            {sw
+            <UiText text={sw
               ? "Kiasi kamili, madhumuni ya malipo, muda na listing vitaonyeshwa kabla ya kuidhinisha ombi la mobile money. Mfumo huzuia booking mbili zinazogongana kwa muda mmoja. Viewing ni hiari na si sharti la kufanya booking."
-              : "The full amount, payment purpose, period, and listing are shown before you approve the mobile-money request. The system prevents overlapping bookings. A viewing is optional and is not required to book."}
+              : "The full amount, payment purpose, period, and listing are shown before you approve the mobile-money request. The system prevents overlapping bookings. A viewing is optional and is not required to book."} />
           </p>
         </ContentSection>
       </div>
@@ -54,23 +52,23 @@ export default async function TermsPage() {
         title={sw ? "Cancellation na refund" : "Cancellation and refunds"}
       >
         <p>
-          {sw
+          <UiText text={sw
             ? "Uwezo wa kufanya cancellation na kiasi kinachoweza kurejeshwa hutegemea sera iliyoonyeshwa kwa booking husika, muda uliobaki kabla ya kuanza huduma, na kama huduma tayari imeanza. Ombi la refund hukaguliwa; si kila malipo hurudishwa moja kwa moja."
-            : "Cancellation eligibility and any refundable amount depend on the policy shown for that booking, the time remaining before service starts, and whether service has begun. Refund requests are reviewed; payments are not automatically refundable."}
+            : "Cancellation eligibility and any refundable amount depend on the policy shown for that booking, the time remaining before service starts, and whether service has begun. Refund requests are reviewed; payments are not automatically refundable."} />
         </p>
         <p>
-          {sw
+          <UiText text={sw
             ? "Refund iliyoidhinishwa hurudishwa kwa njia ya awali ya malipo inapowezekana. Muda wa kuonekana kwa fedha hutegemea mtoa huduma wa malipo. Hifadhi uthibitisho wa malipo na mawasiliano ya booking kwa ajili ya ukaguzi."
-            : "An approved refund is returned through the original payment method where possible. The time for funds to appear depends on the payment provider. Keep payment proof and booking communication for review."}
+            : "An approved refund is returned through the original payment method where possible. The time for funds to appear depends on the payment provider. Keep payment proof and booking communication for review."} />
         </p>
       </ContentSection>
       <ContentSection
         title={sw ? "Kulipia mawasiliano" : "Paid contact access"}
       >
         <p>
-          {sw
+          <UiText text={sw
             ? "Malipo ya kufungua namba ya wakala ni ada ya kupata mawasiliano kwa muda ulioonyeshwa; si kodi, deposit wala booking. Ikiwa listing haipatikani au wakala hajibu, unaweza kuomba ukaguzi wa refund kupitia msaada wa KODIMALI."
-            : "A payment to unlock an agent's number is a contact-access fee for the displayed period; it is not rent, a deposit, or a booking. If the listing is unavailable or the agent does not respond, you may request a refund review through KODIMALI support."}
+            : "A payment to unlock an agent's number is a contact-access fee for the displayed period; it is not rent, a deposit, or a booking. If the listing is unavailable or the agent does not respond, you may request a refund review through KODIMALI support."} />
         </p>
       </ContentSection>
       <ContentSection
@@ -79,27 +77,27 @@ export default async function TermsPage() {
         }
       >
         <p>
-          {sw
+          <UiText text={sw
             ? "Wamiliki, mameneja na mawakala lazima waweke taarifa sahihi, ruhusa halali, bei na availability ya sasa. Booking iliyothibitishwa lazima iheshimiwe. Mabadiliko yanayoweza kuathiri mteja yawasilishwe haraka kupitia mfumo."
-            : "Owners, managers, and agents must provide accurate information, valid authorization, current prices, and availability. Confirmed bookings must be honored. Changes affecting a customer must be communicated promptly through the platform."}
+            : "Owners, managers, and agents must provide accurate information, valid authorization, current prices, and availability. Confirmed bookings must be honored. Changes affecting a customer must be communicated promptly through the platform."} />
         </p>
       </ContentSection>
       <ContentSection
         title={sw ? "Matukio na quotation" : "Events and quotations"}
       >
         <p>
-          {sw
+          <UiText text={sw
             ? "Kwa mpango wa tukio wenye watoa huduma wengi, quotation na mbadala wowote huwasilishwa kwanza. Makubaliano, deposit au malipo huanza tu baada ya mteja kuona na kukubali maelezo husika."
-            : "For a multi-provider event plan, the quotation and any substitutions are presented first. An agreement, deposit, or payment begins only after the customer sees and accepts the relevant details."}
+            : "For a multi-provider event plan, the quotation and any substitutions are presented first. An agreement, deposit, or payment begins only after the customer sees and accepts the relevant details."} />
         </p>
       </ContentSection>
       <ContentSection
         title={sw ? "Usalama na migogoro" : "Safety and disputes"}
       >
         <p>
-          {sw
+          <UiText text={sw
             ? "KODIMALI inaweza kukagua, kuzuia au kuondoa akaunti, listing au muamala ili kulinda watumiaji. Ripoti tatizo kupitia msaada wa KODIMALI ukiambatanisha booking reference, uthibitisho wa malipo na maelezo muhimu."
-            : "KODIMALI may review, restrict, or remove an account, listing, or transaction to protect users. Report a problem through KODIMALI support with the booking reference, payment evidence, and relevant details."}
+            : "KODIMALI may review, restrict, or remove an account, listing, or transaction to protect users. Report a problem through KODIMALI support with the booking reference, payment evidence, and relevant details."} />
         </p>
       </ContentSection>
     </PageShell>

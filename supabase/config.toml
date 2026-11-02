@@ -61,10 +61,12 @@ verify_jwt = false
   verify_jwt = false
 
 [functions.create-agent-listing-payment]
-  verify_jwt = true
+  # The handler validates the user with Auth.getUser and checks listing ownership.
+  # Let ES256 sessions reach that validation rather than the legacy JWT gateway.
+  verify_jwt = false
 
 [functions.check-agent-listing-payment]
-  verify_jwt = true
+  verify_jwt = false
 
 [functions.create-listing-chat-payment]
   verify_jwt = true

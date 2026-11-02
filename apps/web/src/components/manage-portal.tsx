@@ -1,6 +1,15 @@
 "use client";
+import { ListingPublication } from "@/components/listing-publication";
+import { uploadListingPhoto } from "@/lib/listing-upload";
+import { ListingImagePicker, type ListingPhoto } from "@/components/listing-image-picker";
+import { SupervisorLocationChoice } from "@/components/supervisor-territories";
+import { PromotionCategorySelect } from "@/components/promotion-category-select";
+import { translateUiPrompt } from "@/lib/ui-translation";
+import { UiButton, UiText } from "@/components/ui-text";
 
+import Image from "next/image";
 import Link from "next/link";
+import { useNavigate } from "@/components/navigation-progress";
 import {
   FormEvent,
   useCallback,
@@ -11,13 +20,26 @@ import {
 } from "react";
 import type { User } from "@supabase/supabase-js";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
-import { PageShell } from "@/components/page-shell";
+import { ManageWorkspaceShell } from "@/components/manage-workspace-shell";
+import { manageHref, type ManageSection } from "@/lib/manage-routes";
+import { NavigationIndicator } from "@/components/navigation-progress";
+import { InformationAdminWorkspace } from "@/components/information-admin-workspace";
+import { OwnerAgentRecommendations } from "@/components/owner-agent-panel";
 import { BusinessOperations } from "@/components/business-operations";
 import { AdminAccessPanel } from "@/components/admin-access-panel";
+
+import { ManageListingFilters } from "@/components/manage-listing-filters";
+import { LanguageSwitch } from "@/components/language-switch";
+import { ManageUsers } from "@/components/manage-users";
+import { ManageLocations } from "@/components/manage-locations";
+import { SupervisorTeams, SupervisorTerritories, AgentTeamAssignment } from "@/components/supervisor-territories";
+import { ManageAddAgent } from "@/components/manage-add-agent";
+import { canUseManageTab } from "@/lib/manage-access";
 
 type Row = Record<string, unknown>;
 type Role = "admin" | "agent";
 type Tab =
+  | "information"
   | "dashboard"
   | "business"
   | "admin-access"
@@ -48,12 +70,21 @@ const bookingStatuses = [
   "agent_delayed",
 ];
 
-export function ManagePortal() {
+export function ManagePortal({ preferredRole, requestedSection = "dashboard", recordId }: { preferredRole?: Role; requestedSection?: ManageSection; recordId?: string }) {
+  const navigate = useNavigate();
+  const routeParams = typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search);
+  const listingSearch = routeParams.get("q") ?? "";
+  const listingStatus = routeParams.get("status") ?? "";
+  const listingReview = routeParams.get("review") ?? "";
+  const listingCategory = routeParams.get("category") ?? "";
+  const listingPage = Math.max(0, Number(routeParams.get("page")) || 0);
   const supabase = useMemo(() => getBrowserSupabase(), []);
   const [user, setUser] = useState<User | null>(null);
+  const [availableRoles, setAvailableRoles] = useState<string[]>([]);
   const [role, setRole] = useState<Role | null>(null);
+  const [permissions, setPermissions] = useState<string[]>([]);
   const [agentId, setAgentId] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("dashboard");
+  const [tab, setTab] = useState<Tab>(requestedSection);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(true);
@@ -63,10 +94,10 @@ export function ManagePortal() {
   const [bookings, setBookings] = useState<Row[]>([]);
   const [categories, setCategories] = useState<Row[]>([]);
   const [agents, setAgents] = useState<Row[]>([]);
-  const [users, setUsers] = useState<Row[]>([]);
   const [extraRows, setExtraRows] = useState<Partial<Record<Tab, Row[]>>>({});
   const [counts, setCounts] = useState<Row>({});
   const [tabLoading, setTabLoading] = useState(false);
+  const [tabError, setTabError] = useState(false);
   const [online, setOnline] = useState(true);
   const [hasMore, setHasMore] = useState<Partial<Record<Tab, boolean>>>({});
   const [editingListing, setEditingListing] = useState<Row | null>(null);
@@ -103,6 +134,8 @@ export function ManagePortal() {
   const loadWorkspace = useCallback(
     async (nextUser: User) => {
       setLoading(true);
+      setRole(null);
+      setPermissions([]);
       setMessage(null);
       try {
         const { data: roleRows, error: roleError } = await supabase
@@ -113,15 +146,22 @@ export function ManagePortal() {
         const roles = ((roleRows ?? []) as unknown as { role: string }[]).map(
           (item) => item.role,
         );
-        const nextRole: Role | null = roles.includes("admin")
-          ? "admin"
-          : roles.includes("agent")
-            ? "agent"
-            : null;
+        setAvailableRoles(roles);
+        const nextRole: Role | null = preferredRole
+          ? roles.includes(preferredRole) ? preferredRole : null
+          : requestedSection === "add-listing" && roles.includes("agent") ? "agent" : roles.includes("admin") ? "admin" : roles.includes("agent") ? "agent" : null;
         if (!nextRole && roles.includes("owner")) {
-          window.location.assign("/owner");
+          navigate("/owner");
           return;
         }
+        let nextPermissions: string[] = [];
+        if (nextRole === "admin") {
+          const result = await supabase.rpc("get_my_admin_permissions");
+          if (result.error) throw result.error;
+          if (!Array.isArray(result.data)) throw new Error("Could not load administrative permissions.");
+          nextPermissions = result.data as string[];
+        }
+        setPermissions(nextPermissions);
         setRole(nextRole);
         if (!nextRole) {
           setMessage("This account does not have approved Manage access.");
@@ -143,27 +183,36 @@ export function ManagePortal() {
         setAgentId(nextAgentId);
         loadedTabs.current.clear();
         setLoading(false);
-        void loadDashboardCounts();
+        const firstTab = (["dashboard", "information", "business", "requests", "listings", "agents", "owners", "users", "profile"] as Tab[])
+          .find((candidate) => canUseManageTab(nextRole, nextPermissions, candidate)) ?? "profile";
+        if (canUseManageTab(nextRole, nextPermissions, requestedSection)) setTab(requestedSection);
+        else if (requestedSection === "dashboard") { navigate(manageHref(firstTab, nextRole)); return; }
+        else setTab(requestedSection);
+        if (canUseManageTab(nextRole, nextPermissions, "dashboard")) void loadDashboardCounts();
       } catch (error) {
         setMessage(readError(error));
       } finally {
         setLoading(false);
       }
     },
-    [loadDashboardCounts, supabase],
+    [loadDashboardCounts, supabase, preferredRole, requestedSection, navigate],
   );
 
   const loadTabData = useCallback(
     async (target: Tab, append = false) => {
       if (
+        target === "users" ||
+        target === "locations" ||
+        target === "information" ||
         target === "dashboard" ||
         target === "business" ||
         target === "admin-access" ||
-        !role
+        !role || !canUseManageTab(role, permissions, target)
       )
         return;
       if (!append && loadedTabs.current.has(target)) return;
       setTabLoading(true);
+      setTabError(false);
       setMessage(null);
       try {
         const currentLength =
@@ -175,23 +224,37 @@ export function ManagePortal() {
                 ? categories.length
                 : target === "agents"
                   ? agents.length
-                  : target === "users"
-                    ? users.length
-                    : (extraRows[target]?.length ?? 0);
-        const from = append ? currentLength : 0;
+                  : (extraRows[target]?.length ?? 0);
+        const from = target === "listings" && !recordId ? listingPage * 20 : append ? currentLength : 0;
         const to = from + 19;
         let result;
         if (target === "listings") {
           let query = supabase
             .from("listings")
             .select(
-              "id, agent_id, title, description, price_amount, price_period, deposit_required_amount, listing_rules, public_location_label, status, availability_status, listing_attributes, created_at, asset_categories(id, name, slug, field_schema)",
+              "id, agent_id, owner_id, owners(full_name,phone_number,notes), title, description, price_amount, price_period, deposit_required_amount, listing_rules, public_location_label, status, publication_review_status, availability_status, removed_reason, removed_from_market_at, listing_attributes, created_at, listing_media(id,storage_path,media_type,display_order), asset_categories(id, name, slug, field_schema)",
             )
             .order("created_at", { ascending: false })
             .range(from, to);
           if (role === "agent" && agentId)
             query = query.eq("agent_id", agentId);
-          result = await withRetry(() => query);
+          if (role === "agent" && !agentId) { setListings([]); return; }
+          if (recordId) query = query.eq("id", recordId);
+          else {
+            if (listingSearch.trim()) query = query.ilike("title", `%${listingSearch.trim().replace(/[%_]/g, "")}%`);
+            if (listingReview) query = query.eq("publication_review_status", listingReview);
+            if (listingStatus) query = query.eq("status", listingStatus);
+            if (listingCategory) query = query.eq("category_id", listingCategory);
+          }
+          result = await withRetry(() => query.order("display_order", { referencedTable: "listing_media" }).limit(recordId ? 20 : 1, { referencedTable: "listing_media" }));
+          if (!result.error && result.data) {
+            const paths = (result.data as Row[]).flatMap(row => ((row.listing_media ?? []) as Row[]).map(media => String(media.storage_path)));
+            if (paths.length) {
+              const signed = await supabase.storage.from("listing-media").createSignedUrls(paths, 3600);
+              const urls = new Map((signed.data ?? []).map(media => [media.path, media.signedUrl]));
+              for (const row of result.data as Row[]) for (const media of (row.listing_media ?? []) as Row[]) media.media_url = urls.get(String(media.storage_path)) ?? "";
+            }
+          }
         } else if (target === "requests") {
           let query = supabase
             .from("booking_requests")
@@ -218,7 +281,7 @@ export function ManagePortal() {
             supabase
               .from("agents")
               .select(
-                "id, profile_id, display_name, business_name, phone_number, contact_email, verification_status, account_status, created_at",
+                "id, profile_id, display_name, business_name, phone_number, contact_email, verification_status, account_status, created_at, supervisor_id",
               )
               .order("created_at", { ascending: false })
               .range(from, to),
@@ -257,24 +320,6 @@ export function ManagePortal() {
             ],
             error: applications.error ?? claims.error,
           };
-        } else if (target === "users") {
-          result = await withRetry(() =>
-            supabase.rpc("get_admin_customer_users", {
-              p_offset: from,
-              p_limit: 20,
-            } as never),
-          );
-        } else if (target === "locations") {
-          result = await withRetry(() =>
-            supabase
-              .from("locations")
-              .select(
-                "id, parent_id, name, location_type, is_active, created_at",
-              )
-              .order("location_type")
-              .order("name")
-              .range(from, to),
-          );
         } else if (target === "reports") {
           result = await withRetry(() =>
             supabase
@@ -290,7 +335,7 @@ export function ManagePortal() {
             supabase
               .from("platform_promotions")
               .select(
-                "id, title, description, placement, visibility_scope, is_active, start_at, end_at, created_at",
+                "id, title, description, placement, visibility_scope, is_active, start_at, end_at, created_at, target_category_ids",
               )
               .order("created_at", { ascending: false })
               .range(from, to),
@@ -327,8 +372,6 @@ export function ManagePortal() {
           setCategories((old) => (append ? [...old, ...rows] : rows));
         if (target === "agents")
           setAgents((old) => (append ? [...old, ...rows] : rows));
-        if (target === "users")
-          setUsers((old) => (append ? [...old, ...rows] : rows));
         if (
           !["listings", "requests", "categories", "agents", "users"].includes(
             target,
@@ -342,12 +385,14 @@ export function ManagePortal() {
         loadedTabs.current.add(target);
         setHasMore((old) => ({ ...old, [target]: rows.length === 20 }));
       } catch (error) {
+        setTabError(true);
         setMessage(`${readError(error)} Check your connection and retry.`);
       } finally {
         setTabLoading(false);
       }
     },
     [
+      recordId, listingSearch, listingStatus, listingReview, listingCategory, listingPage,
       agentId,
       agents.length,
       bookings.length,
@@ -355,9 +400,9 @@ export function ManagePortal() {
       extraRows,
       listings.length,
       role,
+      permissions,
       supabase,
       user,
-      users.length,
     ],
   );
 
@@ -371,6 +416,10 @@ export function ManagePortal() {
         if (!nextUser) {
           activeUserId.current = null;
           setRole(null);
+          setPermissions([]);
+          setAvailableRoles([]);
+          loadedTabs.current.clear();
+          setListings([]); setBookings([]); setAgents([]); setExtraRows({}); setCounts({});
           setLoading(false);
         }
       }
@@ -398,6 +447,12 @@ export function ManagePortal() {
       window.removeEventListener("offline", updateConnection);
     };
   }, []);
+
+  useEffect(() => {
+    if (!role || loading) return;
+    const task = window.setTimeout(() => { void loadTabData(tab); }, 0);
+    return () => window.clearTimeout(task);
+  }, [tab, role, loading, loadTabData]);
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -435,8 +490,7 @@ export function ManagePortal() {
 
   async function deleteListingPermanently(listing: Row) {
     const title = String(listing.title ?? "this listing");
-    const confirmation = window.prompt(
-      `Permanently delete “${title}”? This removes its media and related activity and cannot be undone. Type DELETE to continue.`,
+    const confirmation = window.prompt(translateUiPrompt(`Permanently delete “${title}”? This removes its media and related activity and cannot be undone. Type DELETE to continue.`),
     );
     if (confirmation !== "DELETE") {
       setMessage("Permanent deletion cancelled.");
@@ -559,34 +613,6 @@ export function ManagePortal() {
     );
   }
 
-  async function addLocation(
-    name: string,
-    locationType: string,
-    parentId: string,
-  ) {
-    await perform(async () => {
-      const result = await supabase
-        .from("locations")
-        .insert({
-          name: name.trim(),
-          location_type: locationType,
-          parent_id: parentId || null,
-        } as never);
-      if (result.error) throw result.error;
-      loadedTabs.current.delete("locations");
-      await loadTabData("locations");
-    }, "Location added.");
-  }
-
-  async function deleteLocation(id: string) {
-    await perform(async () => {
-      const result = await supabase.from("locations").delete().eq("id", id);
-      if (result.error) throw result.error;
-      loadedTabs.current.delete("locations");
-      await loadTabData("locations");
-    }, "Location deleted.");
-  }
-
   async function perform(action: () => Promise<void>, success: string) {
     setBusy(true);
     setMessage(null);
@@ -618,23 +644,21 @@ export function ManagePortal() {
     return (
       <main className="mx-auto max-w-3xl px-4 py-16">
         <div className="surface-card p-8">
-          <h1 className="font-heading text-3xl font-semibold">
-            Access unavailable
-          </h1>
-          <p className="mt-3 text-muted">{message}</p>
+          <h1 className="font-heading text-3xl font-semibold"><UiText text={"Access unavailable"} /></h1>
+          <p className="mt-3 text-muted"><UiText text={message} /></p>
+          <button className="btn btn-primary mt-6 mr-3" onClick={() => void loadWorkspace(user)}><UiText text={"Retry access"} /></button>
           <button
             className="btn btn-outline mt-6"
             onClick={() => void supabase.auth.signOut()}
-          >
-            Sign out
-          </button>
+          ><UiText text={"Sign out"} /></button>
         </div>
       </main>
     );
   }
 
-  const tabs: { id: Tab; label: string }[] = [
+  const tabs = ([
     { id: "dashboard", label: "Dashboard" },
+    { id: "information", label: "Information Administration" },
     {
       id: "business",
       label: role === "admin" ? "Business operations" : "Business centre",
@@ -662,92 +686,47 @@ export function ManagePortal() {
       : []),
     { id: "notifications", label: "Notifications" },
     { id: "profile", label: "Profile" },
-  ];
+  ] satisfies { id: Tab; label: string }[]).filter((item) => canUseManageTab(role, permissions, item.id));
 
   return (
-    <PageShell>
-      <section className="mb-6 overflow-hidden rounded-[20px] bg-brand-navy px-5 py-6 text-white shadow-[0_24px_52px_rgba(11,31,58,0.16)] sm:px-8">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-brand-green">
-              Secure management
-            </p>
-            <h1 className="mt-2 font-heading text-3xl font-semibold">
-              {role === "admin" ? "Administrator" : "Agent"} workspace
-            </h1>
-            <p className="mt-2 text-sm text-white/75">
-              The same KODIMALI records and permissions used by Manage Mobile.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="hidden text-sm text-white/75 sm:inline">
-              {user.email}
-            </span>
-            <button
-              className="btn btn-outline"
-              onClick={() => void supabase.auth.signOut()}
-            >
-              Sign out
-            </button>
-          </div>
-        </div>
-      </section>
-      <div className="grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
-        <nav
-          className="surface-card grid h-fit grid-cols-2 gap-2 p-3 sm:grid-cols-3 lg:sticky lg:top-28 lg:flex lg:flex-col"
-          aria-label="Management navigation"
-        >
-          {tabs.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => {
-                setTab(item.id);
-                void loadTabData(item.id);
-              }}
-              className={`min-w-0 rounded-xl px-3 py-3 text-center text-sm font-semibold sm:px-4 lg:text-left ${tab === item.id ? "bg-brand-navy text-white" : "hover:bg-brand-green-soft"}`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-        <section className="min-w-0">
+    <ManageWorkspaceShell availableRoles={availableRoles} section={tab} role={role} tabs={tabs} signOut={() => void supabase.auth.signOut()}>
+      {!canUseManageTab(role, permissions, tab) ? <div role="alert" className="surface-card p-6"><UiText text="Access unavailable" /></div> : <>
           {!online ? (
-            <p className="mb-4 rounded-2xl bg-brand-amber-soft p-4 text-sm font-semibold text-brand-navy">
-              You are offline. Existing information remains visible; reconnect
-              before saving changes.
-            </p>
+            <p className="mb-4 rounded-2xl bg-brand-amber-soft p-4 text-sm font-semibold text-brand-navy"><UiText text={"You are offline. Existing information remains visible; reconnect before saving changes."} /></p>
           ) : null}
           {message ? (
             <p
               className="mb-4 rounded-2xl bg-brand-info-soft p-4 text-sm text-brand-navy"
               role="status"
             >
-              {message}
+              <UiText text={message} />
+              {tabError && <button className="btn btn-outline ml-2" onClick={() => {loadedTabs.current.delete(tab); void loadTabData(tab);}}><UiText text="Retry" /></button>}
             </p>
           ) : null}
+          {tab === "information" ? <InformationAdminWorkspace /> : null}
+          {tab === "agents" && role === "admin" && !permissions.includes("supervisor.scoped") ? <OwnerAgentRecommendations /> : null}
           {tab === "dashboard" ? (
             <Dashboard role={role} counts={counts} />
           ) : null}
           {tab === "business" ? (
-            <BusinessOperations role={role} agentId={agentId} />
+            <BusinessOperations role={role} agentId={agentId} permissions={permissions} />
           ) : null}
           {tab === "admin-access" && role === "admin" ? (
             <AdminAccessPanel />
           ) : null}
           {tabLoading ? (
-            <div className="mb-4 rounded-2xl bg-brand-info-soft p-4 font-semibold">
-              Loading this workspace...
-            </div>
+            <NavigationIndicator inline />
           ) : null}
-          {tab === "listings" ? (
-            <Listings
+          {tab === "listings" && !tabLoading && !tabError ? (
+            <><ManageListingFilters role={role} hasMore={Boolean(hasMore.listings) && !tabLoading} detail={Boolean(recordId)} /><Listings
+              detail={Boolean(recordId)}
               role={role}
               listings={listings}
               busy={busy}
               edit={setEditingListing}
               moderate={moderateListing}
               removePermanently={deleteListingPermanently}
-            />
+            /></>
           ) : null}
           {tab === "requests" ? (
             <Requests bookings={bookings} busy={busy} update={updateBooking} />
@@ -756,7 +735,7 @@ export function ManagePortal() {
             <Categories categories={categories} edit={setEditingCategory} />
           ) : null}
           {tab === "agents" && role === "admin" ? (
-            <Agents agents={agents} busy={busy} update={updateAgent} />
+            <Agents agents={agents} busy={busy} update={updateAgent} onCreated={() => void refresh()} canAssign={permissions.includes("*")} scoped={permissions.includes("supervisor.scoped")} />
           ) : null}
           {tab === "owners" && role === "admin" ? (
             <Owners
@@ -766,14 +745,9 @@ export function ManagePortal() {
               reviewAsset={reviewOwnerAsset}
             />
           ) : null}
-          {tab === "users" && role === "admin" ? <Users users={users} /> : null}
+          {tab === "users" && role === "admin" ? <ManageUsers recordId={recordId} /> : null}
           {tab === "locations" && role === "admin" ? (
-            <Locations
-              rows={extraRows.locations ?? []}
-              busy={busy}
-              add={addLocation}
-              remove={deleteLocation}
-            />
+            <ManageLocations />
           ) : null}
           {tab === "reports" && role === "admin" ? (
             <Reports
@@ -809,47 +783,26 @@ export function ManagePortal() {
             />
           ) : null}
           {tab === "add-listing" && role === "agent" && agentId ? (
-            <AddListingForm
-              agentId={agentId}
-              onCreated={() => {
-                loadedTabs.current.delete("listings");
-                setTab("listings");
-                void loadTabData("listings");
-              }}
-            />
+            <AddListingForm agentId={agentId} />
           ) : null}
-          {tab !== "dashboard" && hasMore[tab] ? (
+          {!["dashboard", "listings", "users", "locations"].includes(tab) && hasMore[tab] ? (
             <button
               className="btn btn-outline mt-4"
               disabled={tabLoading}
               onClick={() => void loadTabData(tab, true)}
             >
-              {tabLoading ? "Loading..." : "Load 20 more"}
+              <UiText text={tabLoading ? "Loading..." : "Load 20 more"} />
             </button>
           ) : null}
-        </section>
-      </div>
+      </>}
       {editingListing ? (
         <ListingEditor
           listing={editingListing}
           close={() => setEditingListing(null)}
           save={(values) =>
             perform(async () => {
-              const rpcResult = await supabase.rpc(
-                "manage_update_listing_basic",
-                {
-                  p_listing_id: editingListing.id,
-                  p_values: values,
-                } as never,
-              );
-              if (rpcResult.error) {
-                if (!isMissingFunction(rpcResult.error)) throw rpcResult.error;
-                const fallback = await supabase
-                  .from("listings")
-                  .update(values as never)
-                  .eq("id", editingListing.id as string);
-                if (fallback.error) throw fallback.error;
-              }
+              const result = await supabase.rpc("manage_save_listing_with_owner", { p_listing_id: editingListing.id, p_values: values } as never);
+              if (result.error) throw result.error;
               setEditingListing(null);
               await refresh();
             }, "Listing saved.")
@@ -883,15 +836,13 @@ export function ManagePortal() {
           }
         />
       ) : null}
-    </PageShell>
+    </ManageWorkspaceShell>
   );
 }
 
 function ManageLoading() {
   return (
-    <main className="grid min-h-[70vh] place-items-center">
-      <p className="font-semibold">Loading management workspace...</p>
-    </main>
+    <NavigationIndicator />
   );
 }
 
@@ -908,46 +859,28 @@ function ManageLogin(props: {
     <main className="mx-auto grid min-h-[80vh] max-w-6xl items-center gap-10 px-4 py-12 lg:grid-cols-2">
       <div>
         <p className="eyebrow">KODIMALI Manage</p>
-        <h1 className="mt-3 font-heading text-5xl font-semibold text-brand-ink">
-          One secure entrance for the business side.
-        </h1>
-        <p className="mt-5 max-w-xl text-lg text-muted">
-          Agents, hall owners, authorized managers and administrators use their
-          approved KODIMALI credentials here. Your verified role opens the
-          correct workspace automatically.
-        </p>
+        <h1 className="mt-3 font-heading text-5xl font-semibold text-brand-ink"><UiText text={"One secure entrance for the business side."} /></h1>
+        <p className="mt-5 max-w-xl text-lg text-muted"><UiText text={"Agents, hall owners, authorized managers and administrators use their approved KODIMALI credentials here. Your verified role opens the correct workspace automatically."} /></p>
         <div className="mt-6 flex flex-wrap gap-3">
-          <Link href="/manage/register/agent" className="btn btn-success">
-            Register as agent
-          </Link>
+          <Link prefetch={false} href="/manage/register/agent" className="btn btn-success"><UiText text={"Register as agent"} /></Link>
           <Link
             href="/manage/register/agent?category=ceremony-hall"
             className="btn btn-outline"
-          >
-            Register as hall agent
-          </Link>
-          <Link href="/manage/register/owner" className="btn btn-outline">
-            Register as owner
-          </Link>
+          ><UiText text={"Register as hall agent"} /></Link>
+          <Link prefetch={false} href="/manage/register/owner" className="btn btn-outline"><UiText text={"Register as owner"} /></Link>
           <Link
             href="/manage/register/owner?type=authorized_manager"
             className="btn btn-outline"
-          >
-            Register as hall manager
-          </Link>
+          ><UiText text={"Register as hall manager"} /></Link>
         </div>
-        <p className="mt-4 text-sm text-muted">
-          Administrator accounts are created or approved internally.
-        </p>
+        <p className="mt-4 text-sm text-muted"><UiText text={"Administrator accounts are created or approved internally."} /></p>
       </div>
       <form
-        className="surface-card grid gap-4 p-6 sm:p-8"
+        className="manage-login-form surface-card grid gap-4 p-6 sm:p-8"
         onSubmit={props.submit}
       >
-        <h2 className="font-heading text-2xl font-semibold">Manage sign in</h2>
-        <label className="grid gap-2 font-semibold">
-          Email
-          <input
+        <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-heading text-2xl font-semibold"><UiText text={"Manage sign in"} /></h2><LanguageSwitch /></div>
+        <label className="grid gap-2 font-semibold"><UiText text={"Email"} /><input
             className="rounded-2xl border border-brand-border bg-white px-4 py-3"
             type="email"
             value={props.email}
@@ -955,9 +888,7 @@ function ManageLogin(props: {
             required
           />
         </label>
-        <label className="grid gap-2 font-semibold">
-          Password
-          <input
+        <label className="grid gap-2 font-semibold"><UiText text={"Password"} /><input
             className="rounded-2xl border border-brand-border bg-white px-4 py-3"
             type="password"
             minLength={6}
@@ -967,20 +898,16 @@ function ManageLogin(props: {
           />
         </label>
         <button className="btn btn-success" disabled={props.busy}>
-          {props.busy ? "Signing in..." : "Sign in"}
+          <UiText text={props.busy ? "Signing in..." : "Sign in"} />
         </button>
         {props.message ? (
-          <p className="rounded-xl bg-brand-info-soft p-3 text-sm">
-            {props.message}
+          <p className="manage-login-feedback" role="alert">
+            <UiText text={props.message} />
           </p>
         ) : null}
         <div className="grid gap-2 text-center text-sm font-semibold">
-          <Link href="/" className="underline">
-            Return to marketplace
-          </Link>
-          <Link href="/login" className="underline">
-            Customer login
-          </Link>
+          <Link prefetch={false} href="/" className="underline"><UiText text={"Return to marketplace"} /></Link>
+          <Link prefetch={false} href="/login" className="underline"><UiText text={"Customer login"} /></Link>
         </div>
       </form>
     </main>
@@ -997,19 +924,14 @@ function Dashboard({ role, counts }: { role: Role; counts: Row }) {
   return (
     <>
       <div className="surface-card p-6 sm:p-8">
-        <p className="eyebrow">Live overview</p>
-        <h2 className="mt-2 font-heading text-3xl font-semibold">
-          Marketplace operations
-        </h2>
-        <p className="mt-2 text-muted">
-          The same Supabase records and permissions used by Manage Mobile, now
-          available online.
-        </p>
+        <p className="eyebrow"><UiText text={"Live overview"} /></p>
+        <h2 className="mt-2 font-heading text-3xl font-semibold"><UiText text={"Marketplace operations"} /></h2>
+        <p className="mt-2 text-muted"><UiText text={"Review listings, customer requests and marketplace activity."} /></p>
       </div>
       <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map(([label, value]) => (
           <article className="soft-panel p-5" key={String(label)}>
-            <p className="text-sm font-semibold text-muted">{label}</p>
+            <p className="text-sm font-semibold text-muted"><UiText text={label} /></p>
             <p className="mt-2 font-heading text-4xl font-semibold">{value}</p>
           </article>
         ))}
@@ -1019,6 +941,7 @@ function Dashboard({ role, counts }: { role: Role; counts: Row }) {
 }
 
 function Listings({
+  detail,
   role,
   listings,
   busy,
@@ -1026,6 +949,7 @@ function Listings({
   moderate,
   removePermanently,
 }: {
+  detail?: boolean;
   role: Role;
   listings: Row[];
   busy: boolean;
@@ -1051,23 +975,25 @@ function Listings({
               className="rounded-2xl border border-brand-border bg-white p-4"
               key={listing.id as string}
             >
+              {!detail && ((listing.listing_media ?? []) as Row[]).some(media => media.media_type === "image" && media.media_url) && <Image unoptimized width={640} height={360} src={String(((listing.listing_media ?? []) as Row[])[0]?.media_url ?? "")} alt={String(listing.title)} className="mb-3 aspect-video max-h-48 w-full rounded-xl object-cover" />}
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-semibold">{listing.title as string}</h3>
+                  <h3 className="font-semibold">{detail ? String(listing.title) : <Link prefetch={false} className="underline" href={`/manage/listings/${listing.id}?${typeof window === "undefined" ? "" : new URLSearchParams(window.location.search)}`}>{String(listing.title)}</Link>}</h3>
                   <p className="mt-1 text-sm text-muted">
                     {categoryName(listing)} ·{" "}
                     {String(listing.public_location_label ?? "")}
                   </p>
                 </div>
-                <Status value={String(listing.status)} />
+                <div className="flex flex-wrap gap-2"><Status value={String(listing.status)} /><Status value={String(listing.publication_review_status ?? "pending")} /></div>
               </div>
+              <p className="mt-3 font-bold">TZS {Number(listing.price_amount ?? 0).toLocaleString()} / <UiText text={String(listing.price_period ?? "")} /></p>
+              {detail && <div className="mt-4 grid gap-3"><p className="whitespace-pre-wrap">{String(listing.description ?? "")}</p><p><UiText text="Availability" />: <UiText text={String(listing.availability_status ?? "")} /></p><div className="grid grid-cols-2 gap-3">{((listing.listing_media ?? []) as Row[]).filter(media => media.media_type === "image" && media.media_url).map(media => <Image unoptimized width={640} height={360} key={String(media.id)} src={String(media.media_url)} alt={String(listing.title)} className="aspect-video w-full rounded-xl object-cover" />)}</div></div>}
+              {detail && role === "agent" && ["draft", "inactive"].includes(String(listing.status)) && !listing.removed_reason && !listing.removed_from_market_at && <ListingPublication listingId={String(listing.id)} />}
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   className="btn btn-outline"
                   onClick={() => edit(listing)}
-                >
-                  Edit
-                </button>
+                ><UiText text={"Edit"} /></button>
                 {role === "admin" ? (
                   <>
                     <button
@@ -1076,25 +1002,19 @@ function Listings({
                       onClick={() =>
                         void moderate(listing.id as string, "active")
                       }
-                    >
-                      Approve / activate
-                    </button>
+                    ><UiText text={"Approve / activate"} /></button>
                     <button
                       className="btn btn-outline"
                       disabled={busy}
                       onClick={() =>
                         void moderate(listing.id as string, "inactive")
                       }
-                    >
-                      Remove
-                    </button>
+                    ><UiText text={"Remove"} /></button>
                     <button
                       className="rounded-full border border-red-300 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
                       disabled={busy}
                       onClick={() => void removePermanently(listing)}
-                    >
-                      Delete permanently
-                    </button>
+                    ><UiText text={"Delete permanently"} /></button>
                   </>
                 ) : null}
               </div>
@@ -1144,9 +1064,7 @@ function Requests({
                 </div>
                 <Status value={String(booking.booking_status)} />
               </div>
-              <label className="mt-4 grid max-w-sm gap-2 text-sm font-semibold">
-                Update status
-                <select
+              <label className="mt-4 grid max-w-sm gap-2 text-sm font-semibold"><UiText text={"Update status"} /><select
                   className="rounded-xl border border-brand-border bg-white px-3 py-2"
                   value={booking.booking_status as string}
                   disabled={busy}
@@ -1190,8 +1108,7 @@ function Categories({
               <div>
                 <h3 className="font-semibold">{category.name as string}</h3>
                 <p className="mt-1 text-sm text-muted">
-                  {String(category.slug)} · {schema(category).length} fields
-                </p>
+                  {String(category.slug)} · {schema(category).length}<UiText text={" fields"} /></p>
               </div>
               <Status value={category.is_active ? "active" : "inactive"} />
             </div>
@@ -1206,16 +1123,24 @@ function Agents({
   agents,
   busy,
   update,
+  onCreated,
+  canAssign,
+  scoped,
 }: {
   agents: Row[];
   busy: boolean;
   update: (id: string, activate: boolean) => void;
+  onCreated: () => void;
+  canAssign: boolean;
+  scoped: boolean;
 }) {
   return (
-    <Panel
+    <SupervisorTeams enabled={canAssign}><Panel
       title="Agents"
       subtitle="Verify, activate, and deactivate agent access."
     >
+      <ManageAddAgent onCreated={onCreated} scoped={scoped} />
+      {canAssign && <SupervisorTerritories />}
       <div className="grid gap-3">
         {agents.map((agent) => (
           <article
@@ -1235,26 +1160,23 @@ function Agents({
                 value={`${agent.verification_status} · ${agent.account_status}`}
               />
             </div>
+            {canAssign && <AgentTeamAssignment agentId={String(agent.id)} supervisorId={agent.supervisor_id ? String(agent.supervisor_id) : ""} onSaved={onCreated} />}
             <div className="mt-4 flex gap-2">
               <button
                 className="btn btn-success"
                 disabled={busy}
                 onClick={() => void update(agent.id as string, true)}
-              >
-                Approve & activate
-              </button>
+              ><UiText text={"Approve & activate"} /></button>
               <button
                 className="btn btn-outline"
                 disabled={busy}
                 onClick={() => void update(agent.id as string, false)}
-              >
-                Deactivate
-              </button>
+              ><UiText text={"Deactivate"} /></button>
             </div>
           </article>
         ))}
       </div>
-    </Panel>
+    </Panel></SupervisorTeams>
   );
 }
 
@@ -1300,9 +1222,9 @@ function Owners({
                         : `${String(row.owner_type).replaceAll("_", " ")} · ${String(row.phone_number)}`}
                     </p>
                     <p className="mt-3 text-sm">
-                      {claim
+                      <UiText text={claim
                         ? `Identity: ${String(person.verification_status)} · Item: ${String(asset.verification_status)}`
-                        : String(row.authorization_summary)}
+                        : String(row.authorization_summary)} />
                     </p>
                   </div>
                   <Status value={String(row.status)} />
@@ -1314,16 +1236,12 @@ function Owners({
                       className="btn btn-success"
                       disabled={busy}
                       onClick={() => void reviewAsset(String(row.id), true)}
-                    >
-                      Verify authority and item
-                    </button>
+                    ><UiText text={"Verify authority and item"} /></button>
                     <button
                       className="btn btn-outline"
                       disabled={busy}
                       onClick={() => void reviewAsset(String(row.id), false)}
-                    >
-                      Reject
-                    </button>
+                    ><UiText text={"Reject"} /></button>
                   </div>
                 ) : !claim &&
                   ["submitted", "under_review"].includes(String(row.status)) ? (
@@ -1332,174 +1250,17 @@ function Owners({
                       className="btn btn-success"
                       disabled={busy}
                       onClick={() => void review(String(row.id), true)}
-                    >
-                      Verify identity
-                    </button>
+                    ><UiText text={"Verify identity"} /></button>
                     <button
                       className="btn btn-outline"
                       disabled={busy}
                       onClick={() => void review(String(row.id), false)}
-                    >
-                      Reject
-                    </button>
+                    ><UiText text={"Reject"} /></button>
                   </div>
                 ) : null}
               </article>
             );
           })
-        )}
-      </div>
-    </Panel>
-  );
-}
-
-function Users({ users }: { users: Row[] }) {
-  return (
-    <Panel
-      title="Users"
-      subtitle="Ordinary customer accounts registered in KODIMALI."
-    >
-      <div className="grid gap-3">
-        {users.length === 0 ? (
-          <Empty text="No registered users yet." />
-        ) : (
-          users.map((user) => (
-            <article
-              className="rounded-2xl border border-brand-border bg-white p-4"
-              key={user.id as string}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-semibold">
-                    {String(user.full_name || "KODIMALI user")}
-                  </h3>
-                  <p className="mt-1 text-sm text-muted">
-                    {String(user.account_email || "No email")}
-                  </p>
-                  <p className="mt-1 text-sm">
-                    {String(user.phone_number || "No phone number")}
-                  </p>
-                </div>
-                <Status
-                  value={
-                    user.email_confirmed_at
-                      ? "email confirmed"
-                      : "confirmation pending"
-                  }
-                />
-              </div>
-              <p className="mt-3 text-xs text-muted">
-                Registered {new Date(String(user.created_at)).toLocaleString()}{" "}
-                · Language: {String(user.preferred_language || "sw")}
-              </p>
-            </article>
-          ))
-        )}
-      </div>
-    </Panel>
-  );
-}
-
-function Locations({
-  rows,
-  busy,
-  add,
-  remove,
-}: {
-  rows: Row[];
-  busy: boolean;
-  add: (name: string, type: string, parent: string) => Promise<void>;
-  remove: (id: string) => Promise<void>;
-}) {
-  const [name, setName] = useState("");
-  const [type, setType] = useState("region");
-  const [parent, setParent] = useState("");
-  const possibleParents = rows.filter((row) => row.location_type !== "area");
-  return (
-    <Panel
-      title="Locations"
-      subtitle="Manage the shared region, district, ward, and area hierarchy."
-    >
-      <form
-        className="mb-5 grid gap-3 rounded-2xl bg-brand-green-soft p-4 md:grid-cols-[1fr_150px_1fr_auto]"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void add(name, type, parent).then(() => {
-            setName("");
-            setParent("");
-          });
-        }}
-      >
-        <Input label="Location name" value={name} set={setName} required />
-        <label className="grid gap-2 font-semibold">
-          Type
-          <select
-            className="rounded-xl border border-brand-border bg-white p-3"
-            value={type}
-            onChange={(event) => {
-              setType(event.target.value);
-              if (event.target.value === "region") setParent("");
-            }}
-          >
-            {["region", "district", "ward", "area"].map((value) => (
-              <option key={value}>{value}</option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-2 font-semibold">
-          Parent
-          <select
-            className="rounded-xl border border-brand-border bg-white p-3"
-            value={parent}
-            disabled={type === "region"}
-            onChange={(event) => setParent(event.target.value)}
-          >
-            <option value="">
-              {type === "region" ? "No parent" : "Select parent"}
-            </option>
-            {possibleParents.map((row) => (
-              <option value={String(row.id)} key={String(row.id)}>
-                {String(row.name)} ({String(row.location_type)})
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          className="btn btn-success self-end"
-          disabled={busy || !name.trim() || (type !== "region" && !parent)}
-        >
-          Add
-        </button>
-      </form>
-      <div className="grid gap-3">
-        {rows.length === 0 ? (
-          <Empty text="No locations found." />
-        ) : (
-          rows.map((row) => (
-            <article
-              className="rounded-2xl border border-brand-border bg-white p-4"
-              key={String(row.id)}
-            >
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="font-semibold">{String(row.name)}</h3>
-                  <p className="text-sm text-muted">
-                    {String(row.location_type)}
-                  </p>
-                </div>
-                <button
-                  className="btn btn-outline"
-                  disabled={busy}
-                  onClick={() => {
-                    if (window.confirm(`Delete ${String(row.name)}?`))
-                      void remove(String(row.id));
-                  }}
-                >
-                  Delete
-                </button>
-              </div>
-            </article>
-          ))
         )}
       </div>
     </Panel>
@@ -1533,9 +1294,7 @@ function Reports({
               <p className="mt-1 text-sm text-muted">
                 {String(row.details || "No additional details")}
               </p>
-              <label className="mt-4 grid max-w-xs gap-2 text-sm font-semibold">
-                Status
-                <select
+              <label className="mt-4 grid max-w-xs gap-2 text-sm font-semibold"><UiText text={"Status"} /><select
                   className="rounded-xl border border-brand-border bg-white p-3"
                   disabled={busy}
                   value={String(row.status)}
@@ -1593,6 +1352,7 @@ function Promotions({
                 </div>
                 <Status value={row.is_active ? "active" : "paused"} />
               </div>
+              <PromotionCategorySelect id={String(row.id)} initialIds={(row.target_category_ids ?? []) as string[]} />
               <button
                 className="btn btn-outline mt-4"
                 disabled={busy}
@@ -1600,7 +1360,7 @@ function Promotions({
                   void toggle(String(row.id), row.is_active !== true)
                 }
               >
-                {row.is_active ? "Pause promotion" : "Activate promotion"}
+                <UiText text={row.is_active ? "Pause promotion" : "Activate promotion"} />
               </button>
             </article>
           ))
@@ -1645,9 +1405,7 @@ function Notifications({
                   <button
                     className="btn btn-outline"
                     onClick={() => void markRead(String(row.id))}
-                  >
-                    Mark read
-                  </button>
+                  ><UiText text={"Mark read"} /></button>
                 ) : (
                   <Status value="read" />
                 )}
@@ -1694,92 +1452,110 @@ function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="soft-panel p-4">
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
-        {label}
+        <UiText text={label} />
       </p>
       <p className="mt-2 font-semibold break-words">{value}</p>
     </div>
   );
 }
 
-function AddListingForm({
-  agentId,
-  onCreated,
-}: {
-  agentId: string;
-  onCreated: () => void;
-}) {
+function AddListingForm({ agentId }: { agentId: string }) {
   const supabase = useMemo(() => getBrowserSupabase(), []);
   const [categories, setCategories] = useState<Row[]>([]);
-  const [locations, setLocations] = useState<Row[]>([]);
+  const [areaDraft, setAreaDraft] = useState<{ wardId: string; name: string } | null>(null);
+  const [photos, setPhotos] = useState<ListingPhoto[]>([]);
+  const [preparing, setPreparing] = useState(false);
+  const [extraDetails, setExtraDetails] = useState("");
+  const [uploaded, setUploaded] = useState(false);
+  const [draftId, setDraftId] = useState("");
+  const mediaPaths = useRef(new Map<string, string>());
+  const [progress, setProgress] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [locationId, setLocationId] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
+  const [ownerEnabled, setOwnerEnabled] = useState(false);
+  const [ownerName, setOwnerName] = useState("");
+  const [ownerPhone, setOwnerPhone] = useState("");
+  const [ownerNotes, setOwnerNotes] = useState("");
   const [period, setPeriod] = useState("month");
   const [attributes, setAttributes] = useState<Row>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   useEffect(() => {
-    void Promise.all([
-      supabase
-        .from("agent_service_categories")
-        .select("asset_categories(id, name, slug, field_schema)")
-        .eq("agent_id", agentId),
-      supabase
-        .from("locations")
-        .select("id, name, location_type")
-        .eq("is_active", true)
-        .order("name"),
-    ]).then(([categoryResult, locationResult]) => {
-      if (categoryResult.error) setMessage(categoryResult.error.message);
-      else
-        setCategories(
-          (categoryResult.data ?? []).map((row) =>
-            relation((row as Row).asset_categories),
-          ),
-        );
-      if (locationResult.error) setMessage(locationResult.error.message);
-      else setLocations((locationResult.data ?? []) as Row[]);
+    void supabase.from("agent_service_categories").select("asset_categories(id, name, slug, field_schema)").eq("agent_id", agentId).abortSignal(AbortSignal.timeout(10000)).then(({ data, error }) => {
+      if (error) setMessage("Your categories could not be loaded. Please reload and try again.");
+      else setCategories((data ?? []).map((row) => relation((row as Row).asset_categories)));
     });
   }, [agentId, supabase]);
   const selectedCategory = categories.find((item) => item.id === categoryId);
   const fields = schema(selectedCategory ?? {});
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setBusy(true);
-    setMessage(null);
-    const location = locations.find((item) => item.id === locationId);
-    const result = await supabase
-      .from("listings")
-      .insert({
-        agent_id: agentId,
-        category_id: categoryId,
-        title: title.trim(),
-        description: description.trim(),
-        location_id: locationId,
-        public_location_label: String(location?.name ?? ""),
-        price_amount: Number(price),
-        price_period: period,
-        listing_attributes: attributes,
-        status: "draft",
-        approval_status: "pending",
-        availability_status: "available",
-      } as never);
-    setBusy(false);
-    if (result.error) setMessage(result.error.message);
-    else onCreated();
+    if (busy || preparing) return;
+    if (!Number.isFinite(Number(price)) || Number(price) <= 0) { setMessage("Please enter a price greater than zero."); return; }
+    if (!photos.length) { setMessage("Add at least one listing image before continuing."); return; }
+    if (photos.length > (selectedCategory?.slug === "apartment" ? 15 : 8)) { setMessage("Too many images. Remove an image before adding more."); return; }
+    setBusy(true); setMessage(null);
+    try {
+      let location = locationId;
+      if (!location && areaDraft?.name.trim()) {
+        const area = await supabase.rpc("ensure_ward_area", { p_ward_id: areaDraft.wardId, p_area_name: areaDraft.name.trim() } as never).abortSignal(AbortSignal.timeout(10000));
+        if (area.error) throw area.error;
+        const row = area.data?.[0] as Row | undefined;
+        if (!row?.id || row.parent_id !== areaDraft.wardId || row.location_type !== "area") throw new Error("Invalid area");
+        location = String(row.id); setLocationId(location);
+      }
+      if (!location) throw new Error("Choose area");
+      let id = draftId;
+      if (!id) {
+        setProgress("Creating draft...");
+        const values = { ...attributes };
+        fields.filter((f) => f.active !== false && f.type === "boolean").forEach((f) => { values[String(f.key)] ??= false; });
+        const result = await supabase.rpc("create_agent_listing_draft", {
+          p_category_id: categoryId, p_location_id: location, p_title: title.trim(),
+          p_description: [description.trim(), extraDetails.trim()].filter(Boolean).join("\n\n"),
+          p_price_amount: Number(price), p_price_period: period, p_attributes: values,
+          p_owner_name: ownerEnabled ? ownerName.trim() : null, p_owner_phone: ownerEnabled ? ownerPhone.trim() : null,
+          p_owner_notes: ownerEnabled ? ownerNotes.trim() : null,
+        } as never).abortSignal(AbortSignal.timeout(30000)) as unknown as { data: string | null; error: unknown };
+        if (result.error || !result.data) throw result.error ?? new Error("No draft");
+        id = String(result.data); setDraftId(id);
+      }
+      const session = (await supabase.auth.getSession()).data.session;
+      const user = session?.user;
+      if (!user || !session) throw new Error("Sign in required");
+      for (const [index, photo] of photos.entries()) {
+        setProgress("Uploading images...");
+        let path = mediaPaths.current.get(photo.id);
+        if (!path) {
+          path = `${user.id}/${id}/image-${photo.id}.jpg`;
+          await uploadListingPhoto(path, photo.blob, session.access_token);
+          mediaPaths.current.set(photo.id, path);
+        }
+        const existing = await supabase.from("listing_media").select("id").eq("listing_id", id).eq("storage_path", path).abortSignal(AbortSignal.timeout(10000));
+        if (existing.error) throw existing.error;
+        if (!existing.data?.length) {
+          const media = await supabase.from("listing_media").insert({ listing_id: id, media_type: "image", storage_path: path, display_order: index, is_cover: index === 0 } as never).abortSignal(AbortSignal.timeout(15000));
+          if (media.error) throw media.error;
+        }
+      }
+      setUploaded(true);
+    } catch { setMessage("We could not finish saving. If a draft was created, retry here to finish its images. Check My listings before starting another draft."); }
+    finally { setBusy(false); setProgress(""); }
   }
+
+  if (uploaded) return <Panel title="Asset uploaded" subtitle="Your asset and images are saved. Complete submission below."><ListingPublication listingId={draftId} /></Panel>;
   return (
     <Panel
       title="Add asset"
-      subtitle="Create a Supabase listing draft using your assigned categories and dynamic fields."
+      subtitle="Add details, choose an area and upload images. Then submit your asset for publication."
     >
       <form className="grid gap-4" onSubmit={submit}>
+        <fieldset disabled={busy || !!draftId} className="grid min-w-0 gap-4">
         <Input label="Title" value={title} set={setTitle} required />
-        <label className="grid gap-2 font-semibold">
-          Description
-          <textarea
+        <label className="grid gap-2 font-semibold"><UiText text={"Description"} /><textarea
             className="rounded-xl border border-brand-border bg-white p-3"
             minLength={10}
             rows={5}
@@ -1789,9 +1565,7 @@ function AddListingForm({
           />
         </label>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="grid gap-2 font-semibold">
-            Category
-            <select
+          <label className="grid gap-2 font-semibold"><UiText text={"Category"} /><select
               className="rounded-xl border border-brand-border bg-white p-3"
               value={categoryId}
               onChange={(event) => {
@@ -1800,30 +1574,15 @@ function AddListingForm({
               }}
               required
             >
-              <option value="">Select category</option>
+              <option value=""><UiText text={"Select category"} /></option>
               {categories.map((item) => (
                 <option value={String(item.id)} key={String(item.id)}>
-                  {String(item.name)}
+                  <UiText text={String(item.name)} />
                 </option>
               ))}
             </select>
           </label>
-          <label className="grid gap-2 font-semibold">
-            Location
-            <select
-              className="rounded-xl border border-brand-border bg-white p-3"
-              value={locationId}
-              onChange={(event) => setLocationId(event.target.value)}
-              required
-            >
-              <option value="">Select location</option>
-              {locations.map((item) => (
-                <option value={String(item.id)} key={String(item.id)}>
-                  {String(item.name)} ({String(item.location_type)})
-                </option>
-              ))}
-            </select>
-          </label>
+          <SupervisorLocationChoice requireArea onChange={setLocationId} onAreaDraftChange={setAreaDraft} />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
@@ -1833,9 +1592,7 @@ function AddListingForm({
             set={setPrice}
             required
           />
-          <label className="grid gap-2 font-semibold">
-            Price period
-            <select
+          <label className="grid gap-2 font-semibold"><UiText text={"Price period"} /><select
               className="rounded-xl border border-brand-border bg-white p-3"
               value={period}
               onChange={(event) => setPeriod(event.target.value)}
@@ -1846,6 +1603,11 @@ function AddListingForm({
             </select>
           </label>
         </div>
+        <fieldset className="soft-panel grid gap-3 p-4"><legend className="font-semibold"><UiText text={"Owner details (optional and private)"} /></legend>
+          <label className="flex gap-3"><input type="checkbox" checked={ownerEnabled} onChange={(event) => setOwnerEnabled(event.target.checked)} /><UiText text={"Add owner contact details"} /></label>
+          <p className="text-sm text-muted"><UiText text={"Leave this off to create a listing without owner details. Entering a contact does not create or verify an owner account."} /></p>
+          {ownerEnabled ? <><Input label="Owner name" value={ownerName} set={setOwnerName} required /><Input label="Owner phone" value={ownerPhone} set={setOwnerPhone} required /><Input label="Owner notes" value={ownerNotes} set={setOwnerNotes} /></> : null}
+        </fieldset>
         {fields
           .filter((field) => field.active !== false)
           .map((field) => (
@@ -1861,16 +1623,22 @@ function AddListingForm({
               }
             />
           ))}
+        <label className="grid gap-2 font-semibold"><UiText text="Additional details" /><textarea className="field-input" rows={4} maxLength={5000} value={extraDetails} onChange={(e) => setExtraDetails(e.target.value)} /></label>
+        <p className="text-sm"><UiText text="Add features, conditions or services not covered above. These details appear in the public description." /></p>
+        </fieldset>
+        <ListingImagePicker photos={photos} onChange={setPhotos} onBusy={setPreparing} disabled={busy || !!draftId} limit={selectedCategory?.slug === "apartment" ? 15 : 8} />
+        {draftId && <p role="status"><UiText text="Draft saved. Retry to finish uploading its images." /></p>}
+        {progress && <p role="status" aria-live="polite"><UiText text={progress} /></p>}
         {message ? (
           <p className="rounded-xl bg-brand-danger-soft p-3 text-sm text-brand-danger">
-            {message}
+            <UiText text={message} />
           </p>
         ) : null}
         <button
           className="btn btn-success"
-          disabled={busy || !categoryId || !locationId}
+          disabled={busy || preparing || !categoryId || (!locationId && !areaDraft?.name.trim())}
         >
-          {busy ? "Creating..." : "Create draft"}
+          <UiText text={busy ? "Uploading asset..." : "Upload asset"} />
         </button>
       </form>
     </Panel>
@@ -1886,6 +1654,10 @@ function ListingEditor({
   close: () => void;
   save: (values: Row) => void;
 }) {
+  const contact = relation(listing.owners);
+  const [ownerName, setOwnerName] = useState(String(contact.full_name ?? ""));
+  const [ownerPhone, setOwnerPhone] = useState(String(contact.phone_number ?? ""));
+  const [ownerNotes, setOwnerNotes] = useState(String(contact.notes ?? ""));
   const [title, setTitle] = useState(String(listing.title ?? ""));
   const [description, setDescription] = useState(
     String(listing.description ?? ""),
@@ -1904,6 +1676,7 @@ function ListingEditor({
         onSubmit={(e) => {
           e.preventDefault();
           save({
+            private_owner: { name: ownerName, phone: ownerPhone, notes: ownerNotes },
             title: title.trim(),
             description: description.trim(),
             price_amount: Number(price),
@@ -1913,9 +1686,7 @@ function ListingEditor({
         }}
       >
         <Input label="Title" value={title} set={setTitle} required />
-        <label className="grid gap-2 font-semibold">
-          Description
-          <textarea
+        <label className="grid gap-2 font-semibold"><UiText text={"Description"} /><textarea
             className="rounded-xl border border-brand-border p-3"
             rows={4}
             value={description}
@@ -1930,9 +1701,7 @@ function ListingEditor({
           type="number"
           required
         />
-        <label className="grid gap-2 font-semibold">
-          Availability
-          <select
+        <label className="grid gap-2 font-semibold"><UiText text={"Availability"} /><select
             className="rounded-xl border border-brand-border bg-white p-3"
             value={availability}
             onChange={(e) => setAvailability(e.target.value)}
@@ -1942,6 +1711,7 @@ function ListingEditor({
             ))}
           </select>
         </label>
+        <fieldset className="soft-panel grid gap-3 p-4"><legend><UiText text={"Private owner contact (optional)"} /></legend><Input label="Owner name" value={ownerName} set={setOwnerName} required={Boolean(ownerPhone.trim() || ownerNotes.trim())} /><Input label="Owner phone" value={ownerPhone} set={setOwnerPhone} required={Boolean(ownerName.trim() || ownerNotes.trim())} /><Input label="Owner notes" value={ownerNotes} set={setOwnerNotes} /><p className="text-sm text-muted"><UiText text={"Clear all three fields to detach this private owner contact."} /></p></fieldset>
         {fields
           .filter((field) => field.active !== false)
           .map((field) => (
@@ -1958,10 +1728,8 @@ function ListingEditor({
             />
           ))}
         <div className="flex gap-3">
-          <button className="btn btn-success">Save changes</button>
-          <button className="btn btn-outline" type="button" onClick={close}>
-            Cancel
-          </button>
+          <button className="btn btn-success"><UiText text={"Save changes"} /></button>
+          <button className="btn btn-outline" type="button" onClick={close}><UiText text={"Cancel"} /></button>
         </div>
       </form>
     </Modal>
@@ -2005,9 +1773,7 @@ function CategoryEditor({
       <div className="grid gap-4">
         <div className="grid gap-3 rounded-2xl bg-brand-green-soft p-4 sm:grid-cols-[1fr_150px_auto]">
           <Input label="New field label" value={label} set={setLabel} />
-          <label className="grid gap-2 font-semibold">
-            Type
-            <select
+          <label className="grid gap-2 font-semibold"><UiText text={"Type"} /><select
               className="rounded-xl border border-brand-border bg-white p-3"
               value={type}
               onChange={(e) => setType(e.target.value)}
@@ -2021,9 +1787,7 @@ function CategoryEditor({
             type="button"
             className="btn btn-success self-end"
             onClick={addField}
-          >
-            Add field
-          </button>
+          ><UiText text={"Add field"} /></button>
         </div>
         {fields.map((field, index) => (
           <div
@@ -2055,12 +1819,9 @@ function CategoryEditor({
                       ),
                     )
                   }
-                />
-                Required
-              </label>
+                /><UiText text={"Required"} /></label>
             </div>
-            <p className="mt-2 text-xs text-muted">
-              Stable key: {String(field.key)} · {String(field.type)}
+            <p className="mt-2 text-xs text-muted"><UiText text={"Stable key:"} />{String(field.key)} · {String(field.type)}
             </p>
             <button
               className="mt-3 text-sm font-semibold underline"
@@ -2074,7 +1835,7 @@ function CategoryEditor({
                 )
               }
             >
-              {field.active === false ? "Restore field" : "Retire field"}
+              <UiText text={field.active === false ? "Restore field" : "Retire field"} />
             </button>
           </div>
         ))}
@@ -2082,12 +1843,8 @@ function CategoryEditor({
           <button
             className="btn btn-success"
             onClick={() => save({ field_schema: fields })}
-          >
-            Save fields
-          </button>
-          <button className="btn btn-outline" onClick={close}>
-            Cancel
-          </button>
+          ><UiText text={"Save fields"} /></button>
+          <button className="btn btn-outline" onClick={close}><UiText text={"Cancel"} /></button>
         </div>
       </div>
     </Modal>
@@ -2112,26 +1869,27 @@ function DynamicField({
           checked={value === true}
           onChange={(e) => set(e.target.checked)}
         />
-        {label}
+        <UiText text={label} />
       </label>
     );
   if (field.type === "select")
     return (
       <label className="grid gap-2 font-semibold">
-        {label}
+        <UiText text={label} />
         <select
           className="rounded-xl border border-brand-border bg-white p-3"
           value={String(value ?? "")}
           onChange={(e) => set(e.target.value)}
           required={field.required === true}
         >
-          <option value="">Select</option>
+          <option value=""><UiText text={"Select"} /></option>
           {((field.options as unknown[]) ?? []).map((option) => (
-            <option key={String(option)}>{String(option)}</option>
+            <option key={String(option)} value={String(option)}><UiText text={String(option)} /></option>
           ))}
         </select>
       </label>
     );
+  if (field.type === "textarea") return <label className="grid gap-2 font-semibold"><UiText text={label} /><textarea className="field-input" rows={4} value={String(value ?? "")} required={field.required === true} onChange={(e) => set(e.target.value)} /></label>;
   return (
     <Input
       label={label}
@@ -2160,10 +1918,10 @@ function Modal({
     >
       <div className="mx-auto my-8 max-w-2xl rounded-3xl bg-white p-6 shadow-2xl">
         <div className="mb-5 flex justify-between gap-4">
-          <h2 className="font-heading text-2xl font-semibold">{title}</h2>
-          <button onClick={close} className="text-xl" aria-label="Close">
+          <h2 className="font-heading text-2xl font-semibold"><UiText text={title} /></h2>
+          <UiButton onClick={close} className="text-xl" aria-label="Close">
             ×
-          </button>
+          </UiButton>
         </div>
         {children}
       </div>
@@ -2181,8 +1939,8 @@ function Panel({
 }) {
   return (
     <div className="surface-card p-5 sm:p-7">
-      <h2 className="font-heading text-3xl font-semibold">{title}</h2>
-      <p className="mt-2 mb-6 text-muted">{subtitle}</p>
+      <h2 className="font-heading text-3xl font-semibold"><UiText text={title} /></h2>
+      <p className="mt-2 mb-6 text-muted"><UiText text={subtitle} /></p>
       {children}
     </div>
   );
@@ -2202,7 +1960,7 @@ function Input({
 }) {
   return (
     <label className="grid gap-2 font-semibold">
-      {label}
+      <UiText text={label} />
       <input
         className="rounded-xl border border-brand-border bg-white p-3"
         type={type}
@@ -2214,15 +1972,16 @@ function Input({
   );
 }
 function Status({ value }: { value: string }) {
-  return (
-    <span className="h-fit rounded-full bg-brand-green-soft px-3 py-1 text-xs font-semibold text-brand-navy">
-      {value.replaceAll("_", " ")}
-    </span>
-  );
+  const normalized = value.toLowerCase().replaceAll(" ", "_");
+  const palette = ["rejected", "suspended", "cancelled", "error"].includes(normalized) ? ["#fff1f2", "#9f1239"]
+    : ["pending", "new", "confirmation_pending"].includes(normalized) ? ["#fff7df", "#78510b"]
+    : ["active", "approved", "auto_approved", "admin_approved", "completed", "confirmed", "email_confirmed"].includes(normalized) ? ["#e1f2eb", "#145445"]
+    : ["#edf1f5", "#40556a"];
+  return <span className="h-fit rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: palette[0], color: palette[1] }}><UiText text={value.replaceAll("_", " ")} /></span>;
 }
 function Empty({ text }: { text: string }) {
   return (
-    <p className="rounded-2xl bg-brand-info-soft p-5 text-muted">{text}</p>
+    <p className="rounded-2xl bg-brand-info-soft p-5 text-muted"><UiText text={text} /></p>
   );
 }
 function schema(row: Row | null | undefined): Row[] {

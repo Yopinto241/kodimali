@@ -60,6 +60,7 @@ class CustomerAccountRepository {
     String? ownerName,
     String? ownerPhone,
     bool ownerContactAuthorized = false,
+    String pricePeriod = 'month',
   }) async {
     _requireUser();
     final dynamic response = await _client.rpc(
@@ -70,10 +71,15 @@ class CustomerAccountRepository {
         'p_location_description': locationDescription.trim(),
         'p_description': description.trim(),
         'p_approximate_rent': approximateRent,
-        'p_price_period': approximateRent == null ? null : 'month',
+        'p_price_period': approximateRent == null ? null : pricePeriod,
         'p_available_from': availableFrom?.toUtc().toIso8601String(),
         'p_information_source': informationSource.trim(),
-        'p_category_details': <String, dynamic>{},
+        'p_category_details': <String, dynamic>{
+          'contributor_is_moving_out': informationSource == 'moving_out',
+          'move_out_date': informationSource == 'moving_out'
+              ? availableFrom?.toIso8601String().substring(0, 10)
+              : null,
+        },
         'p_photo_paths': <dynamic>[],
         'p_photo_permission_confirmed': false,
         'p_owner_name': ownerName?.trim(),
@@ -86,16 +92,31 @@ class CustomerAccountRepository {
     return row;
   }
 
-  Future<List<CustomerJson>> fetchMyRentalInformation() async {
+  Future<List<CustomerJson>> fetchMyRentalInformation({
+    int offset = 0,
+    int limit = 20,
+  }) async {
     final User user = _requireUser();
     return (await _client
             .from('rental_information_submissions')
             .select(
-              'id,reference,category,location_description,description,status,eligibility_status,approximate_rent,submitted_at',
+              'id,reference,category,location_description,description,status,eligibility_status,approximate_rent,available_from,submitted_at,referral_agreements(id,reward_type,fixed_amount_tzs,percentage_rate,terms,terms_version,contributor_accepted_at,referral_rewards(id,reward_amount_tzs,status,referral_payouts(transaction_reference,payment_method,paid_at)))',
             )
             .eq('contributor_id', user.id)
-            .order('submitted_at', ascending: false))
+            .order('submitted_at', ascending: false)
+            .range(offset, offset + limit - 1))
         .cast<CustomerJson>();
+  }
+
+  Future<void> acceptInformationReferralTerms(
+    String agreementId,
+    int version,
+  ) async {
+    _requireUser();
+    await _client.rpc(
+      'accept_information_referral_terms',
+      params: {'p_agreement_id': agreementId, 'p_terms_version': version},
+    );
   }
 
   Future<List<CustomerJson>> fetchMyReferralRewards() async {

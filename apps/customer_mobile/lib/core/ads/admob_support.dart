@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -128,12 +129,14 @@ class CustomerAdPrivacyButton extends StatelessWidget {
           await CustomerAdMobController.instance.openPrivacyOptionsForm();
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Privacy options updated.")),
+              const SnackBar(
+                content: LocalizedUiText("Privacy options updated."),
+              ),
             );
           }
         },
         icon: const Icon(Icons.privacy_tip_outlined),
-        label: const Text("Privacy choices"),
+        label: const LocalizedUiText("Privacy choices"),
       ),
     );
   }
@@ -232,7 +235,7 @@ class _CustomerInlineBannerAdCardState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
+                LocalizedUiText(
                   "Advertisement",
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
@@ -335,7 +338,7 @@ class _CustomerNativeFeedAdCardState extends State<CustomerNativeFeedAdCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(
+            LocalizedUiText(
               "Advertisement",
               style: Theme.of(context).textTheme.labelLarge,
             ),

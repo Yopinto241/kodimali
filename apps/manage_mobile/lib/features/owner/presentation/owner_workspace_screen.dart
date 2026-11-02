@@ -1,7 +1,9 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/localization/manage_localization.dart';
+import '../../shared/presentation/agent_recommendations_screen.dart';
 
 class OwnerWorkspaceScreen extends StatefulWidget {
   const OwnerWorkspaceScreen({super.key});
@@ -32,6 +34,12 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
   }
 
   Future<void> _load() async {
+    if (mounted) {
+      setState(() {
+        loading = true;
+        error = null;
+      });
+    }
     try {
       final db = Supabase.instance.client;
       final uid = db.auth.currentUser!.id;
@@ -92,7 +100,7 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
             await db
                 .from('listings')
                 .select(
-                  'id,asset_id,title,category,status,approval_status,booking_configurations(id,booking_mode,authority_status,deterministic_pricing,availability_reliable,policy_id,hold_duration_minutes,balance_deadline_configuration,fulfillment_configuration)',
+                  'id,asset_id,title,category_id,status,publication_review_status,rental_assets(category),booking_configurations(id,booking_mode,authority_status,deterministic_pricing,availability_reliable,policy_id,hold_duration_minutes,balance_deadline_configuration,fulfillment_configuration)',
                 )
                 .inFilter('asset_id', assetIds)
                 .order('created_at', ascending: false),
@@ -100,12 +108,7 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
         }
         try {
           verifiedAgents = _rows(
-            await db
-                .from('agents')
-                .select('id,display_name,business_name,public_location_label')
-                .eq('verification_status', 'approved')
-                .eq('account_status', 'active')
-                .order('display_name'),
+            await db.rpc('get_assignable_verified_agents'),
           );
           agentDelegations = _rows(
             await db
@@ -185,7 +188,9 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
         builder: (BuildContext context, StateSetter setDialogState) =>
             AlertDialog(
               title: Text(
-                context.isSwahili ? 'Unganisha mali' : 'Connect an item',
+                context.isSwahili
+                    ? mobileUi(context, 'Unganisha mali')
+                    : mobileUi(context, 'Connect an item'),
               ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -194,22 +199,25 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
                     controller: listing,
                     decoration: InputDecoration(
                       labelText: context.isSwahili
-                          ? 'Link au ID ya tangazo'
-                          : 'Listing link or ID',
+                          ? mobileUi(context, 'Link au ID ya tangazo')
+                          : mobileUi(context, 'Listing link or ID'),
                     ),
                   ),
                   DropdownButtonFormField<String>(
                     initialValue: authority,
                     decoration: InputDecoration(
                       labelText: context.isSwahili
-                          ? 'Mamlaka yako'
-                          : 'Your authority',
+                          ? mobileUi(context, 'Mamlaka yako')
+                          : mobileUi(context, 'Your authority'),
                     ),
                     items: const <DropdownMenuItem<String>>[
-                      DropdownMenuItem(value: 'owner', child: Text('Owner')),
+                      DropdownMenuItem(
+                        value: 'owner',
+                        child: LocalizedUiText('Owner'),
+                      ),
                       DropdownMenuItem(
                         value: 'authorized_manager',
-                        child: Text('Authorized manager'),
+                        child: LocalizedUiText('Authorized manager'),
                       ),
                     ],
                     onChanged: (String? value) {
@@ -223,11 +231,19 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
               actions: <Widget>[
                 TextButton(
                   onPressed: () => Navigator.pop(dialogContext, false),
-                  child: Text(context.isSwahili ? 'Ghairi' : 'Cancel'),
+                  child: Text(
+                    context.isSwahili
+                        ? mobileUi(context, 'Ghairi')
+                        : mobileUi(context, 'Cancel'),
+                  ),
                 ),
                 FilledButton(
                   onPressed: () => Navigator.pop(dialogContext, true),
-                  child: Text(context.isSwahili ? 'Tuma' : 'Submit'),
+                  child: Text(
+                    context.isSwahili
+                        ? mobileUi(context, 'Tuma')
+                        : mobileUi(context, 'Submit'),
+                  ),
                 ),
               ],
             ),
@@ -254,8 +270,11 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
           SnackBar(
             content: Text(
               context.isSwahili
-                  ? 'Ombi limetumwa kwa uhakiki wa admin.'
-                  : 'The item was submitted for administrator verification.',
+                  ? mobileUi(context, 'Ombi limetumwa kwa uhakiki wa admin.')
+                  : mobileUi(
+                      context,
+                      'The item was submitted for administrator verification.',
+                    ),
             ),
           ),
         );
@@ -279,7 +298,11 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text(context.isSwahili ? 'Mwalike mpangaji' : 'Invite a renter'),
+        title: Text(
+          context.isSwahili
+              ? mobileUi(context, 'Mwalike mpangaji')
+              : mobileUi(context, 'Invite a renter'),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -302,23 +325,34 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
               },
               decoration: InputDecoration(
                 labelText: context.isSwahili
-                    ? 'Mali iliyothibitishwa'
-                    : 'Verified asset',
+                    ? mobileUi(context, 'Mali iliyothibitishwa')
+                    : mobileUi(context, 'Verified asset'),
               ),
             ),
             TextField(
               controller: email,
-              decoration: const InputDecoration(labelText: 'Email'),
+              decoration: InputDecoration(
+                labelText: mobileUi(context, 'Email'),
+              ),
             ),
             TextField(
               controller: phone,
               decoration: InputDecoration(
-                labelText: context.isSwahili ? 'Simu' : 'Phone',
+                labelText: context.isSwahili
+                    ? mobileUi(context, 'Simu')
+                    : mobileUi(context, 'Phone'),
               ),
             ),
           ],
         ),
         actions: [
+          IconButton(
+            onPressed: () => context.push('/events-provider'),
+            icon: const Icon(Icons.celebration_outlined),
+            tooltip: context.isSwahili
+                ? 'Vifaa vya matukio'
+                : 'Event equipment',
+          ),
           IconButton(
             onPressed: _claimListing,
             icon: const Icon(Icons.add_business_outlined),
@@ -326,11 +360,19 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(c, false),
-            child: Text(context.isSwahili ? 'Ghairi' : 'Cancel'),
+            child: Text(
+              context.isSwahili
+                  ? mobileUi(context, 'Ghairi')
+                  : mobileUi(context, 'Cancel'),
+            ),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(c, true),
-            child: Text(context.isSwahili ? 'Tuma mwaliko' : 'Send invitation'),
+            child: Text(
+              context.isSwahili
+                  ? mobileUi(context, 'Tuma mwaliko')
+                  : mobileUi(context, 'Send invitation'),
+            ),
           ),
         ],
       ),
@@ -351,7 +393,7 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${context.isSwahili ? 'Namba ya mwaliko' : 'Invitation token'}: ${result['token']}',
+              '${context.isSwahili ? mobileUi(context, 'Namba ya mwaliko') : mobileUi(context, 'Invitation token')}: ${result['token']}',
             ),
           ),
         );
@@ -389,7 +431,11 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text(sw ? 'Andaa mkataba' : 'Create agreement'),
+        title: Text(
+          sw
+              ? mobileUi(context, 'Andaa mkataba')
+              : mobileUi(context, 'Create agreement'),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -413,30 +459,48 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
               controller: rent,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: sw ? 'Kiasi cha kodi (TZS)' : 'Rent amount (TZS)',
+                labelText: sw
+                    ? mobileUi(context, 'Kiasi cha kodi (TZS)')
+                    : mobileUi(context, 'Rent amount (TZS)'),
               ),
             ),
             DropdownButtonFormField<String>(
               initialValue: rentPeriod,
               decoration: InputDecoration(
-                labelText: sw ? 'Kipindi cha malipo' : 'Payment period',
+                labelText: sw
+                    ? mobileUi(context, 'Kipindi cha malipo')
+                    : mobileUi(context, 'Payment period'),
               ),
               items: [
                 DropdownMenuItem(
                   value: 'day',
-                  child: Text(sw ? 'Siku' : 'Daily'),
+                  child: Text(
+                    sw ? mobileUi(context, 'Siku') : mobileUi(context, 'Daily'),
+                  ),
                 ),
                 DropdownMenuItem(
                   value: 'week',
-                  child: Text(sw ? 'Wiki' : 'Weekly'),
+                  child: Text(
+                    sw
+                        ? mobileUi(context, 'Wiki')
+                        : mobileUi(context, 'Weekly'),
+                  ),
                 ),
                 DropdownMenuItem(
                   value: 'month',
-                  child: Text(sw ? 'Mwezi' : 'Monthly'),
+                  child: Text(
+                    sw
+                        ? mobileUi(context, 'Mwezi')
+                        : mobileUi(context, 'Monthly'),
+                  ),
                 ),
                 DropdownMenuItem(
                   value: 'year',
-                  child: Text(sw ? 'Mwaka' : 'Yearly'),
+                  child: Text(
+                    sw
+                        ? mobileUi(context, 'Mwaka')
+                        : mobileUi(context, 'Yearly'),
+                  ),
                 ),
               ],
               onChanged: (value) {
@@ -447,7 +511,9 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
               controller: terms,
               maxLines: 3,
               decoration: InputDecoration(
-                labelText: sw ? 'Masharti ya mkataba' : 'Agreement terms',
+                labelText: sw
+                    ? mobileUi(context, 'Masharti ya mkataba')
+                    : mobileUi(context, 'Agreement terms'),
               ),
             ),
           ],
@@ -455,11 +521,17 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c, false),
-            child: Text(sw ? 'Ghairi' : 'Cancel'),
+            child: Text(
+              sw ? mobileUi(context, 'Ghairi') : mobileUi(context, 'Cancel'),
+            ),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(c, true),
-            child: Text(sw ? 'Tuma kwa mpangaji' : 'Send to renter'),
+            child: Text(
+              sw
+                  ? mobileUi(context, 'Tuma kwa mpangaji')
+                  : mobileUi(context, 'Send to renter'),
+            ),
           ),
         ],
       ),
@@ -512,12 +584,18 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(context.isSwahili ? 'Ghairi' : 'Cancel'),
+            child: Text(
+              context.isSwahili
+                  ? mobileUi(context, 'Ghairi')
+                  : mobileUi(context, 'Cancel'),
+            ),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             child: Text(
-              context.isSwahili ? 'Nakubali masharti' : 'Accept agreement',
+              context.isSwahili
+                  ? mobileUi(context, 'Nakubali masharti')
+                  : mobileUi(context, 'Accept agreement'),
             ),
           ),
         ],
@@ -547,7 +625,8 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
     bool reliable = current['availability_reliable'] == true;
     int holdMinutes = (current['hold_duration_minutes'] as num?)?.round() ?? 30;
     String? policyId = current['policy_id']?.toString();
-    final category = listing['category']?.toString();
+    final category = (listing['rental_assets'] as Map?)?['category']
+        ?.toString();
     final policies = bookingPolicies
         .where(
           (policy) =>
@@ -563,8 +642,10 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
         builder: (context, setDialog) => AlertDialog(
           title: Text(
             context.isSwahili
-                ? 'Booking ya ${listing['title']}'
-                : 'Booking for ${listing['title']}',
+                ? mobileUiFormat(context, "Booking ya {0}", [listing['title']])
+                : mobileUiFormat(context, "Booking for {0}", [
+                    listing['title'],
+                  ]),
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -574,21 +655,21 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
                   initialValue: mode,
                   decoration: InputDecoration(
                     labelText: context.isSwahili
-                        ? 'Namna ya booking'
-                        : 'Booking mode',
+                        ? mobileUi(context, 'Namna ya booking')
+                        : mobileUi(context, 'Booking mode'),
                   ),
                   items: const <DropdownMenuItem<String>>[
                     DropdownMenuItem(
                       value: 'not_bookable',
-                      child: Text('Booking off'),
+                      child: LocalizedUiText('Booking off'),
                     ),
                     DropdownMenuItem(
                       value: 'request_booking',
-                      child: Text('Request Booking'),
+                      child: LocalizedUiText('Request Booking'),
                     ),
                     DropdownMenuItem(
                       value: 'instant_booking',
-                      child: Text('Instant Booking'),
+                      child: LocalizedUiText('Instant Booking'),
                     ),
                   ],
                   onChanged: (value) {
@@ -601,21 +682,23 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
                   isExpanded: true,
                   decoration: InputDecoration(
                     labelText: context.isSwahili
-                        ? 'Masharti ya booking'
-                        : 'Booking policy',
+                        ? mobileUi(context, 'Masharti ya booking')
+                        : mobileUi(context, 'Booking policy'),
                   ),
                   items: <DropdownMenuItem<String?>>[
                     DropdownMenuItem<String?>(
                       value: null,
                       child: Text(
-                        context.isSwahili ? 'Hayajachaguliwa' : 'Not selected',
+                        context.isSwahili
+                            ? mobileUi(context, 'Hayajachaguliwa')
+                            : mobileUi(context, 'Not selected'),
                       ),
                     ),
                     ...policies.map(
                       (policy) => DropdownMenuItem<String?>(
                         value: policy['id'].toString(),
                         child: Text(
-                          '${policy['title']} · v${policy['version']}${policy['cancellation_policy_version_id'] == null ? ' · not ready for Instant Booking' : ''}',
+                          '${policy['title']} · v${policy['version']}${policy['cancellation_policy_version_id'] == null ? mobileUi(context, ' · not ready for Instant Booking') : ''}',
                         ),
                       ),
                     ),
@@ -627,8 +710,11 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
                   value: deterministic,
                   title: Text(
                     context.isSwahili
-                        ? 'Bei inaweza kuhesabiwa moja kwa moja'
-                        : 'Price is deterministic',
+                        ? mobileUi(
+                            context,
+                            'Bei inaweza kuhesabiwa moja kwa moja',
+                          )
+                        : mobileUi(context, 'Price is deterministic'),
                   ),
                   onChanged: (value) => setDialog(() => deterministic = value),
                 ),
@@ -637,8 +723,11 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
                   value: reliable,
                   title: Text(
                     context.isSwahili
-                        ? 'Kalenda ya upatikanaji ni sahihi'
-                        : 'Availability calendar is reliable',
+                        ? mobileUi(context, 'Kalenda ya upatikanaji ni sahihi')
+                        : mobileUi(
+                            context,
+                            'Availability calendar is reliable',
+                          ),
                   ),
                   onChanged: (value) => setDialog(() => reliable = value),
                 ),
@@ -646,8 +735,16 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
                   contentPadding: EdgeInsets.zero,
                   title: Text(
                     context.isSwahili
-                        ? 'Ulinzi wa checkout: dakika $holdMinutes'
-                        : 'Checkout protection: $holdMinutes minutes',
+                        ? mobileUiFormat(
+                            context,
+                            "Ulinzi wa checkout: dakika {0}",
+                            [holdMinutes],
+                          )
+                        : mobileUiFormat(
+                            context,
+                            "Checkout protection: {0} minutes",
+                            [holdMinutes],
+                          ),
                   ),
                   subtitle: Slider(
                     value: holdMinutes.toDouble(),
@@ -662,8 +759,14 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
                 if (mode == 'instant_booking' && !ownerBookingAgreementAccepted)
                   Text(
                     context.isSwahili
-                        ? 'Kubali makubaliano ya booking kabla ya kuwasha Instant Booking.'
-                        : 'Accept the owner booking agreement before enabling Instant Booking.',
+                        ? mobileUi(
+                            context,
+                            'Kubali makubaliano ya booking kabla ya kuwasha Instant Booking.',
+                          )
+                        : mobileUi(
+                            context,
+                            'Accept the owner booking agreement before enabling Instant Booking.',
+                          ),
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,
                     ),
@@ -676,8 +779,14 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
                     ))
                   Text(
                     context.isSwahili
-                        ? 'Admin lazima aunganishe masharti haya na cancellation policy iliyoidhinishwa.'
-                        : 'An administrator must link this booking policy to an approved cancellation policy.',
+                        ? mobileUi(
+                            context,
+                            'Admin lazima aunganishe masharti haya na cancellation policy iliyoidhinishwa.',
+                          )
+                        : mobileUi(
+                            context,
+                            'An administrator must link this booking policy to an approved cancellation policy.',
+                          ),
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,
                     ),
@@ -688,7 +797,11 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text(context.isSwahili ? 'Ghairi' : 'Cancel'),
+              child: Text(
+                context.isSwahili
+                    ? mobileUi(context, 'Ghairi')
+                    : mobileUi(context, 'Cancel'),
+              ),
             ),
             FilledButton(
               onPressed:
@@ -702,7 +815,11 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
                           ))
                   ? null
                   : () => Navigator.pop(dialogContext, true),
-              child: Text(context.isSwahili ? 'Hifadhi' : 'Save'),
+              child: Text(
+                context.isSwahili
+                    ? mobileUi(context, 'Hifadhi')
+                    : mobileUi(context, 'Save'),
+              ),
             ),
           ],
         ),
@@ -742,8 +859,11 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
         SnackBar(
           content: Text(
             context.isSwahili
-                ? 'Hakuna agent aliyethibitishwa anayepatikana.'
-                : 'No verified agent is available.',
+                ? mobileUi(
+                    context,
+                    'Hakuna agent aliyethibitishwa anayepatikana.',
+                  )
+                : mobileUi(context, 'No verified agent is available.'),
           ),
         ),
       );
@@ -761,7 +881,9 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialog) => AlertDialog(
           title: Text(
-            context.isSwahili ? 'Mruhusu agent' : 'Authorize an agent',
+            context.isSwahili
+                ? mobileUi(context, 'Mruhusu agent')
+                : mobileUi(context, 'Authorize an agent'),
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -771,7 +893,9 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
                   initialValue: agentId,
                   isExpanded: true,
                   decoration: InputDecoration(
-                    labelText: context.isSwahili ? 'Agent' : 'Agent',
+                    labelText: context.isSwahili
+                        ? mobileUi(context, 'Agent')
+                        : mobileUi(context, 'Agent'),
                   ),
                   items: verifiedAgents
                       .map(
@@ -815,13 +939,21 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text(context.isSwahili ? 'Ghairi' : 'Cancel'),
+              child: Text(
+                context.isSwahili
+                    ? mobileUi(context, 'Ghairi')
+                    : mobileUi(context, 'Cancel'),
+              ),
             ),
             FilledButton(
               onPressed: scopes.isEmpty
                   ? null
                   : () => Navigator.pop(dialogContext, true),
-              child: Text(context.isSwahili ? 'Ruhusu' : 'Authorize'),
+              child: Text(
+                context.isSwahili
+                    ? mobileUi(context, 'Ruhusu')
+                    : mobileUi(context, 'Authorize'),
+              ),
             ),
           ],
         ),
@@ -854,21 +986,35 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(context.isSwahili ? 'Ondoa ruhusa' : 'Revoke access'),
+        title: Text(
+          context.isSwahili
+              ? mobileUi(context, 'Ondoa ruhusa')
+              : mobileUi(context, 'Revoke access'),
+        ),
         content: TextField(
           controller: reason,
           decoration: InputDecoration(
-            labelText: context.isSwahili ? 'Sababu' : 'Reason',
+            labelText: context.isSwahili
+                ? mobileUi(context, 'Sababu')
+                : mobileUi(context, 'Reason'),
           ),
         ),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(context.isSwahili ? 'Ghairi' : 'Cancel'),
+            child: Text(
+              context.isSwahili
+                  ? mobileUi(context, 'Ghairi')
+                  : mobileUi(context, 'Cancel'),
+            ),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(context.isSwahili ? 'Ondoa' : 'Revoke'),
+            child: Text(
+              context.isSwahili
+                  ? mobileUi(context, 'Ondoa')
+                  : mobileUi(context, 'Revoke'),
+            ),
           ),
         ],
       ),
@@ -904,14 +1050,30 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (error != null) {
-      return Scaffold(body: Center(child: Text(error!)));
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const LocalizedUiText(
+                'Could not load your owner workspace. Please try again.',
+              ),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: _load,
+                child: const LocalizedUiText('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
     }
     if (owner == null || owner!['verification_status'] != 'verified') {
       return Scaffold(
-        appBar: AppBar(title: const Text('Owner access')),
+        appBar: AppBar(title: const LocalizedUiText('Owner access')),
         body: const Padding(
           padding: EdgeInsets.all(24),
-          child: Text(
+          child: LocalizedUiText(
             'Your owner application is not verified yet. Apply on the KODIMALI website or wait for the verification review.',
           ),
         ),
@@ -923,6 +1085,21 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
         _ownerBookingAgreementCard(),
       _list('My assets', assets),
       _agentDelegationControls(),
+      Card(
+        child: ListTile(
+          leading: const Icon(Icons.person_add_outlined),
+          title: const LocalizedUiText('Recommend your own agent'),
+          subtitle: const LocalizedUiText(
+            'Agent Manager reviews your recommendation before you grant access.',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const AgentRecommendationsScreen(),
+            ),
+          ),
+        ),
+      ),
       _bookingControls(),
       _list(
         context.isSwahili ? 'Mialiko ya wapangaji' : 'Renter invitations',
@@ -952,7 +1129,7 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
           IconButton(
             onPressed: () => context.go('/workspaces'),
             icon: const Icon(Icons.swap_horiz),
-            tooltip: 'Switch workspace',
+            tooltip: mobileUi(context, 'Switch workspace'),
           ),
         ],
       ),
@@ -974,7 +1151,7 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        const LocalizedUiText(
           'OWNER OVERVIEW',
           style: TextStyle(
             color: Color(0xFFD78A55),
@@ -982,7 +1159,7 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
           ),
         ),
         const SizedBox(height: 10),
-        const Text(
+        const LocalizedUiText(
           'Your rental business',
           style: TextStyle(
             color: Colors.white,
@@ -992,7 +1169,10 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
         ),
         const SizedBox(height: 14),
         Text(
-          '${assets.length} assets  ·  ${bookings.length} bookings',
+          mobileUiFormat(context, "{0} assets  ·  {1} bookings", [
+            assets.length,
+            bookings.length,
+          ]),
           style: const TextStyle(color: Colors.white70),
         ),
       ],
@@ -1014,14 +1194,22 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
             const SizedBox(height: 8),
             Text(
               context.isSwahili
-                  ? 'Soma na ukubali makubaliano haya kabla ya kuwasha Instant Booking.'
-                  : 'Review and accept this agreement before enabling Instant Booking.',
+                  ? mobileUi(
+                      context,
+                      'Soma na ukubali makubaliano haya kabla ya kuwasha Instant Booking.',
+                    )
+                  : mobileUi(
+                      context,
+                      'Review and accept this agreement before enabling Instant Booking.',
+                    ),
             ),
             const SizedBox(height: 12),
             FilledButton(
               onPressed: _acceptOwnerBookingAgreement,
               child: Text(
-                context.isSwahili ? 'Soma makubaliano' : 'Review agreement',
+                context.isSwahili
+                    ? mobileUi(context, 'Soma makubaliano')
+                    : mobileUi(context, 'Review agreement'),
               ),
             ),
           ],
@@ -1039,21 +1227,35 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(
-              context.isSwahili ? 'Booking za mali zangu' : 'My asset bookings',
+              context.isSwahili
+                  ? mobileUi(context, 'Booking za mali zangu')
+                  : mobileUi(context, 'My asset bookings'),
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 6),
             Text(
               context.isSwahili
-                  ? 'Chagua kama mali inapokea booking request au Instant Booking.'
-                  : 'Choose whether each item accepts booking requests or Instant Booking.',
+                  ? mobileUi(
+                      context,
+                      'Chagua kama mali inapokea booking request au Instant Booking.',
+                    )
+                  : mobileUi(
+                      context,
+                      'Choose whether each item accepts booking requests or Instant Booking.',
+                    ),
             ),
             const SizedBox(height: 12),
             if (bookableListings.isEmpty)
               Text(
                 context.isSwahili
-                    ? 'Hakuna listing iliyounganishwa na mali iliyothibitishwa.'
-                    : 'No listing is connected to a verified asset.',
+                    ? mobileUi(
+                        context,
+                        'Hakuna listing iliyounganishwa na mali iliyothibitishwa.',
+                      )
+                    : mobileUi(
+                        context,
+                        'No listing is connected to a verified asset.',
+                      ),
               )
             else
               ...bookableListings.map((listing) {
@@ -1065,11 +1267,15 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
                   leading: const Icon(Icons.calendar_month_outlined),
                   title: Text(listing['title'].toString()),
                   subtitle: Text(
-                    '${mode.replaceAll('_', ' ')} · ${listing['approval_status']} · ${listing['status']}',
+                    '${mode.replaceAll('_', ' ')} · ${listing['publication_review_status']} · ${listing['status']}',
                   ),
                   trailing: OutlinedButton(
                     onPressed: () => _configureListingBooking(listing),
-                    child: Text(context.isSwahili ? 'Badili' : 'Configure'),
+                    child: Text(
+                      context.isSwahili
+                          ? mobileUi(context, 'Badili')
+                          : mobileUi(context, 'Configure'),
+                    ),
                   ),
                 );
               }),
@@ -1078,6 +1284,19 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
       ),
     ),
   );
+
+  String _delegatedAgentName(Map<String, dynamic> delegation) {
+    final matches = verifiedAgents.where(
+      (agent) => agent['id'] == delegation['agent_id'],
+    );
+    final agent = matches.isNotEmpty
+        ? matches.first
+        : (delegation['agents'] as Map?) ?? {};
+    final business = agent['business_name']?.toString() ?? '';
+    return business.isNotEmpty
+        ? business
+        : agent['display_name']?.toString() ?? 'Previously authorized agent';
+  }
 
   Widget _agentDelegationControls() => Padding(
     padding: const EdgeInsets.only(top: 18),
@@ -1088,14 +1307,22 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(
-              context.isSwahili ? 'Ruhusa za agent' : 'Agent access',
+              context.isSwahili
+                  ? mobileUi(context, 'Ruhusa za agent')
+                  : mobileUi(context, 'Agent access'),
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 6),
             Text(
               context.isSwahili
-                  ? 'Agent anafanya kazi kwenye mali hii baada ya wewe kumpa ruhusa.'
-                  : 'An agent can operate this asset only after you authorize them.',
+                  ? mobileUi(
+                      context,
+                      'Agent anafanya kazi kwenye mali hii baada ya wewe kumpa ruhusa.',
+                    )
+                  : mobileUi(
+                      context,
+                      'An agent can operate this asset only after you authorize them.',
+                    ),
             ),
             const SizedBox(height: 12),
             for (final claim in assets.where(
@@ -1111,7 +1338,11 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
                 ),
                 trailing: OutlinedButton(
                   onPressed: () => _delegateAsset(claim),
-                  child: Text(context.isSwahili ? 'Ruhusu' : 'Authorize'),
+                  child: Text(
+                    context.isSwahili
+                        ? mobileUi(context, 'Ruhusu')
+                        : mobileUi(context, 'Authorize'),
+                  ),
                 ),
               ),
             if (agentDelegations.isNotEmpty) const Divider(),
@@ -1119,24 +1350,18 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.badge_outlined),
-                title: Text(
-                  (delegation['agents'] as Map?)?['business_name']
-                              ?.toString()
-                              .isNotEmpty ==
-                          true
-                      ? (delegation['agents'] as Map)['business_name']
-                            .toString()
-                      : (delegation['agents'] as Map?)?['display_name']
-                                ?.toString() ??
-                            'Agent',
-                ),
+                title: Text(_delegatedAgentName(delegation)),
                 subtitle: Text(
                   '${delegation['status']} · ${(delegation['scopes'] as List? ?? const <dynamic>[]).join(', ')}',
                 ),
                 trailing: delegation['status'] == 'active'
                     ? TextButton(
                         onPressed: () => _revokeDelegation(delegation),
-                        child: Text(context.isSwahili ? 'Ondoa' : 'Revoke'),
+                        child: Text(
+                          context.isSwahili
+                              ? mobileUi(context, 'Ondoa')
+                              : mobileUi(context, 'Revoke'),
+                        ),
                       )
                     : null,
               ),
@@ -1157,7 +1382,7 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
             Text(title, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 12),
             if (rows.isEmpty)
-              const Text('Nothing found.')
+              const LocalizedUiText('Nothing found.')
             else
               ...rows
                   .take(8)
@@ -1191,10 +1416,13 @@ class _OwnerWorkspaceScreenState extends State<OwnerWorkspaceScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Bookings', style: Theme.of(context).textTheme.titleLarge),
+            LocalizedUiText(
+              'Bookings',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 12),
             if (bookings.isEmpty)
-              const Text('Nothing found.')
+              const LocalizedUiText('Nothing found.')
             else
               ...bookings.map(
                 (r) => ListTile(

@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_models/shared_models.dart';
 
@@ -96,9 +97,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(userFacingError(error))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: LocalizedUiText(userFacingError(error))),
+        );
       }
     }
   }
@@ -121,9 +122,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             final List<Map<String, dynamic>> items =
                 snapshot.data ?? <Map<String, dynamic>>[];
             if (items.isEmpty) {
-              return const KodimaliEmptyState(
-                title: "Hakuna taarifa",
-                message: "Taarifa za maombi na updates zitaonekana hapa.",
+              return KodimaliEmptyState(
+                title: mobileUi(context, "Hakuna taarifa"),
+                message: mobileUi(
+                  context,
+                  "Taarifa za maombi na updates zitaonekana hapa.",
+                ),
               );
             }
 
@@ -135,9 +139,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               onRefresh: _refresh,
               children: <Widget>[
                 ManageHeroCard(
-                  title: "Notifications",
-                  subtitle:
-                      "Track unread updates, moderation notices, and request activity in one clean feed.",
+                  title: mobileUi(context, "Notifications"),
+                  subtitle: mobileUi(
+                    context,
+                    "Track unread updates, moderation notices, and request activity in one clean feed.",
+                  ),
                   bottom: ManageMetaWrap(
                     items: <String>[
                       "$unreadCount unread",
@@ -166,8 +172,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 ),
                               ),
                               if (unread)
-                                const KodimaliStatusChip(
-                                  label: "Unread",
+                                KodimaliStatusChip(
+                                  label: mobileUi(context, "Unread"),
                                   highlight: true,
                                 ),
                             ],
@@ -195,13 +201,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                   FilledButton.tonalIcon(
                                     onPressed: () => _openRequest(item),
                                     icon: const Icon(Icons.open_in_new_rounded),
-                                    label: const Text("Open request"),
+                                    label: const LocalizedUiText(
+                                      "Open request",
+                                    ),
                                   ),
                                 if (unread)
                                   OutlinedButton(
                                     onPressed: () =>
                                         _markAsRead(item["id"] as String),
-                                    child: const Text("Mark as read"),
+                                    child: const LocalizedUiText(
+                                      "Mark as read",
+                                    ),
                                   ),
                               ],
                             ),

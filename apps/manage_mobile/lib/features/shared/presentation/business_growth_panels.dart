@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/app_scope.dart';
@@ -42,12 +43,12 @@ class _AdminBusinessAnalyticsPanelState
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(
+              LocalizedUiText(
                 'Business analytics · last 30 days',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 6),
-              Text(
+              LocalizedUiText(
                 'Revenue, conversion, response speed and delivery health in one place.',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
@@ -99,7 +100,7 @@ class _AdminBusinessAnalyticsPanelState
                 ],
               ),
               const SizedBox(height: 14),
-              Text(
+              LocalizedUiText(
                 'Most profitable categories',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
@@ -109,10 +110,14 @@ class _AdminBusinessAnalyticsPanelState
                   dense: true,
                   leading: const Icon(Icons.category_outlined),
                   title: Text((item as Map)['name']?.toString() ?? '-'),
-                  subtitle: Text('${item['conversions'] ?? 0} conversions'),
+                  subtitle: Text(
+                    mobileUiFormat(context, "{0} conversions", [
+                      item['conversions'] ?? 0,
+                    ]),
+                  ),
                   trailing: Text(_money(item['revenue_tzs'])),
                 ),
-              Text(
+              LocalizedUiText(
                 'Most profitable locations',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
@@ -122,7 +127,11 @@ class _AdminBusinessAnalyticsPanelState
                   dense: true,
                   leading: const Icon(Icons.location_on_outlined),
                   title: Text((item as Map)['location']?.toString() ?? '-'),
-                  subtitle: Text('${item['conversions'] ?? 0} conversions'),
+                  subtitle: Text(
+                    mobileUiFormat(context, "{0} conversions", [
+                      item['conversions'] ?? 0,
+                    ]),
+                  ),
                   trailing: Text(_money(item['revenue_tzs'])),
                 ),
             ],
@@ -179,17 +188,26 @@ class _AgentBusinessPanelState extends State<AgentBusinessPanel> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '${plan['name'] ?? 'Free'} business plan',
+                      mobileUiFormat(context, "{0} business plan", [
+                        plan['name'] ?? 'Free',
+                      ]),
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                   ),
                   if (plan['verification_badge'] == true)
-                    const Chip(label: Text('Verified')),
+                    const Chip(label: LocalizedUiText('Verified')),
                 ],
               ),
               const SizedBox(height: 6),
               Text(
-                'Publication fee: ${_money(plan['publication_fee_tzs'])} · Listing limit: ${plan['listing_limit'] ?? 'Unlimited'}',
+                mobileUiFormat(
+                  context,
+                  "Publication fee: {0} · Listing limit: {1}",
+                  [
+                    _money(plan['publication_fee_tzs']),
+                    plan['listing_limit'] ?? 'Unlimited',
+                  ],
+                ),
               ),
               const SizedBox(height: 14),
               Wrap(
@@ -229,7 +247,7 @@ class _AgentBusinessPanelState extends State<AgentBusinessPanel> {
                 ],
               ),
               const SizedBox(height: 12),
-              const Text(
+              const LocalizedUiText(
                 'Lead pipeline: New → Contacted → Viewing scheduled → Negotiating → Completed/Lost',
               ),
             ],

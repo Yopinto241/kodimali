@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_design_system/flutter_design_system.dart';
 
@@ -10,11 +11,13 @@ class ManageWorkspaceDestination {
     required this.label,
     required this.icon,
     required this.screen,
+    this.id,
   });
 
   final String label;
   final IconData icon;
   final Widget screen;
+  final String? id;
 }
 
 class ManageWorkspaceScaffold extends StatelessWidget {
@@ -33,36 +36,29 @@ class ManageWorkspaceScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final profile = AppScope.of(context).controller.profile;
+    final controller = AppScope.of(context).controller;
+    final profile = controller.profile;
     final bool useSidebar = MediaQuery.of(context).size.width >= 960;
-    final Widget content = IndexedStack(
+    final Widget content = _WorkspacePages(
       index: currentIndex,
-      children: destinations
-          .map((ManageWorkspaceDestination item) => item.screen)
-          .toList(),
+      destinations: destinations,
+      onSelect: onSelect,
     );
 
     if (!useSidebar) {
       return Scaffold(
         appBar: AppBar(
-          title: Text(context.tr(title)),
-          actions: <Widget>[
-            const ManageLanguageButton(),
-            Padding(
-              padding: const EdgeInsets.only(right: KodimaliSpacing.md),
-              child: Center(
-                child: KodimaliStatusBadge(
-                  label: profile?.highestRole.displayLabel ?? context.tr("WORKSPACE"),
-                  tone: KodimaliStatusTone.info,
-                ),
-              ),
-            ),
-          ],
+          title: Text(
+            context.tr(destinations[currentIndex].label),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          actions: <Widget>[const ManageLanguageButton()],
         ),
         drawer: Drawer(
           child: SafeArea(
             child: _WorkspaceMenu(
-              title: "KODIMALI",
+              title: mobileUi(context, "KODIMALI"),
               subtitle: profile?.fullName ?? context.tr("Manage App"),
               currentIndex: currentIndex,
               destinations: destinations,
@@ -86,7 +82,7 @@ class ManageWorkspaceScaffold extends StatelessWidget {
               padding: const EdgeInsets.all(KodimaliSpacing.md),
               color: Theme.of(context).colorScheme.surface,
               child: _WorkspaceMenu(
-                title: "KODIMALI",
+                title: mobileUi(context, "KODIMALI"),
                 subtitle: profile?.fullName ?? context.tr("Manage App"),
                 currentIndex: currentIndex,
                 destinations: destinations,
@@ -140,7 +136,9 @@ class ManageWorkspaceScaffold extends StatelessWidget {
                               ),
                               const SizedBox(height: KodimaliSpacing.xs),
                               Text(
-                                context.tr("Focused workspace for listings, requests, approvals, and account activity."),
+                                context.tr(
+                                  "Focused workspace for listings, requests, approvals, and account activity.",
+                                ),
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
                             ],
@@ -154,7 +152,7 @@ class ManageWorkspaceScaffold extends StatelessWidget {
                           children: <Widget>[
                             KodimaliStatusBadge(
                               label:
-                                  profile?.highestRole.displayLabel ??
+                                  controller.highestRole?.displayLabel ??
                                   context.tr("WORKSPACE"),
                               tone: KodimaliStatusTone.active,
                             ),
@@ -189,6 +187,71 @@ class ManageWorkspaceScaffold extends StatelessWidget {
       ),
     );
   }
+}
+
+// Only instantiate visited destinations. Inactive modules retain their filters
+// and scroll position without fetching every administrative table at startup.
+class _WorkspacePages extends StatefulWidget {
+  const _WorkspacePages({
+    required this.index,
+    required this.destinations,
+    required this.onSelect,
+  });
+  final int index;
+  final List<ManageWorkspaceDestination> destinations;
+  final ValueChanged<int> onSelect;
+  @override
+  State<_WorkspacePages> createState() => _WorkspacePagesState();
+}
+
+class _WorkspacePagesState extends State<_WorkspacePages> {
+  final Set<int> _visited = {};
+  final List<int> _history = [];
+  bool _goingBack = false;
+  @override
+  void initState() {
+    super.initState();
+    _visited.add(widget.index);
+  }
+
+  @override
+  void didUpdateWidget(_WorkspacePages oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.index != widget.index) {
+      if (!_goingBack) _history.add(oldWidget.index);
+      _goingBack = false;
+      _visited.add(widget.index);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+    canPop: _history.isEmpty,
+    onPopInvokedWithResult: (didPop, result) {
+      if (!didPop && _history.isNotEmpty) {
+        _goingBack = true;
+        widget.onSelect(_history.removeLast());
+      }
+    },
+    child: IndexedStack(
+      index: widget.index,
+      children: [
+        for (var i = 0; i < widget.destinations.length; i++)
+          _visited.contains(i)
+              ? TickerMode(
+                  enabled: widget.index == i,
+                  child: KeyedSubtree(
+                    key: ValueKey(
+                      widget.destinations[i].id ??
+                          '$i:${widget.destinations[i].screen.runtimeType}',
+                    ),
+                    child: widget.destinations[i].screen,
+                  ),
+                )
+              : const SizedBox.shrink(),
+      ],
+    ),
+  );
 }
 
 class _WorkspaceMenu extends StatelessWidget {
@@ -302,7 +365,7 @@ class _WorkspaceMenu extends StatelessWidget {
                         child: Icon(
                           item.icon,
                           color: selected
-                              ? KodimaliColors.navy
+                              ? theme.colorScheme.onSecondaryContainer
                               : theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
@@ -310,7 +373,7 @@ class _WorkspaceMenu extends StatelessWidget {
                         context.tr(item.label),
                         style: theme.textTheme.titleMedium?.copyWith(
                           color: selected
-                              ? KodimaliColors.navy
+                              ? theme.colorScheme.onSecondaryContainer
                               : theme.colorScheme.onSurface,
                         ),
                       ),

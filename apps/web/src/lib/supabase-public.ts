@@ -16,6 +16,7 @@ export type ListingBookingCapability = {
   configured_mode: "not_bookable" | "request_booking" | "instant_booking";
   effective_mode: "not_bookable" | "request_booking" | "instant_booking";
   deposit_payments_enabled: boolean;
+  has_whatsapp?: boolean;
 };
 
 export async function fetchListingBookingCapability(
@@ -95,7 +96,7 @@ function ensureEnv() {
   }
 }
 
-async function supabaseFetch(
+export async function supabaseFetch(
   path: string,
   init?: RequestInit,
   options?: {
@@ -133,14 +134,6 @@ function isMissingRpcSignature(error: unknown) {
   return message.includes("PGRST202") || message.includes("schema cache");
 }
 
-function isPromotionRpcCompatibilityError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
-  return (
-    isMissingRpcSignature(error) ||
-    message.includes("PGRST203") ||
-    message.includes("Could not choose the best candidate function")
-  );
-}
 
 function encodeParams(params: Record<string, QueryValue>) {
   const query = new URLSearchParams();
@@ -189,7 +182,7 @@ export async function checkPublicBackendHealth() {
   return { supabase: "ok", contactPaymentsEnabled: paymentRequired !== false };
 }
 
-const createSignedListingMediaUrl = unstable_cache(
+export const createSignedListingMediaUrl = unstable_cache(
   async (path?: string | null) => {
     ensureEnv();
     if (!path) {
@@ -362,6 +355,7 @@ export async function fetchPublicHomeFeed(params: {
       return Promise.all(
         rows.map(async (row: Record<string, unknown>) => ({
           ...row,
+          has_whatsapp: capabilities.get(String(row.listing_id))?.has_whatsapp === true,
           booking_mode:
             capabilities.get(String(row.listing_id))?.effective_mode ??
             "request_booking",
@@ -382,76 +376,24 @@ function isVideoPath(value: unknown) {
 }
 
 export async function fetchPromotions(params: {
-  surface: string;
-  placement?: string;
-  limit?: number;
+  surface: string; placement?: string; limit?: number; categorySlug?: string;
+  regionId?: string; districtId?: string; wardId?: string; areaId?: string;
 }) {
-  const normalizedParams = {
-    surface: params.surface,
-    placement: params.placement ?? "global",
-    limit: params.limit ?? 3,
-  };
-
-  return cacheQuery(
-    "public-promotions",
-    serializeCacheInput(normalizedParams),
-    cacheTtl.promotions,
-    ["public-promotions"],
-    async () => {
-      let rows;
-      try {
-        rows = await supabaseFetch(
-          `/rest/v1/rpc/get_active_platform_promotions`,
-          {
-            method: "POST",
-            body: JSON.stringify({
-              p_surface: normalizedParams.surface,
-              p_placement: normalizedParams.placement,
-              p_limit: normalizedParams.limit,
-              p_selected_region_id: null,
-              p_selected_district_id: null,
-              p_selected_ward_id: null,
-              p_selected_area_id: null,
-            }),
-          },
-          {
-            revalidate: cacheTtl.promotions,
-            tags: ["public-promotions"],
-          },
-        );
-      } catch (error) {
-        if (!isPromotionRpcCompatibilityError(error)) {
-          throw error;
-        }
-        rows = await supabaseFetch(
-          `/rest/v1/rpc/get_active_platform_promotions`,
-          {
-            method: "POST",
-            body: JSON.stringify({
-              p_placement: normalizedParams.placement,
-              p_limit: normalizedParams.limit,
-            }),
-          },
-          {
-            revalidate: cacheTtl.promotions,
-            tags: ["public-promotions"],
-          },
-        );
-      }
-
-      return Promise.all(
-        rows.map(async (row: Record<string, unknown>) => ({
-          ...row,
-          media_url: await createSignedPromotionMediaUrl(
-            row.media_path as string | null | undefined,
-          ),
-          thumbnail_url: await createSignedPromotionMediaUrl(
-            row.thumbnail_path as string | null | undefined,
-          ),
-        })),
-      );
-    },
-  );
+  return cacheQuery("public-sponsored-cards-v1", serializeCacheInput(params), cacheTtl.promotions, ["public-promotions"], async () => {
+    const rows: Record<string, unknown>[] = [];
+    for (let offset = 0; ; offset += 100) {
+      const page = await supabaseFetch("/rest/v1/rpc/get_public_sponsored_promotions", {method: "POST", signal: AbortSignal.timeout(5000), body: JSON.stringify({
+        p_surface: params.surface, p_placement: params.placement ?? "global", p_category_slug: params.categorySlug ?? null,
+        p_selected_region_id: params.regionId ?? null, p_selected_district_id: params.districtId ?? null,
+        p_selected_ward_id: params.wardId ?? null, p_selected_area_id: params.areaId ?? null, p_limit: 100, p_offset: offset,
+      })}, {revalidate: cacheTtl.promotions, tags: ["public-promotions"]}) as Record<string, unknown>[];
+      rows.push(...page); if (page.length < 100) break;
+    }
+    return Promise.all(rows.map(async (row) => ({...row,
+      media_url: await createSignedPromotionMediaUrl(row.media_path as string | null).catch(() => null),
+      thumbnail_url: await createSignedPromotionMediaUrl(row.thumbnail_path as string | null).catch(() => null),
+    })));
+  }).catch(() => []);
 }
 
 export async function fetchPublicListings(params: {
@@ -557,6 +499,7 @@ export async function fetchPublicListings(params: {
       return Promise.all(
         rows.map(async (row: Record<string, unknown>) => ({
           ...row,
+          has_whatsapp: capabilities.get(String(row.listing_id))?.has_whatsapp === true,
           booking_mode:
             capabilities.get(String(row.listing_id))?.effective_mode ??
             "request_booking",

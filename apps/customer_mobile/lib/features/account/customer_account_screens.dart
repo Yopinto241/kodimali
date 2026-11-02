@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -9,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/cache/customer_activity_store.dart';
 import '../../core/data/customer_account_repository.dart';
 import 'customer_tenancy_screen.dart';
+import 'customer_information_screen.dart';
 import '../chat/listing_chat_screens.dart';
 import '../../core/data/customer_public_repository.dart';
 import '../../core/localization/customer_localization.dart';
@@ -362,14 +364,18 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
                 ),
               ),
               icon: const Icon(Icons.home_work_outlined),
-              label: Text(context.isSwahili ? 'Upangaji wangu' : 'My tenancy'),
+              label: Text(
+                context.isSwahili
+                    ? mobileUi(context, 'Upangaji wangu')
+                    : mobileUi(context, 'My tenancy'),
+              ),
             ),
             const SizedBox(height: KodimaliSpacing.sm),
             const SizedBox(height: KodimaliSpacing.sm),
             FilledButton.icon(
               onPressed: _openInformation,
               icon: const Icon(Icons.volunteer_activism_outlined),
-              label: const Text('Toa Taarifa na Upate Zawadi'),
+              label: const LocalizedUiText('Toa Taarifa na Upate Zawadi'),
             ),
             const SizedBox(height: KodimaliSpacing.sm),
             FilledButton.icon(
@@ -381,7 +387,7 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
                 ),
               ),
               icon: const Icon(Icons.forum_outlined),
-              label: const Text('My chats'),
+              label: const LocalizedUiText('My chats'),
             ),
             const SizedBox(height: KodimaliSpacing.sm),
             OutlinedButton.icon(
@@ -394,7 +400,9 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
                 ),
               ),
               icon: const Icon(Icons.auto_graph_outlined),
-              label: const Text('Saved searches, alerts & comparison'),
+              label: const LocalizedUiText(
+                'Saved searches, alerts & comparison',
+              ),
             ),
             const SizedBox(height: KodimaliSpacing.xs),
             OutlinedButton.icon(
@@ -449,196 +457,6 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
   }
 }
 
-class CustomerInformationScreen extends StatefulWidget {
-  const CustomerInformationScreen({super.key, required this.repository});
-  final CustomerAccountRepository repository;
-  @override
-  State<CustomerInformationScreen> createState() =>
-      _CustomerInformationScreenState();
-}
-
-class _CustomerInformationScreenState extends State<CustomerInformationScreen> {
-  late Future<List<Map<String, dynamic>>> _future;
-  @override
-  void initState() {
-    super.initState();
-    _future = widget.repository.fetchMyRentalInformation();
-  }
-
-  void _reload() =>
-      setState(() => _future = widget.repository.fetchMyRentalInformation());
-
-  Future<void> _submit() async {
-    final location = TextEditingController();
-    final description = TextEditingController();
-    final source = TextEditingController();
-    final rent = TextEditingController();
-    String category = 'house';
-    final bool? save = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialog) => AlertDialog(
-          title: const Text('Toa Taarifa'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                DropdownButtonFormField<String>(
-                  initialValue: category,
-                  decoration: const InputDecoration(labelText: 'Aina ya mali'),
-                  items:
-                      const <String>[
-                            'house',
-                            'apartment',
-                            'car',
-                            'motorcycle',
-                            'office',
-                            'meeting_hall',
-                            'ceremony_hall',
-                            'equipment',
-                            'farms',
-                            'other_asset',
-                          ]
-                          .map(
-                            (v) => DropdownMenuItem(
-                              value: v,
-                              child: Text(v.replaceAll('_', ' ')),
-                            ),
-                          )
-                          .toList(),
-                  onChanged: (v) => setDialog(() => category = v ?? category),
-                ),
-                TextField(
-                  controller: location,
-                  decoration: const InputDecoration(labelText: 'Eneo la mali'),
-                ),
-                TextField(
-                  controller: description,
-                  maxLines: 3,
-                  decoration: const InputDecoration(labelText: 'Maelezo'),
-                ),
-                TextField(
-                  controller: rent,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Kodi ya makadirio (TZS, si lazima)',
-                  ),
-                ),
-                TextField(
-                  controller: source,
-                  decoration: const InputDecoration(
-                    labelText: 'Chanzo cha taarifa',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Taarifa hii ni ya siri na haitachapishwa moja kwa moja. Usitume mawasiliano ya mmiliki bila ruhusa yake.',
-                ),
-              ],
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Ghairi'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Tuma'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (save == true) {
-      try {
-        await widget.repository.submitRentalInformation(
-          category: category,
-          locationDescription: location.text,
-          description: description.text,
-          informationSource: source.text,
-          approximateRent: double.tryParse(rent.text.replaceAll(',', '')),
-        );
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Taarifa imepokelewa kwa usalama.')),
-          );
-          _reload();
-        }
-      } catch (error) {
-        if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(_accountError(error))));
-        }
-      }
-    }
-    location.dispose();
-    description.dispose();
-    source.dispose();
-    rent.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Taarifa Zangu')),
-    floatingActionButton: FloatingActionButton.extended(
-      onPressed: _submit,
-      icon: const Icon(Icons.add),
-      label: const Text('Toa Taarifa'),
-    ),
-    body: RefreshIndicator(
-      onRefresh: () async => _reload(),
-      child: FutureBuilder<List<Map<String, dynamic>>>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return ListView(
-              children: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(_accountError(snapshot.error!)),
-                ),
-              ],
-            );
-          }
-          final rows = snapshot.data ?? <Map<String, dynamic>>[];
-          if (rows.isEmpty) {
-            return ListView(
-              children: const <Widget>[
-                Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text('Bado hujatuma taarifa ya mali.'),
-                ),
-              ],
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-            itemCount: rows.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 10),
-            itemBuilder: (_, i) {
-              final row = rows[i];
-              return Card(
-                child: ListTile(
-                  title: Text('${row['reference']} · ${row['category']}'),
-                  subtitle: Text(
-                    '${row['location_description']}\nHali: ${row['status']} · Zawadi: ${row['eligibility_status']}',
-                  ),
-                  isThreeLine: true,
-                ),
-              );
-            },
-          );
-        },
-      ),
-    ),
-  );
-}
-
 class CustomerGrowthToolsScreen extends StatefulWidget {
   const CustomerGrowthToolsScreen({
     super.key,
@@ -676,23 +494,23 @@ class _CustomerGrowthToolsScreenState extends State<CustomerGrowthToolsScreen> {
     final String? name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Save a search'),
+        title: const LocalizedUiText('Save a search'),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Search name',
-            hintText: 'Example: Apartments in Arusha',
+          decoration: InputDecoration(
+            labelText: mobileUi(context, 'Search name'),
+            hintText: mobileUi(context, 'Example: Apartments in Arusha'),
           ),
         ),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+            child: const LocalizedUiText('Cancel'),
           ),
           FilledButton(
             onPressed: () =>
                 Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('Save'),
+            child: const LocalizedUiText('Save'),
           ),
         ],
       ),
@@ -713,7 +531,7 @@ class _CustomerGrowthToolsScreenState extends State<CustomerGrowthToolsScreen> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialog) => AlertDialog(
-          title: const Text('Notification preferences'),
+          title: const LocalizedUiText('Notification preferences'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
@@ -734,11 +552,11 @@ class _CustomerGrowthToolsScreenState extends State<CustomerGrowthToolsScreen> {
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel'),
+              child: const LocalizedUiText('Cancel'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Save'),
+              child: const LocalizedUiText('Save'),
             ),
           ],
         ),
@@ -752,10 +570,10 @@ class _CustomerGrowthToolsScreenState extends State<CustomerGrowthToolsScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('My discovery tools'),
+      title: const LocalizedUiText('My discovery tools'),
       actions: <Widget>[
         IconButton(
-          tooltip: 'Notification preferences',
+          tooltip: mobileUi(context, 'Notification preferences'),
           onPressed: _preferences,
           icon: const Icon(Icons.notifications_active_outlined),
         ),
@@ -764,7 +582,7 @@ class _CustomerGrowthToolsScreenState extends State<CustomerGrowthToolsScreen> {
     floatingActionButton: FloatingActionButton.extended(
       onPressed: _saveCurrentSearch,
       icon: const Icon(Icons.bookmark_add_outlined),
-      label: const Text('Save search'),
+      label: const LocalizedUiText('Save search'),
     ),
     body: FutureBuilder<List<List<Map<String, dynamic>>>>(
       future: _future,
@@ -782,11 +600,13 @@ class _CustomerGrowthToolsScreenState extends State<CustomerGrowthToolsScreen> {
             padding: KodimaliSpacing.screenPadding,
             children: <Widget>[
               _GrowthSummary(
-                title: 'Saved searches',
+                title: mobileUi(context, 'Saved searches'),
                 icon: Icons.manage_search_outlined,
                 count: data[0].length,
-                subtitle:
-                    'Keep useful filters and receive matching-listing alerts.',
+                subtitle: mobileUi(
+                  context,
+                  'Keep useful filters and receive matching-listing alerts.',
+                ),
               ),
               ...data[0].map(
                 (row) => ListTile(
@@ -794,8 +614,8 @@ class _CustomerGrowthToolsScreenState extends State<CustomerGrowthToolsScreen> {
                   title: Text(row['name'].toString()),
                   subtitle: Text(
                     row['alerts_enabled'] == false
-                        ? 'Alerts off'
-                        : 'New-match alerts on',
+                        ? mobileUi(context, 'Alerts off')
+                        : mobileUi(context, 'New-match alerts on'),
                   ),
                   trailing: IconButton(
                     onPressed: () async {
@@ -810,11 +630,13 @@ class _CustomerGrowthToolsScreenState extends State<CustomerGrowthToolsScreen> {
               ),
               const SizedBox(height: 12),
               _GrowthSummary(
-                title: 'Price-drop alerts',
+                title: mobileUi(context, 'Price-drop alerts'),
                 icon: Icons.trending_down_outlined,
                 count: data[1].length,
-                subtitle:
-                    'Watch prices and return when a listing reaches your budget.',
+                subtitle: mobileUi(
+                  context,
+                  'Watch prices and return when a listing reaches your budget.',
+                ),
               ),
               ...data[1].map((row) {
                 final listing = _relatedMap(row['listings']);
@@ -822,7 +644,9 @@ class _CustomerGrowthToolsScreenState extends State<CustomerGrowthToolsScreen> {
                   leading: const Icon(Icons.price_change_outlined),
                   title: Text(listing['title']?.toString() ?? 'Listing'),
                   subtitle: Text(
-                    'Target: ${row['target_price'] ?? 'Any drop'} TZS',
+                    mobileUiFormat(context, "Target: {0} TZS", [
+                      row['target_price'] ?? 'Any drop',
+                    ]),
                   ),
                   trailing: IconButton(
                     onPressed: () async {
@@ -837,11 +661,13 @@ class _CustomerGrowthToolsScreenState extends State<CustomerGrowthToolsScreen> {
               }),
               const SizedBox(height: 12),
               _GrowthSummary(
-                title: 'Comparison list',
+                title: mobileUi(context, 'Comparison list'),
                 icon: Icons.compare_arrows_outlined,
                 count: data[2].length,
-                subtitle:
-                    'Compare price and location before contacting an agent.',
+                subtitle: mobileUi(
+                  context,
+                  'Compare price and location before contacting an agent.',
+                ),
               ),
               ...data[2].map((row) {
                 final listing = _relatedMap(row['listings']);
@@ -1940,7 +1766,7 @@ class _CustomerRequestDetailScreenState
 
   Future<void> _requestCancellation() async {
     final reason = await _askForText(
-      title: 'Omba cancellation',
+      title: mobileUi(context, 'Omba cancellation'),
       hint: 'Eleza sababu ya kusitisha booking hii.',
       action: 'Tuma ombi',
     );
@@ -1962,7 +1788,7 @@ class _CustomerRequestDetailScreenState
 
   Future<void> _reportProblem() async {
     final summary = await _askForText(
-      title: 'Ripoti tatizo',
+      title: mobileUi(context, 'Ripoti tatizo'),
       hint: 'Eleza tatizo muhimu la asset au huduma.',
       action: 'Tuma ripoti',
     );
@@ -2055,11 +1881,13 @@ class _CustomerRequestDetailScreenState
     final String? phone = await showDialog<String>(
       context: context,
       builder: (BuildContext dialogContext) => AlertDialog(
-        title: const Text('Namba ya malipo'),
+        title: const LocalizedUiText('Namba ya malipo'),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.phone,
-          decoration: const InputDecoration(hintText: '2557XXXXXXXX'),
+          decoration: InputDecoration(
+            hintText: mobileUi(context, '2557XXXXXXXX'),
+          ),
         ),
         actions: <Widget>[
           TextButton(
@@ -2070,7 +1898,9 @@ class _CustomerRequestDetailScreenState
             onPressed: () =>
                 Navigator.pop(dialogContext, controller.text.trim()),
             child: Text(
-              product == 'booking_balance' ? 'Lipa salio' : 'Lipa deposit',
+              product == 'booking_balance'
+                  ? mobileUi(context, 'Lipa salio')
+                  : mobileUi(context, 'Lipa deposit'),
             ),
           ),
         ],
@@ -2096,7 +1926,7 @@ class _CustomerRequestDetailScreenState
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Booking imethibitishwa bila malipo.'),
+              content: LocalizedUiText('Booking imethibitishwa bila malipo.'),
             ),
           );
         }
@@ -2125,7 +1955,9 @@ class _CustomerRequestDetailScreenState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Malipo yamethibitishwa na nafasi imehifadhiwa.'),
+            content: LocalizedUiText(
+              'Malipo yamethibitishwa na nafasi imehifadhiwa.',
+            ),
           ),
         );
       }
@@ -2332,8 +2164,8 @@ class _CustomerRequestDetailScreenState
                           icon: const Icon(Icons.payments_outlined),
                           label: Text(
                             terms.isNotEmpty
-                                ? 'Lipa deposit'
-                                : 'Lipa na uhifadhi',
+                                ? mobileUi(context, 'Lipa deposit')
+                                : mobileUi(context, 'Lipa na uhifadhi'),
                           ),
                         ),
                       if (terms.isNotEmpty && depositPaid && !balancePaid)
@@ -2345,7 +2177,7 @@ class _CustomerRequestDetailScreenState
                           icon: const Icon(
                             Icons.account_balance_wallet_outlined,
                           ),
-                          label: const Text('Lipa salio'),
+                          label: const LocalizedUiText('Lipa salio'),
                         ),
                     ],
                   ),
@@ -2361,22 +2193,22 @@ class _CustomerRequestDetailScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text(
+                    LocalizedUiText(
                       'Muhtasari wa malipo',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: KodimaliSpacing.md),
                     _PaymentAmountRow(
-                      label: 'Jumla iliyokubaliwa',
+                      label: mobileUi(context, 'Jumla iliyokubaliwa'),
                       amount: terms['agreed_total_minor'],
                     ),
                     _PaymentAmountRow(
-                      label: 'Deposit ya sasa (25%)',
+                      label: mobileUi(context, 'Deposit ya sasa (25%)'),
                       amount: terms['deposit_minor'],
                       complete: depositPaid,
                     ),
                     _PaymentAmountRow(
-                      label: 'Salio la baadaye (75%)',
+                      label: mobileUi(context, 'Salio la baadaye (75%)'),
                       amount: terms['balance_minor'],
                       complete: balancePaid,
                     ),
@@ -2384,7 +2216,9 @@ class _CustomerRequestDetailScreenState
                       Padding(
                         padding: const EdgeInsets.only(top: KodimaliSpacing.sm),
                         child: Text(
-                          'Mwisho wa salio: ${terms['balance_due_at']}',
+                          mobileUiFormat(context, "Mwisho wa salio: {0}", [
+                            terms['balance_due_at'],
+                          ]),
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ),
@@ -2783,7 +2617,7 @@ class _CustomerAgentChatScreenState extends State<CustomerAgentChatScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          const Text(
+                          const LocalizedUiText(
                             'Choose a response. Free-text and contact details are not allowed in requests.',
                           ),
                           const SizedBox(height: 8),
@@ -3284,12 +3118,12 @@ class _BookingProtectionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text(
+            LocalizedUiText(
               'Utekelezaji na ulinzi',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: KodimaliSpacing.xs),
-            const Text(
+            const LocalizedUiText(
               'Thibitisha huduma iliyotolewa, ripoti tatizo au fuatilia cancellation na refund.',
             ),
             if (milestones.isNotEmpty) ...<Widget>[
@@ -3315,7 +3149,7 @@ class _BookingProtectionCard extends StatelessWidget {
                       ? TextButton(
                           onPressed: () =>
                               onConfirmMilestone(milestone['id'].toString()),
-                          child: const Text('Thibitisha'),
+                          child: const LocalizedUiText('Thibitisha'),
                         )
                       : null,
                 );
@@ -3328,10 +3162,16 @@ class _BookingProtectionCard extends StatelessWidget {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.event_busy_outlined),
                   title: Text(
-                    'Cancellation: ${item['booking_status'] ?? 'requested'}',
+                    mobileUiFormat(context, "Cancellation: {0}", [
+                      item['booking_status'] ?? 'requested',
+                    ]),
                   ),
                   subtitle: Text(
-                    'Refund ${item['customer_refund_minor'] ?? 0} TZS · ${item['refund_status'] ?? 'not started'}\n${item['reason'] ?? ''}',
+                    mobileUiFormat(context, "Refund {0} TZS · {1}\n{2}", [
+                      item['customer_refund_minor'] ?? 0,
+                      item['refund_status'] ?? 'not started',
+                      item['reason'] ?? '',
+                    ]),
                   ),
                   isThreeLine: true,
                 ),
@@ -3362,7 +3202,9 @@ class _BookingProtectionCard extends StatelessWidget {
                         'Mbadala uliopendekezwa',
                   ),
                   subtitle: Text(
-                    'Tofauti ya bei: ${proposal['price_difference_minor'] ?? 0} TZS',
+                    mobileUiFormat(context, "Tofauti ya bei: {0} TZS", [
+                      proposal['price_difference_minor'] ?? 0,
+                    ]),
                   ),
                   trailing: pending
                       ? Wrap(
@@ -3372,14 +3214,14 @@ class _BookingProtectionCard extends StatelessWidget {
                                 proposal['id'].toString(),
                                 false,
                               ),
-                              child: const Text('Kataa'),
+                              child: const LocalizedUiText('Kataa'),
                             ),
                             FilledButton.tonal(
                               onPressed: () => onRespondSubstitution(
                                 proposal['id'].toString(),
                                 true,
                               ),
-                              child: const Text('Kubali'),
+                              child: const LocalizedUiText('Kubali'),
                             ),
                           ],
                         )
@@ -3395,12 +3237,12 @@ class _BookingProtectionCard extends StatelessWidget {
                 OutlinedButton.icon(
                   onPressed: canReportProblem ? onReportProblem : null,
                   icon: const Icon(Icons.shield_outlined),
-                  label: const Text('Ripoti tatizo'),
+                  label: const LocalizedUiText('Ripoti tatizo'),
                 ),
                 TextButton.icon(
                   onPressed: terminal || hasOpenCancellation ? null : onCancel,
                   icon: const Icon(Icons.cancel_outlined),
-                  label: const Text('Omba cancellation'),
+                  label: const LocalizedUiText('Omba cancellation'),
                 ),
               ],
             ),

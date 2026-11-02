@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_design_system/flutter_design_system.dart';
 
@@ -66,10 +67,12 @@ class _AgentDashboardTabState extends State<AgentDashboardTab> {
         }
         final Map<String, int> counts = snapshot.data ?? <String, int>{};
         if (counts.isEmpty) {
-          return const KodimaliEmptyState(
-            title: "Hakuna dashboard bado",
-            message:
-                "Ukithibitishwa kama agent, data za listings na maombi zitaonekana hapa.",
+          return KodimaliEmptyState(
+            title: mobileUi(context, "Hakuna dashboard bado"),
+            message: mobileUi(
+              context,
+              "Ukithibitishwa kama agent, data za listings na maombi zitaonekana hapa.",
+            ),
           );
         }
 
@@ -77,9 +80,11 @@ class _AgentDashboardTabState extends State<AgentDashboardTab> {
           onRefresh: _refresh,
           children: <Widget>[
             ManageHeroCard(
-              title: "Agent dashboard",
-              subtitle:
-                  "Fuata hali ya akaunti, listings zako, na maombi mapya bila kupoteza muda.",
+              title: mobileUi(context, "Agent dashboard"),
+              subtitle: mobileUi(
+                context,
+                "Fuata hali ya akaunti, listings zako, na maombi mapya bila kupoteza muda.",
+              ),
               trailing: profile == null
                   ? null
                   : Column(
@@ -110,14 +115,14 @@ class _AgentDashboardTabState extends State<AgentDashboardTab> {
             ManageMetricGrid(
               children: <Widget>[
                 ManageMetricCard(
-                  label: "Live listings",
+                  label: mobileUi(context, "Live listings"),
                   value: "${counts["activeListings"] ?? 0}",
                   icon: Icons.storefront_outlined,
                   caption: "Assets currently visible to customers.",
                   onTap: widget.onOpenListings,
                 ),
                 ManageMetricCard(
-                  label: "Inactive listings",
+                  label: mobileUi(context, "Inactive listings"),
                   value: "${counts["inactiveListings"] ?? 0}",
                   icon: Icons.pause_circle_outline,
                   caption: "Items waiting for activation or return.",
@@ -125,14 +130,14 @@ class _AgentDashboardTabState extends State<AgentDashboardTab> {
                   onTap: widget.onOpenListings,
                 ),
                 ManageMetricCard(
-                  label: "All inquiries",
+                  label: mobileUi(context, "All inquiries"),
                   value: "${counts["totalInquiries"] ?? 0}",
                   icon: Icons.forum_outlined,
                   caption: "Total customer requests sent to you.",
                   onTap: widget.onOpenRequests,
                 ),
                 ManageMetricCard(
-                  label: "New requests",
+                  label: mobileUi(context, "New requests"),
                   value: "${counts["newRequests"] ?? 0}",
                   icon: Icons.notifications_active_outlined,
                   caption: "New items needing your response.",
@@ -140,21 +145,21 @@ class _AgentDashboardTabState extends State<AgentDashboardTab> {
                   onTap: widget.onOpenRequests,
                 ),
                 ManageMetricCard(
-                  label: "Viewing appointments",
+                  label: mobileUi(context, "Viewing appointments"),
                   value: "${counts["scheduledViewings"] ?? 0}",
                   icon: Icons.event_available_outlined,
                   caption: "Customer viewings currently scheduled.",
                   onTap: widget.onOpenRequests,
                 ),
                 ManageMetricCard(
-                  label: "Completed rentals",
+                  label: mobileUi(context, "Completed rentals"),
                   value: "${counts["completedRequests"] ?? 0}",
                   icon: Icons.task_alt_outlined,
                   caption: "Requests recorded as completed.",
                   onTap: widget.onOpenRequests,
                 ),
                 ManageMetricCard(
-                  label: "Unread notifications",
+                  label: mobileUi(context, "Unread notifications"),
                   value: "${counts["unreadNotifications"] ?? 0}",
                   icon: Icons.mark_chat_unread_outlined,
                   caption: "Platform and customer updates still unread.",
@@ -164,9 +169,11 @@ class _AgentDashboardTabState extends State<AgentDashboardTab> {
             ),
             const SizedBox(height: 18),
             ManagePanel(
-              title: "Action queue",
-              subtitle:
-                  "Start with customer work that is most likely to become a completed rental.",
+              title: mobileUi(context, "Action queue"),
+              subtitle: mobileUi(
+                context,
+                "Start with customer work that is most likely to become a completed rental.",
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -174,9 +181,13 @@ class _AgentDashboardTabState extends State<AgentDashboardTab> {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.priority_high_rounded),
                     title: Text(
-                      "${counts["newRequests"] ?? 0} new requests need a response",
+                      mobileUiFormat(
+                        context,
+                        "{0} new requests need a response",
+                        [counts["newRequests"] ?? 0],
+                      ),
                     ),
-                    subtitle: const Text(
+                    subtitle: const LocalizedUiText(
                       "Accept, reject, call, chat, or schedule a viewing.",
                     ),
                     trailing: const Icon(Icons.chevron_right_rounded),
@@ -186,9 +197,13 @@ class _AgentDashboardTabState extends State<AgentDashboardTab> {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.home_work_outlined),
                     title: Text(
-                      "${counts["inactiveListings"] ?? 0} inactive listings to review",
+                      mobileUiFormat(
+                        context,
+                        "{0} inactive listings to review",
+                        [counts["inactiveListings"] ?? 0],
+                      ),
                     ),
-                    subtitle: const Text(
+                    subtitle: const LocalizedUiText(
                       "Confirm details and availability before reactivation.",
                     ),
                     trailing: const Icon(Icons.chevron_right_rounded),
@@ -202,10 +217,10 @@ class _AgentDashboardTabState extends State<AgentDashboardTab> {
             const SizedBox(height: 12),
             const ManageAdPrivacyButton(),
             const SizedBox(height: 18),
-            const PlatformPromotionsPanel(
+            PlatformPromotionsPanel(
               surface: "manage_agent",
               placement: "global",
-              title: "Platform promotions",
+              title: mobileUi(context, "Platform promotions"),
             ),
           ],
         );

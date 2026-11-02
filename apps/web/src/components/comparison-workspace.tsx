@@ -1,4 +1,6 @@
 "use client";
+import { UiSection, UiText } from "@/components/ui-text";
+import { browserPreferences, readStoredIds } from "@/lib/browser-preferences";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -13,7 +15,7 @@ export function ComparisonWorkspace() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const ids = JSON.parse(localStorage.getItem("kodimali-comparison-listings") || "[]") as string[];
+    const ids = readStoredIds("kodimali-comparison-listings");
     void Promise.all(ids.map(async (id) => {
       const result = await supabase.rpc("get_public_listing_detail", { p_listing_id: id } as never);
       const value = Array.isArray(result.data) ? result.data[0] : result.data;
@@ -22,12 +24,12 @@ export function ComparisonWorkspace() {
   }, [supabase]);
 
   function clear() {
-    localStorage.removeItem("kodimali-comparison-listings");
+    browserPreferences.removeItem("kodimali-comparison-listings");
     setRows([]);
   }
 
-  if (loading) return <p className="surface-card p-6">Loading comparison...</p>;
-  if (rows.length === 0) return <div className="surface-card p-8"><h2 className="font-heading text-2xl font-semibold">No listings selected</h2><p className="mt-2 text-muted">Use Compare on any listing card. You can compare up to four listings.</p><Link href="/listings" className="btn btn-primary mt-5">Browse listings</Link></div>;
+  if (loading) return <p className="surface-card p-6"><UiText text={"Loading comparison..."} /></p>;
+  if (rows.length === 0) return <div className="surface-card p-8"><h2 className="font-heading text-2xl font-semibold"><UiText text={"No listings selected"} /></h2><p className="mt-2 text-muted"><UiText text={"Use Compare on any listing card. You can compare up to four listings."} /></p><Link href="/listings" className="btn btn-primary mt-5"><UiText text={"Browse listings"} /></Link></div>;
 
   const attributes = Array.from(new Set(rows.flatMap((row) => Object.keys((row.listing_attributes as Row | null) ?? {}))));
   const periods = new Set(rows.map((row) => String(row.price_period ?? "")));
@@ -38,16 +40,16 @@ export function ComparisonWorkspace() {
   const differentAttributes = attributes.filter((key) => new Set(rows.map((row) => JSON.stringify(((row.listing_attributes as Row | null) ?? {})[key] ?? null))).size > 1);
 
   return <div className="surface-card p-4 sm:p-6">
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-muted">Comparing {rows.length} listings</p><button className="btn btn-outline" onClick={clear}>Clear comparison</button></div>
-    <section className="mb-6 grid gap-3 md:grid-cols-3" aria-label="Comparison strategy">
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-muted"><UiText text={"Comparing "} />{rows.length}<UiText text={" listings"} /></p><button className="btn btn-outline" onClick={clear}><UiText text={"Clear comparison"} /></button></div>
+    <UiSection className="mb-6 grid gap-3 md:grid-cols-3" aria-label="Comparison strategy">
       <ComparisonInsight title="Price decision" value={pricesComparable ? `Lowest: TZS ${formatNumber(lowestPrice!)}` : "Compare periods first"} detail={pricesComparable ? "Prices use the same period, so the lowest-price marker is reliable." : "These listings use different price periods. Change your shortlist or calculate total cost for your intended duration."} />
       <ComparisonInsight title="Information quality" value={`${mostComplete} details supplied`} detail="The Most detailed marker identifies the listing with the most completed category fields; verify important facts with the agent." />
       <ComparisonInsight title="Key differences" value={`${differentAttributes.length} found`} detail={differentAttributes.length ? `Focus first on: ${differentAttributes.slice(0, 3).map((key) => key.replaceAll("_", " ")).join(", ")}.` : "The supplied category details are the same; decide using location, price and agent trust."} />
-    </section>
-    <div className="mb-6 rounded-2xl bg-brand-mist p-4 text-sm text-brand-ink"><strong>Recommended strategy:</strong> confirm the price period, remove listings outside your budget, compare the highlighted differences, then open each listing to check agent trust and exact location before paying to contact.</div>
+    </UiSection>
+    <div className="mb-6 rounded-2xl bg-brand-mist p-4 text-sm text-brand-ink"><strong><UiText text={"Recommended strategy:"} /></strong><UiText text={" confirm the price period, remove listings outside your budget, compare the highlighted differences, then open each listing to check agent trust and exact location before paying to contact."} /></div>
     <div className="overflow-x-auto">
     <table className="w-full min-w-[720px] border-collapse text-left">
-      <thead><tr><th className="border-b border-brand-border p-3">Detail</th>{rows.map((row, index) => <th className="border-b border-brand-border p-3" key={String(row.listing_id)}><Link className="text-brand-navy underline" href={`/listing/${row.listing_id}`}>{String(row.title)}</Link><div className="mt-2 flex flex-wrap gap-1">{lowestPrice !== null && Number(row.price_amount) === lowestPrice ? <Marker>Lowest price</Marker> : null}{completeness[index] === mostComplete ? <Marker>Most detailed</Marker> : null}</div></th>)}</tr></thead>
+      <thead><tr><th className="border-b border-brand-border p-3"><UiText text={"Detail"} /></th>{rows.map((row, index) => <th className="border-b border-brand-border p-3" key={String(row.listing_id)}><Link className="text-brand-navy underline" href={`/listing/${row.listing_id}`}>{String(row.title)}</Link><div className="mt-2 flex flex-wrap gap-1">{lowestPrice !== null && Number(row.price_amount) === lowestPrice ? <Marker><UiText text={"Lowest price"} /></Marker> : null}{completeness[index] === mostComplete ? <Marker><UiText text={"Most detailed"} /></Marker> : null}</div></th>)}</tr></thead>
       <tbody>
         <CompareRow label="Price" rows={rows} value={(row) => `TZS ${formatNumber(row.price_amount)} / ${row.price_period ?? ""}`} />
         <CompareRow label="Location" rows={rows} value={(row) => String(row.public_location_label ?? "-")} />
@@ -61,7 +63,7 @@ export function ComparisonWorkspace() {
 }
 
 function CompareRow({ label, rows, value, emphasized = false }: { label: string; rows: Row[]; value: (row: Row) => string; emphasized?: boolean }) {
-  return <tr className={emphasized ? "bg-amber-50" : undefined}><th className="border-b border-brand-border p-3 capitalize">{label}{emphasized ? <span className="ml-2 text-xs text-amber-700">Differs</span> : null}</th>{rows.map((row) => <td className="border-b border-brand-border p-3 text-muted" key={String(row.listing_id)}>{value(row)}</td>)}</tr>;
+  return <tr className={emphasized ? "bg-amber-50" : undefined}><th className="border-b border-brand-border p-3 capitalize"><UiText text={label} />{emphasized ? <span className="ml-2 text-xs text-amber-700"><UiText text={"Differs"} /></span> : null}</th>{rows.map((row) => <td className="border-b border-brand-border p-3 text-muted" key={String(row.listing_id)}>{value(row)}</td>)}</tr>;
 }
 
 function ComparisonInsight({ title, value, detail }: { title: string; value: string; detail: string }) {

@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -36,7 +37,7 @@ class _CustomerListingChatsScreenState
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('My chats')),
+    appBar: AppBar(title: const LocalizedUiText('My chats')),
     body: FutureBuilder<List<Map<String, dynamic>>>(
       future: _future,
       builder: (context, snapshot) {
@@ -49,7 +50,7 @@ class _CustomerListingChatsScreenState
         final rows = snapshot.data ?? const <Map<String, dynamic>>[];
         if (rows.isEmpty) {
           return const Center(
-            child: Text('Your agent chats will appear here.'),
+            child: LocalizedUiText('Your agent chats will appear here.'),
           );
         }
         return RefreshIndicator(
@@ -74,8 +75,8 @@ class _CustomerListingChatsScreenState
                   '${row['listing_title'] ?? 'Listing'}\n${lastMessage?.isNotEmpty == true
                       ? lastMessage
                       : active
-                      ? 'Chat ready'
-                      : 'Access expired'}',
+                      ? mobileUi(context, 'Chat ready')
+                      : mobileUi(context, 'Access expired')}',
                 ),
                 isThreeLine: true,
                 trailing: unread > 0
@@ -218,7 +219,7 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Chat with agent')),
+    appBar: AppBar(title: const LocalizedUiText('Chat with agent')),
     body: ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -235,8 +236,15 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
         const SizedBox(height: 8),
         Text(
           _paymentsEnabled == false
-              ? 'Private chat with this listing’s assigned agent is currently free and stays active for 7 days. Each participant may send 10 messages per Tanzania day.'
-              : 'Private chat with this listing’s assigned agent costs TSh ${_chatPrice ?? '-'} and stays active for 7 days. Each participant may send 10 messages per Tanzania day.',
+              ? mobileUi(
+                  context,
+                  'Private chat with this listing’s assigned agent is currently free and stays active for 7 days. Each participant may send 10 messages per Tanzania day.',
+                )
+              : mobileUiFormat(
+                  context,
+                  "Private chat with this listing’s assigned agent costs TSh {0} and stays active for 7 days. Each participant may send 10 messages per Tanzania day.",
+                  [_chatPrice ?? '-'],
+                ),
         ),
         const SizedBox(height: 20),
         if (!widget.repository.isSignedIn)
@@ -245,21 +253,23 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  const Text('Sign in or register to message this agent.'),
+                  const LocalizedUiText(
+                    'Sign in or register to message this agent.',
+                  ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () => widget.onAuthenticate(true),
-                          child: const Text('Register'),
+                          child: const LocalizedUiText('Register'),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: FilledButton(
                           onPressed: () => widget.onAuthenticate(false),
-                          child: const Text('Sign in'),
+                          child: const LocalizedUiText('Sign in'),
                         ),
                       ),
                     ],
@@ -272,12 +282,12 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
           TextField(
             controller: _phone,
             keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(
-              labelText: 'Mobile-money phone number',
+            decoration: InputDecoration(
+              labelText: mobileUi(context, 'Mobile-money phone number'),
               prefixText: '+255 ',
             ),
           ),
-        if (_message != null) ...[const SizedBox(height: 12), Text(_message!)],
+        if (_message != null) ...[const SizedBox(height: 12), LocalizedUiText(_message!)],
         const SizedBox(height: 20),
         if (widget.repository.isSignedIn)
           FilledButton.icon(
@@ -290,10 +300,12 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
                 : const Icon(Icons.chat),
             label: Text(
               _busy
-                  ? 'Checking access…'
+                  ? mobileUi(context, 'Checking access…')
                   : _paymentsEnabled == false
-                  ? 'Open free private chat'
-                  : 'Pay TSh ${_chatPrice ?? '-'} and open chat',
+                  ? mobileUi(context, 'Open free private chat')
+                  : mobileUiFormat(context, "Pay TSh {0} and open chat", [
+                      _chatPrice ?? '-',
+                    ]),
             ),
           ),
       ],
@@ -382,7 +394,14 @@ class _CustomerListingChatScreenState extends State<CustomerListingChatScreen> {
             child: Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
-                '$sent/10 sent today • ${active ? 'Access until ${expiry!.toLocal()}' : 'Access expired'}',
+                mobileUiFormat(context, "{0}/10 sent today • {1}", [
+                  sent,
+                  active
+                      ? mobileUiFormat(context, 'Access until {0}', [
+                          expiry!.toLocal(),
+                        ])
+                      : mobileUi(context, 'Access expired'),
+                ]),
               ),
             ),
           ),
@@ -399,13 +418,21 @@ class _CustomerListingChatScreenState extends State<CustomerListingChatScreen> {
                     return Center(
                       child: Padding(
                         padding: const EdgeInsets.all(20),
-                        child: Text('Messages could not load: ${m.error}'),
+                        child: Text(
+                          mobileUiFormat(
+                            context,
+                            "Messages could not load: {0}",
+                            [m.error],
+                          ),
+                        ),
                       ),
                     );
                   }
                   final rows = m.data ?? const <Map<String, dynamic>>[];
                   if (rows.isEmpty) {
-                    return const Center(child: Text('Start the conversation.'));
+                    return const Center(
+                      child: LocalizedUiText('Start the conversation.'),
+                    );
                   }
                   unawaited(
                     widget.repository.markListingChatRead(
@@ -467,9 +494,9 @@ class _CustomerListingChatScreenState extends State<CustomerListingChatScreen> {
                         decoration: InputDecoration(
                           hintText: active
                               ? (sent < 10
-                                    ? 'Message agent…'
-                                    : 'Daily limit reached')
-                              : 'Chat access expired',
+                                    ? mobileUi(context, 'Message agent…')
+                                    : mobileUi(context, 'Daily limit reached'))
+                              : mobileUi(context, 'Chat access expired'),
                         ),
                       ),
                     ),

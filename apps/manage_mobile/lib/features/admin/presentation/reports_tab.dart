@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/utils/date_formatters.dart';
@@ -56,9 +57,12 @@ class _ReportsTabState extends State<ReportsTab> {
             final List<Map<String, dynamic>> reports =
                 snapshot.data ?? <Map<String, dynamic>>[];
             if (reports.isEmpty) {
-              return const KodimaliEmptyState(
-                title: "Hakuna reports",
-                message: "Complaints na report za listings zitaonekana hapa.",
+              return KodimaliEmptyState(
+                title: mobileUi(context, "Hakuna reports"),
+                message: mobileUi(
+                  context,
+                  "Complaints na report za listings zitaonekana hapa.",
+                ),
               );
             }
 
@@ -66,9 +70,11 @@ class _ReportsTabState extends State<ReportsTab> {
               onRefresh: _refresh,
               children: <Widget>[
                 ManageHeroCard(
-                  title: "Reports queue",
-                  subtitle:
-                      "Monitor complaints and reported listings with a cleaner review feed.",
+                  title: mobileUi(context, "Reports queue"),
+                  subtitle: mobileUi(
+                    context,
+                    "Monitor complaints and reported listings with a cleaner review feed.",
+                  ),
                   bottom: ManageMetaWrap(
                     items: <String>[
                       "${reports.length} report${reports.length == 1 ? "" : "s"}",

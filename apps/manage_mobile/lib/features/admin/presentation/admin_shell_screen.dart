@@ -1,4 +1,6 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_design_system/flutter_design_system.dart';
 
 import '../../../core/widgets/app_scope.dart';
 import '../../shared/presentation/manage_workspace_scaffold.dart';
@@ -7,6 +9,10 @@ import '../../shared/presentation/profile_screen.dart';
 import 'admin_bookings_tab.dart';
 import 'categories_tab.dart';
 import 'admin_dashboard_tab.dart';
+import 'referral_finance_screen.dart';
+import '../../shared/presentation/agent_recommendations_screen.dart';
+import 'admin_workspace_access.dart';
+import '../../../core/utils/user_facing_error.dart';
 import 'agent_verification_tab.dart';
 import 'listing_approval_tab.dart';
 import 'locations_tab.dart';
@@ -28,121 +34,169 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   int _currentIndex = 0;
   Set<String>? _permissions;
   bool _loadingPermissions = false;
+  String? _permissionError;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_permissions != null || _loadingPermissions) return;
-    _loadingPermissions = true;
-    AppScope.of(context).repository.fetchMyAdminPermissions().then((value) {
-      if (mounted) setState(() => _permissions = value);
+    _loadPermissions();
+  }
+
+  Future<void> _loadPermissions() async {
+    setState(() {
+      _loadingPermissions = true;
+      _permissionError = null;
     });
+    try {
+      final value = await AppScope.of(
+        context,
+      ).repository.fetchMyAdminPermissions();
+      if (mounted) setState(() => _permissions = value);
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _permissionError = userFacingError(
+            error,
+            fallback: 'Could not load your workspace. Please try again.',
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingPermissions = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final Set<String>? permissions = _permissions;
-    if (permissions == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_permissionError != null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_permissionError!),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: _loadPermissions,
+                child: const LocalizedUiText('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
     }
-    final bool all = permissions.contains('*');
-    bool allowed(String permission) => all || permissions.contains(permission);
+    if (permissions == null) {
+      return Scaffold(
+        body: KodimaliLoading(label: mobileUi(context, 'Loading...')),
+      );
+    }
+    final access = AdminWorkspaceAccess(permissions);
     final List<ManageWorkspaceDestination> destinations =
         <ManageWorkspaceDestination>[
-          const ManageWorkspaceDestination(
-            label: "Information Administration",
+          ManageWorkspaceDestination(
+            id: 'dashboard',
+            label: mobileUi(context, "Dashboard"),
+            icon: Icons.dashboard_outlined,
+            screen: AdminDashboardTab(access: access),
+          ),
+          ManageWorkspaceDestination(
+            id: 'information',
+            label: mobileUi(context, "Information Administration"),
             icon: Icons.fact_check_outlined,
             screen: InformationAdministrationTab(),
           ),
-          const ManageWorkspaceDestination(
-            label: "Dashboard",
-            icon: Icons.dashboard_outlined,
-            screen: AdminDashboardTab(),
-          ),
-          const ManageWorkspaceDestination(
-            label: "Events Coordinator",
+          ManageWorkspaceDestination(
+            id: 'events',
+            label: mobileUi(context, "Events Coordinator"),
             icon: Icons.celebration_outlined,
             screen: EventCoordinatorScreen(),
           ),
-          const ManageWorkspaceDestination(
-            label: "Agents",
+          ManageWorkspaceDestination(
+            id: 'agents',
+            label: mobileUi(context, "Agents"),
             icon: Icons.verified_user_outlined,
-            screen: AgentVerificationTab(),
+            screen: AgentVerificationTab(
+              canAssignSupervisors: access.roles,
+              scopedSupervisor: access.scopedSupervisor,
+            ),
           ),
-          const ManageWorkspaceDestination(
-            label: "Users",
+          ManageWorkspaceDestination(
+            id: 'agent-recommendations',
+            label: mobileUi(context, 'Agent recommendations'),
+            icon: Icons.person_add_alt,
+            screen: AgentRecommendationsScreen(admin: true),
+          ),
+          ManageWorkspaceDestination(
+            id: 'contributor-rewards',
+            label: mobileUi(context, 'Contributor rewards'),
+            icon: Icons.redeem_outlined,
+            screen: ReferralFinanceScreen(),
+          ),
+          ManageWorkspaceDestination(
+            id: 'users',
+            label: mobileUi(context, "Users"),
             icon: Icons.people_outline_rounded,
             screen: UsersTab(),
           ),
-          const ManageWorkspaceDestination(
-            label: "Listings",
+          ManageWorkspaceDestination(
+            id: 'listings',
+            label: mobileUi(context, "Listings"),
             icon: Icons.rule_folder_outlined,
             screen: ListingApprovalTab(),
           ),
-          const ManageWorkspaceDestination(
-            label: "Categories",
+          ManageWorkspaceDestination(
+            id: 'categories',
+            label: mobileUi(context, "Categories"),
             icon: Icons.category_outlined,
             screen: CategoriesTab(),
           ),
-          const ManageWorkspaceDestination(
-            label: "Locations",
+          ManageWorkspaceDestination(
+            id: 'locations',
+            label: mobileUi(context, "Locations"),
             icon: Icons.place_outlined,
             screen: LocationsTab(),
           ),
-          const ManageWorkspaceDestination(
-            label: "Requests",
+          ManageWorkspaceDestination(
+            id: 'requests',
+            label: mobileUi(context, "Requests"),
             icon: Icons.calendar_month_outlined,
             screen: AdminBookingsTab(),
           ),
-          const ManageWorkspaceDestination(
-            label: "Reports",
+          ManageWorkspaceDestination(
+            id: 'reports',
+            label: mobileUi(context, "Reports"),
             icon: Icons.report_outlined,
             screen: ReportsTab(),
           ),
-          const ManageWorkspaceDestination(
-            label: "Promotions",
+          ManageWorkspaceDestination(
+            id: 'promotions',
+            label: mobileUi(context, "Promotions"),
             icon: Icons.campaign_outlined,
             screen: PromotionsTab(),
           ),
-          const ManageWorkspaceDestination(
-            label: "Growth Ops",
+          ManageWorkspaceDestination(
+            id: 'growth',
+            label: mobileUi(context, "Growth Ops"),
             icon: Icons.monitor_heart_outlined,
-            screen: AdminGrowthOperationsScreen(),
+            screen: AdminGrowthOperationsScreen(access: access),
           ),
-          const ManageWorkspaceDestination(
-            label: "Notifications",
+          ManageWorkspaceDestination(
+            id: 'notifications',
+            label: mobileUi(context, "Notifications"),
             icon: Icons.notifications_outlined,
             screen: NotificationsScreen(),
           ),
-          const ManageWorkspaceDestination(
-            label: "Profile",
+          ManageWorkspaceDestination(
+            id: 'profile',
+            label: mobileUi(context, "Profile"),
             icon: Icons.person_outline,
             screen: ProfileScreen(),
           ),
         ];
     destinations.removeWhere(
-      (destination) => switch (destination.label) {
-        'Information Administration' => !allowed('information.manage'),
-        'Dashboard' => !allowed('dashboard.view'),
-        'Events Coordinator' => !allowed('events.manage'),
-        'Agents' => !allowed('agents.manage'),
-        'Users' => !allowed('users.view'),
-        'Listings' => !allowed('listings.manage'),
-        'Categories' =>
-          !(allowed('listings.manage') || allowed('promotions.manage')),
-        'Locations' => !(allowed('health.view') || allowed('agents.manage')),
-        'Requests' => !allowed('bookings.manage'),
-        'Reports' => !allowed('reports.manage'),
-        'Promotions' => !allowed('promotions.manage'),
-        'Growth Ops' =>
-          !(allowed('analytics.view') ||
-              allowed('payments.manage') ||
-              allowed('risk.manage') ||
-              allowed('boosts.manage')),
-        'Notifications' =>
-          !(allowed('support.manage') || allowed('health.view')),
-        _ => false,
-      },
+      (destination) => !access.allowsDestination(destination.id!),
     );
     if (_currentIndex >= destinations.length) _currentIndex = 0;
     return ManageWorkspaceScaffold(

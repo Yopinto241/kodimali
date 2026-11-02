@@ -12,7 +12,7 @@ const normalizeListingMediaPath = (value: unknown) =>
     : null;
 
 async function getAuthenticatedUser(
-  serviceClient: ReturnType<typeof createClient>,
+  serviceClient: Pick<ReturnType<typeof createClient>, "auth">,
   jwt: string,
 ) {
   const {

@@ -1,4 +1,6 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_design_system/flutter_design_system.dart';
 
 import '../../../core/ads/admob_support.dart';
 import '../../../core/utils/date_formatters.dart';
@@ -26,6 +28,7 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
   List<Map<String, dynamic>> _categories = <Map<String, dynamic>>[];
   late Future<List<Map<String, dynamic>>> _future;
   bool _initialized = false;
+  int _page = 0;
 
   @override
   void didChangeDependencies() {
@@ -58,7 +61,14 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
       minPrice: double.tryParse(_minPriceController.text.trim()),
       maxPrice: double.tryParse(_maxPriceController.text.trim()),
       sort: _sort,
+      offset: _page * 20,
+      limit: 20,
     );
+  }
+
+  Future<void> _applyFilters() {
+    _page = 0;
+    return _refresh();
   }
 
   Future<void> _refresh() async {
@@ -91,7 +101,7 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
       future: _future,
       builder: (BuildContext context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return KodimaliLoading(label: mobileUi(context, 'Loading...'));
         }
         if (snapshot.hasError) {
           return Center(child: Text(snapshot.error.toString()));
@@ -103,9 +113,11 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
           onRefresh: _refresh,
           children: <Widget>[
             ManageHeroCard(
-              title: "My listings",
-              subtitle:
-                  "Search quickly, filter by category or status, and open any asset to update price, availability, or marketplace visibility.",
+              title: mobileUi(context, "My listings"),
+              subtitle: mobileUi(
+                context,
+                "Search quickly, filter by category or status, and open any asset to update price, availability, or marketplace visibility.",
+              ),
               bottom: ManageMetaWrap(
                 items: <String>[
                   "${listings.length} listing${listings.length == 1 ? "" : "s"} loaded",
@@ -120,20 +132,22 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
             ),
             const SizedBox(height: 18),
             ManagePanel(
-              title: "Filter listings",
-              subtitle:
-                  "Use narrow filters when you need to update one category or find inactive assets fast.",
+              title: mobileUi(context, "Filter listings"),
+              subtitle: mobileUi(
+                context,
+                "Use narrow filters when you need to update one category or find inactive assets fast.",
+              ),
               child: Column(
                 children: <Widget>[
                   TextField(
                     controller: _searchController,
                     textInputAction: TextInputAction.search,
-                    onSubmitted: (_) => _refresh(),
+                    onSubmitted: (_) => _applyFilters(),
                     decoration: InputDecoration(
-                      labelText: "Search title",
+                      labelText: mobileUi(context, "Search title"),
                       prefixIcon: const Icon(Icons.search),
                       suffixIcon: IconButton(
-                        onPressed: _refresh,
+                        onPressed: _applyFilters,
                         icon: const Icon(Icons.tune),
                       ),
                     ),
@@ -145,8 +159,8 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                         child: TextField(
                           controller: _minPriceController,
                           keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: "Minimum price",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(context, "Minimum price"),
                           ),
                         ),
                       ),
@@ -155,8 +169,8 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                         child: TextField(
                           controller: _maxPriceController,
                           keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: "Maximum price",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(context, "Maximum price"),
                           ),
                         ),
                       ),
@@ -165,21 +179,21 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: _sort,
-                    decoration: const InputDecoration(
-                      labelText: "Sort listings",
+                    decoration: InputDecoration(
+                      labelText: mobileUi(context, "Sort listings"),
                     ),
                     items: const <DropdownMenuItem<String>>[
                       DropdownMenuItem(
                         value: "newest",
-                        child: Text("Newest first"),
+                        child: LocalizedUiText("Newest first"),
                       ),
                       DropdownMenuItem(
                         value: "price_low",
-                        child: Text("Lowest price"),
+                        child: LocalizedUiText("Lowest price"),
                       ),
                       DropdownMenuItem(
                         value: "price_high",
-                        child: Text("Highest price"),
+                        child: LocalizedUiText("Highest price"),
                       ),
                     ],
                     onChanged: (String? value) =>
@@ -195,13 +209,13 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                                 isExpanded: true,
                                 menuMaxHeight: _menuMaxHeight,
                                 initialValue: _selectedCategoryId,
-                                decoration: const InputDecoration(
-                                  labelText: "Category",
+                                decoration: InputDecoration(
+                                  labelText: mobileUi(context, "Category"),
                                 ),
                                 items: <DropdownMenuItem<String>>[
                                   const DropdownMenuItem<String>(
                                     value: null,
-                                    child: Text("All categories"),
+                                    child: LocalizedUiText("All categories"),
                                   ),
                                   ..._categories.map(
                                     (Map<String, dynamic> category) =>
@@ -222,25 +236,25 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                                 isExpanded: true,
                                 menuMaxHeight: _menuMaxHeight,
                                 initialValue: _selectedStatus,
-                                decoration: const InputDecoration(
-                                  labelText: "Status",
+                                decoration: InputDecoration(
+                                  labelText: mobileUi(context, "Status"),
                                 ),
                                 items: const <DropdownMenuItem<String>>[
                                   DropdownMenuItem<String>(
                                     value: null,
-                                    child: Text("All statuses"),
+                                    child: LocalizedUiText("All statuses"),
                                   ),
                                   DropdownMenuItem(
                                     value: "active",
-                                    child: Text("Active"),
+                                    child: LocalizedUiText("Active"),
                                   ),
                                   DropdownMenuItem(
                                     value: "inactive",
-                                    child: Text("Inactive"),
+                                    child: LocalizedUiText("Inactive"),
                                   ),
                                   DropdownMenuItem(
                                     value: "suspended",
-                                    child: Text("Suspended"),
+                                    child: LocalizedUiText("Suspended"),
                                   ),
                                 ],
                                 onChanged: (String? value) {
@@ -271,14 +285,15 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                     children: <Widget>[
                       Expanded(
                         child: FilledButton.icon(
-                          onPressed: _refresh,
+                          onPressed: _applyFilters,
                           icon: const Icon(Icons.filter_alt_outlined),
-                          label: const Text("Apply filters"),
+                          label: const LocalizedUiText("Apply filters"),
                         ),
                       ),
                       const SizedBox(width: 12),
                       OutlinedButton(
                         onPressed: () {
+                          _page = 0;
                           _searchController.clear();
                           _minPriceController.clear();
                           _maxPriceController.clear();
@@ -289,7 +304,7 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                             _future = _load();
                           });
                         },
-                        child: const Text("Reset"),
+                        child: const LocalizedUiText("Reset"),
                       ),
                     ],
                   ),
@@ -302,17 +317,19 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
             const ManageAdPrivacyButton(),
             const SizedBox(height: 18),
             ManageSectionTitle(
-              title: "Listing overview",
+              title: mobileUi(context, "Listing overview"),
               subtitle: listings.isEmpty
                   ? "No assets match the current filters."
                   : "Tap any card to open the full listing editor.",
             ),
             const SizedBox(height: 12),
             if (listings.isEmpty)
-              const KodimaliEmptyState(
-                title: "Hakuna listings",
-                message:
-                    "Listings zako zitaonekana hapa baada ya kuongeza asset ya kwanza.",
+              KodimaliEmptyState(
+                title: mobileUi(context, "Hakuna listings"),
+                message: mobileUi(
+                  context,
+                  "Listings zako zitaonekana hapa baada ya kuongeza asset ya kwanza.",
+                ),
               )
             else
               ...listings.map((Map<String, dynamic> listing) {
@@ -333,6 +350,22 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
+                            if (listing['preview_url'] != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.network(
+                                    listing['preview_url'].toString(),
+                                    height: 160,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    semanticLabel: listing['title']?.toString(),
+                                    errorBuilder: (_, error, stack) =>
+                                        const SizedBox.shrink(),
+                                  ),
+                                ),
+                              ),
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
@@ -391,7 +424,7 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                             Row(
                               children: <Widget>[
                                 Expanded(
-                                  child: Text(
+                                  child: LocalizedUiText(
                                     "Open listing to edit details, reactivate, remove, or delete when it has no inquiries.",
                                     style: Theme.of(
                                       context,
@@ -402,7 +435,7 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                                 FilledButton.tonal(
                                   onPressed: () =>
                                       _openDetail(listing["id"] as String),
-                                  child: const Text("Open"),
+                                  child: const LocalizedUiText("Open"),
                                 ),
                               ],
                             ),
@@ -413,6 +446,29 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                   ),
                 );
               }),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(
+                  onPressed: _page == 0
+                      ? null
+                      : () {
+                          _page--;
+                          _refresh();
+                        },
+                  child: const LocalizedUiText('Previous'),
+                ),
+                TextButton(
+                  onPressed: listings.length < 20
+                      ? null
+                      : () {
+                          _page++;
+                          _refresh();
+                        },
+                  child: const LocalizedUiText('Next'),
+                ),
+              ],
+            ),
           ],
         );
       },

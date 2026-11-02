@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -42,29 +43,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ) {
                 return AlertDialog(
                   scrollable: true,
-                  title: const Text("Change password"),
+                  title: const LocalizedUiText("Change password"),
                   content: SizedBox(
                     width: 360,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        const Text(
+                        const LocalizedUiText(
                           "Use a new password with at least 6 characters. After saving, use the new password the next time you sign in.",
                         ),
                         const SizedBox(height: 16),
                         TextField(
                           controller: newPasswordController,
                           obscureText: true,
-                          decoration: const InputDecoration(
-                            labelText: "New password",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(context, "New password"),
                           ),
                         ),
                         const SizedBox(height: 16),
                         TextField(
                           controller: confirmPasswordController,
                           obscureText: true,
-                          decoration: const InputDecoration(
-                            labelText: "Confirm new password",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(
+                              context,
+                              "Confirm new password",
+                            ),
                           ),
                         ),
                       ],
@@ -75,7 +79,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       onPressed: submitting
                           ? null
                           : () => Navigator.of(context).pop(),
-                      child: const Text("Cancel"),
+                      child: const LocalizedUiText("Cancel"),
                     ),
                     FilledButton(
                       onPressed: submitting
@@ -88,7 +92,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               if (newPassword.length < 6) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text(
+                                    content: LocalizedUiText(
                                       "Password must be at least 6 characters.",
                                     ),
                                   ),
@@ -98,7 +102,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               if (newPassword != confirmPassword) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text(
+                                    content: LocalizedUiText(
                                       "Password confirmation does not match.",
                                     ),
                                   ),
@@ -114,7 +118,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   Navigator.of(context).pop();
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
-                                      content: Text("Password updated."),
+                                      content: LocalizedUiText(
+                                        "Password updated.",
+                                      ),
                                     ),
                                   );
                                 }
@@ -122,14 +128,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text(userFacingError(error)),
+                                      content: LocalizedUiText(
+                                        userFacingError(error),
+                                      ),
                                     ),
                                   );
                                 }
                                 setModalState(() => submitting = false);
                               }
                             },
-                      child: Text(submitting ? "Saving..." : "Save password"),
+                      child: Text(
+                        submitting
+                            ? mobileUi(context, "Saving...")
+                            : mobileUi(context, "Save password"),
+                      ),
                     ),
                   ],
                 );
@@ -162,9 +174,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _pendingPhoto = file;
       _uploadingPhoto = true;
       _photoUploadController = controller;
-      _photoProgress = const UploadProgressSnapshot(
+      _photoProgress = UploadProgressSnapshot(
         value: 0.05,
-        label: "Preparing photo...",
+        label: mobileUi(context, "Preparing photo..."),
       );
     });
     try {
@@ -180,21 +192,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       await dependencies.controller.refreshProfile();
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Profile photo updated.")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: LocalizedUiText("Profile photo updated.")),
+        );
       }
     } on UploadCancelledException {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Upload cancelled.")));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: LocalizedUiText("Upload cancelled.")),
+        );
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(userFacingError(error))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: LocalizedUiText(userFacingError(error))),
+        );
       }
     } finally {
       if (mounted) {
@@ -270,8 +282,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     width: 260,
                     child: Text(
                       activeAgent
-                          ? "Rules: JPG, PNG, or WebP only, up to 5MB. Changing the photo does not grant or remove the verification badge."
-                          : "Photo changes are allowed only after the agent account becomes active.",
+                          ? mobileUi(
+                              context,
+                              "Rules: JPG, PNG, or WebP only, up to 5MB. Changing the photo does not grant or remove the verification badge.",
+                            )
+                          : mobileUi(
+                              context,
+                              "Photo changes are allowed only after the agent account becomes active.",
+                            ),
                     ),
                   ),
                 ],
@@ -287,7 +305,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ? () => _photoUploadController?.cancel()
                       : null,
                   icon: const Icon(Icons.close_rounded),
-                  label: const Text("Cancel upload"),
+                  label: const LocalizedUiText("Cancel upload"),
                 ),
                 const SizedBox(height: 14),
               ],
@@ -296,23 +314,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ? _changeProfilePhoto
                     : null,
                 icon: const Icon(Icons.photo_camera_back_outlined),
-                label: Text(_uploadingPhoto ? "Uploading..." : "Change photo"),
+                label: Text(
+                  _uploadingPhoto
+                      ? mobileUi(context, "Uploading...")
+                      : mobileUi(context, "Change photo"),
+                ),
               ),
             ],
           ),
         ),
         const SizedBox(height: 18),
         ManagePanel(
-          title: "Account details",
-          subtitle:
-              "These details come from your authenticated profile and agent record.",
+          title: mobileUi(context, "Account details"),
+          subtitle: mobileUi(
+            context,
+            "These details come from your authenticated profile and agent record.",
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              _ProfileRow(label: "Full name", value: profile?.fullName ?? "-"),
+              _ProfileRow(
+                label: mobileUi(context, "Full name"),
+                value: profile?.fullName ?? "-",
+              ),
               const SizedBox(height: 14),
               _ProfileRow(
-                label: "Account email",
+                label: mobileUi(context, "Account email"),
                 value:
                     profile?.accountEmail ??
                     controller.currentUser?.email ??
@@ -320,68 +347,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 14),
               _ProfileRow(
-                label: "Login username",
+                label: mobileUi(context, "Login username"),
                 value: profile?.username ?? "-",
               ),
               const SizedBox(height: 14),
               _ProfileRow(
-                label: "Email status",
+                label: mobileUi(context, "Email status"),
                 value: profile?.accountEmailConfirmedAt == null
                     ? "pending"
                     : "confirmed",
               ),
               const SizedBox(height: 14),
               _ProfileRow(
-                label: "Workspace role",
+                label: mobileUi(context, "Workspace role"),
                 value: profile?.highestRole.displayLabel ?? "CUSTOMER",
               ),
               const SizedBox(height: 14),
               _ProfileRow(
-                label: "Public agent name",
+                label: mobileUi(context, "Public agent name"),
                 value: profile?.agentDisplayName ?? profile?.fullName ?? "-",
               ),
               const SizedBox(height: 14),
               _ProfileRow(
-                label: "Agent phone number",
+                label: mobileUi(context, "Agent phone number"),
                 value: profile?.agentPhoneNumber ?? profile?.phoneNumber ?? "-",
               ),
               const SizedBox(height: 14),
               _ProfileRow(
-                label: "Agent location",
+                label: mobileUi(context, "Agent location"),
                 value: profile?.agentLocationLabel ?? "-",
               ),
               const SizedBox(height: 14),
               _ProfileRow(
-                label: "NIDA number",
+                label: mobileUi(context, "NIDA number"),
                 value: profile?.agentNidaNumber ?? "-",
               ),
               const SizedBox(height: 14),
               _ProfileRow(
-                label: "Preferred language",
+                label: mobileUi(context, "Preferred language"),
                 value: profile?.preferredLanguage ?? "sw",
               ),
               const SizedBox(height: 14),
               _ProfileRow(
-                label: "Agent account status",
+                label: mobileUi(context, "Agent account status"),
                 value: profile?.agentAccountStatus ?? "not-agent",
               ),
               const SizedBox(height: 14),
               _ProfileRow(
-                label: "Verification status",
+                label: mobileUi(context, "Verification status"),
                 value: profile?.agentVerificationStatus ?? "pending",
               ),
               if (isAdmin) ...<Widget>[
                 const SizedBox(height: 14),
-                const _ProfileRow(label: "Admin access", value: "Enabled"),
+                _ProfileRow(
+                  label: mobileUi(context, "Admin access"),
+                  value: "Enabled",
+                ),
               ],
             ],
           ),
         ),
         const SizedBox(height: 18),
         ManagePanel(
-          title: "Roles",
-          subtitle:
-              "The app experience changes depending on the highest available role on your account.",
+          title: mobileUi(context, "Roles"),
+          subtitle: mobileUi(
+            context,
+            "The app experience changes depending on the highest available role on your account.",
+          ),
           child: Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -393,28 +425,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         const SizedBox(height: 18),
         ManagePanel(
-          title: "Security",
-          subtitle:
-              "Forgot password sends a reset link only when this account has a real recovery email. Signed-in agents can still change the password here anytime.",
+          title: mobileUi(context, "Security"),
+          subtitle: mobileUi(
+            context,
+            "Forgot password sends a reset link only when this account has a real recovery email. Signed-in agents can still change the password here anytime.",
+          ),
           child: Align(
             alignment: Alignment.centerLeft,
             child: FilledButton.icon(
               onPressed: _openChangePasswordDialog,
               icon: const Icon(Icons.lock_reset_outlined),
-              label: const Text("Change password"),
+              label: const LocalizedUiText("Change password"),
             ),
           ),
         ),
         const SizedBox(height: 18),
         ManagePanel(
-          title: "Session",
-          subtitle:
-              "Use sign out when switching device or testing another account.",
+          title: mobileUi(context, "Session"),
+          subtitle: mobileUi(
+            context,
+            "Use sign out when switching device or testing another account.",
+          ),
           child: Align(
             alignment: Alignment.centerLeft,
             child: FilledButton(
               onPressed: () => controller.signOut(),
-              child: const Text("Toka kwenye akaunti"),
+              child: const LocalizedUiText("Toka kwenye akaunti"),
             ),
           ),
         ),
@@ -450,7 +486,10 @@ class _ManageAgentAvatar extends StatelessWidget {
       radius: radius,
       backgroundImage: imageProvider,
       child: imageProvider == null
-          ? Text((fallbackText.isEmpty ? "K" : fallbackText[0]).toUpperCase())
+          ? Text(
+              (fallbackText.isEmpty ? mobileUi(context, "K") : fallbackText[0])
+                  .toUpperCase(),
+            )
           : null,
     );
 

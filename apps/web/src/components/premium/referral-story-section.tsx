@@ -1,4 +1,5 @@
 "use client";
+import { UiText } from "@/components/ui-text";
 
 import Link from "next/link";
 import { RevealOnScroll } from "@/components/motion/reveal-on-scroll";
@@ -15,13 +16,13 @@ export function ReferralStorySection() {
     <section className="py-8 sm:py-12">
       <div className="referral-story referral-story-compact">
         <RevealOnScroll className="relative z-10">
-          <p className="premium-kicker text-brand-gold">{sw ? "Toa taarifa" : "Share a lead"}</p>
+          <p className="premium-kicker text-brand-gold"><UiText text={sw ? "Toa taarifa" : "Share a lead"} /></p>
           <div className="mt-3 grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
             <div>
-              <h2 className="max-w-2xl font-heading text-3xl font-semibold tracking-tight text-white sm:text-4xl">{sw ? "Unaijua mali inayopatikana?" : "Know an available property?"}</h2>
-              <p className="mt-3 max-w-xl text-sm text-white/70">{sw ? "Tutumie taarifa. Tutathibitisha mali na kukuarifu hatua inayofuata." : "Send the details. We will verify the property and update you."}</p>
+              <h2 className="max-w-2xl font-heading text-3xl font-semibold tracking-tight text-white sm:text-4xl"><UiText text={sw ? "Unaijua mali inayopatikana?" : "Know an available property?"} /></h2>
+              <p className="mt-3 max-w-xl text-sm text-white/70"><UiText text={sw ? "Tutumie taarifa. Tutathibitisha mali na kukuarifu hatua inayofuata." : "Send the details. We will verify the property and update you."} /></p>
             </div>
-            <div className="flex flex-wrap gap-2"><Link href="/toa-taarifa" className="btn btn-gold">{sw ? "Toa taarifa" : "Send details"}</Link><Link href="/toa-taarifa#taarifa-zangu" className="btn referral-secondary-action">{sw ? "Taarifa zangu" : "My submissions"}</Link></div>
+            <div className="flex flex-wrap gap-2"><Link href="/toa-taarifa" className="btn btn-gold"><UiText text={sw ? "Toa taarifa" : "Send details"} /></Link><Link href="/toa-taarifa#taarifa-zangu" className="btn referral-secondary-action"><UiText text={sw ? "Taarifa zangu" : "My submissions"} /></Link></div>
           </div>
         </RevealOnScroll>
         <div className="relative z-10 mt-7 grid gap-2 sm:grid-cols-3">

@@ -4,7 +4,9 @@
 .flutter-plugins-dependencies
 .idea/
 .next/
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 build/
 builds/
 coverage/

@@ -1,3 +1,4 @@
+import { UiText } from "@/components/ui-text";
 type StatusPillProps = {
   label: string;
   tone?: "active" | "pending" | "danger" | "muted" | "info";
@@ -17,7 +18,7 @@ export function StatusPill({
 }: StatusPillProps) {
   return (
     <span className={`status-badge ${toneClasses[tone]}`}>
-      {label}
+      <UiText text={label} />
     </span>
   );
 }

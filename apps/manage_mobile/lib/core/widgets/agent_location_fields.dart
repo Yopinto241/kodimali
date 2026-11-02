@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -130,7 +131,7 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
       }
       setState(() {
         _loading = false;
-        _error = error.toString();
+        _error = 'Sorry, locations could not load. Please try again shortly.';
       });
     }
   }
@@ -278,8 +279,8 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
                     child: TextField(
                       controller: searchController,
                       onChanged: (_) => setSheetState(() {}),
-                      decoration: const InputDecoration(
-                        labelText: "Search",
+                      decoration: InputDecoration(
+                        labelText: mobileUi(context, "Search"),
                         prefixIcon: Icon(Icons.search_rounded),
                       ),
                     ),
@@ -290,7 +291,9 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
                         filteredItems.isEmpty &&
                             (emptyValue == null || emptyLabel == null)
                         ? const Center(
-                            child: Text("No matching locations found."),
+                            child: LocalizedUiText(
+                              "No matching locations found.",
+                            ),
                           )
                         : ListView(
                             children: <Widget>[
@@ -366,7 +369,7 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
     if (_error != null) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Text(_error!),
+        child: LocalizedUiText(_error!),
       );
     }
 
@@ -377,12 +380,12 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         _selectionField(
-          label: "Region *",
+          label: mobileUi(context, "Region *"),
           valueText: _labelFor(_regions, _regionId) ?? "Choose region",
           enabled: _regions.isNotEmpty,
           onTap: () async {
             final String? value = await _pickLocation(
-              title: "Choose region",
+              title: mobileUi(context, "Choose region"),
               items: _regions,
               selectedId: _regionId,
             );
@@ -395,12 +398,12 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
         ),
         const SizedBox(height: 16),
         _selectionField(
-          label: "District *",
+          label: mobileUi(context, "District *"),
           valueText: _labelFor(_districts, _districtId) ?? "Choose district",
           enabled: _districts.isNotEmpty,
           onTap: () async {
             final String? value = await _pickLocation(
-              title: "Choose district",
+              title: mobileUi(context, "Choose district"),
               items: _districts,
               selectedId: _districtId,
             );
@@ -413,12 +416,12 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
         ),
         const SizedBox(height: 16),
         _selectionField(
-          label: "Ward *",
+          label: mobileUi(context, "Ward *"),
           valueText: _labelFor(_wards, _wardId) ?? "Choose ward",
           enabled: _wards.isNotEmpty,
           onTap: () async {
             final String? value = await _pickLocation(
-              title: "Choose ward",
+              title: mobileUi(context, "Choose ward"),
               items: _wards,
               selectedId: _wardId,
             );
@@ -431,16 +434,18 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
         ),
         const SizedBox(height: 16),
         _selectionField(
-          label: "Saved area",
-          helperText:
-              "Reuse an existing area in this ward if it already exists.",
+          label: mobileUi(context, "Saved area"),
+          helperText: mobileUi(
+            context,
+            "Reuse an existing area in this ward if it already exists.",
+          ),
           valueText: _savedAreaId == null
               ? "Type a new area or choose one below"
               : (_labelFor(_areas, _savedAreaId) ?? "Saved area selected"),
           enabled: wardReady,
           onTap: () async {
             final String? value = await _pickLocation(
-              title: "Choose saved area",
+              title: mobileUi(context, "Choose saved area"),
               items: _areas,
               selectedId: _savedAreaId ?? "",
               emptyValue: "",
@@ -460,7 +465,9 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
         ),
         const SizedBox(height: 8),
         Text(
-          "Saved areas in this ward: ${_areas.length}/100",
+          mobileUiFormat(context, "Saved areas in this ward: {0}/100", [
+            _areas.length,
+          ]),
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 12),
@@ -468,12 +475,18 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
           controller: _manualAreaController,
           enabled: canCreateArea,
           decoration: InputDecoration(
-            labelText: "New area name",
+            labelText: mobileUi(context, "New area name"),
             helperText: !wardReady
-                ? "Choose region, district, and ward first."
+                ? mobileUi(context, "Choose region, district, and ward first.")
                 : canCreateArea
-                ? "If this area does not exist yet, type it here and it will be saved under the selected ward."
-                : "This ward already has 100 saved areas, so only the saved list can be used.",
+                ? mobileUi(
+                    context,
+                    "If this area does not exist yet, type it here and it will be saved under the selected ward.",
+                  )
+                : mobileUi(
+                    context,
+                    "This ward already has 100 saved areas, so only the saved list can be used.",
+                  ),
           ),
         ),
       ],

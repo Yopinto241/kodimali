@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_design_system/flutter_design_system.dart';
 
@@ -10,10 +11,12 @@ import '../../../core/widgets/kodimali_status_chip.dart';
 import '../../../core/widgets/manage_ui.dart';
 import '../../shared/presentation/platform_promotions_panel.dart';
 import '../../shared/presentation/business_growth_panels.dart';
+import 'admin_workspace_access.dart';
 
 class AdminDashboardTab extends StatefulWidget {
   const AdminDashboardTab({
     super.key,
+    required this.access,
     this.onOpenAgents,
     this.onOpenListings,
     this.onOpenRequests,
@@ -21,6 +24,7 @@ class AdminDashboardTab extends StatefulWidget {
     this.onOpenNotifications,
   });
 
+  final AdminWorkspaceAccess access;
   final VoidCallback? onOpenAgents;
   final VoidCallback? onOpenListings;
   final VoidCallback? onOpenRequests;
@@ -73,9 +77,9 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
         }
         final Map<String, int> counts = snapshot.data ?? <String, int>{};
         if (counts.isEmpty) {
-          return const KodimaliEmptyState(
-            title: "Hakuna dashboard data",
-            message: "Admin metrics zitaonekana hapa.",
+          return KodimaliEmptyState(
+            title: mobileUi(context, "Hakuna dashboard data"),
+            message: mobileUi(context, "Admin metrics zitaonekana hapa."),
           );
         }
 
@@ -83,9 +87,11 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
           onRefresh: _refresh,
           children: <Widget>[
             ManageHeroCard(
-              title: "Admin control center",
-              subtitle:
-                  "Manage activation, moderation, promotions, categories, and the health of the full marketplace.",
+              title: mobileUi(context, "Admin control center"),
+              subtitle: mobileUi(
+                context,
+                "Manage activation, moderation, promotions, categories, and the health of the full marketplace.",
+              ),
               trailing: profile == null
                   ? null
                   : Chip(
@@ -103,23 +109,23 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
               ),
             ),
             const SizedBox(height: 18),
-            const AdminBusinessAnalyticsPanel(),
+            if (widget.access.analytics) const AdminBusinessAnalyticsPanel(),
             const SizedBox(height: 18),
-            const _ContactPaymentSettingsPanel(),
+            if (widget.access.roles) const _ContactPaymentSettingsPanel(),
             const SizedBox(height: 18),
-            const _ContactPaymentOperationsPanel(),
+            if (widget.access.payments) const _ContactPaymentOperationsPanel(),
             const SizedBox(height: 18),
             ManageMetricGrid(
               children: <Widget>[
                 ManageMetricCard(
-                  label: "Inactive or suspended agents",
+                  label: mobileUi(context, "Inactive or suspended agents"),
                   value: "${counts["inactiveAgents"] ?? 0}",
                   icon: Icons.person_off_outlined,
                   caption: "Accounts waiting for activation or admin review.",
                   onTap: widget.onOpenAgents,
                 ),
                 ManageMetricCard(
-                  label: "Live listings",
+                  label: mobileUi(context, "Live listings"),
                   value: "${counts["liveListings"] ?? 0}",
                   icon: Icons.approval_outlined,
                   caption: "Assets currently active in the marketplace.",
@@ -127,14 +133,14 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
                   onTap: widget.onOpenListings,
                 ),
                 ManageMetricCard(
-                  label: "Inquiry volume",
+                  label: mobileUi(context, "Inquiry volume"),
                   value: "${counts["totalInquiries"] ?? 0}",
                   icon: Icons.insights_outlined,
                   caption: "Combined booking and inquiry demand.",
                   onTap: widget.onOpenRequests,
                 ),
                 ManageMetricCard(
-                  label: "New requests",
+                  label: mobileUi(context, "New requests"),
                   value: "${counts["newRequests"] ?? 0}",
                   icon: Icons.priority_high_rounded,
                   caption: "Requests still waiting for an agent response.",
@@ -142,14 +148,14 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
                   onTap: widget.onOpenRequests,
                 ),
                 ManageMetricCard(
-                  label: "Completed rentals",
+                  label: mobileUi(context, "Completed rentals"),
                   value: "${counts["completedRequests"] ?? 0}",
                   icon: Icons.task_alt_outlined,
                   caption: "Request workflows marked completed.",
                   onTap: widget.onOpenRequests,
                 ),
                 ManageMetricCard(
-                  label: "Reports",
+                  label: mobileUi(context, "Reports"),
                   value: "${counts["reports"] ?? 0}",
                   icon: Icons.flag_outlined,
                   caption: "Reported content or complaints needing review.",
@@ -157,7 +163,7 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
                   onTap: widget.onOpenReports,
                 ),
                 ManageMetricCard(
-                  label: "Unread notifications",
+                  label: mobileUi(context, "Unread notifications"),
                   value: "${counts["unreadNotifications"] ?? 0}",
                   icon: Icons.notifications_none_outlined,
                   caption: "System updates still waiting for attention.",
@@ -167,9 +173,11 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
             ),
             const SizedBox(height: 18),
             ManagePanel(
-              title: "Needs attention",
-              subtitle:
-                  "Open the exact queue instead of searching across the workspace.",
+              title: mobileUi(context, "Needs attention"),
+              subtitle: mobileUi(
+                context,
+                "Open the exact queue instead of searching across the workspace.",
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -177,7 +185,11 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.person_search_outlined),
                     title: Text(
-                      "${counts["inactiveAgents"] ?? 0} agent accounts need review",
+                      mobileUiFormat(
+                        context,
+                        "{0} agent accounts need review",
+                        [counts["inactiveAgents"] ?? 0],
+                      ),
                     ),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: widget.onOpenAgents,
@@ -186,7 +198,11 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.pending_actions_outlined),
                     title: Text(
-                      "${counts["newRequests"] ?? 0} requests await agent action",
+                      mobileUiFormat(
+                        context,
+                        "{0} requests await agent action",
+                        [counts["newRequests"] ?? 0],
+                      ),
                     ),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: widget.onOpenRequests,
@@ -195,7 +211,9 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.flag_outlined),
                     title: Text(
-                      "${counts["reports"] ?? 0} reports need moderation",
+                      mobileUiFormat(context, "{0} reports need moderation", [
+                        counts["reports"] ?? 0,
+                      ]),
                     ),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: widget.onOpenReports,
@@ -204,10 +222,10 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
               ),
             ),
             const SizedBox(height: 18),
-            const PlatformPromotionsPanel(
+            PlatformPromotionsPanel(
               surface: "manage_admin",
               placement: "global",
-              title: "Global promotions",
+              title: mobileUi(context, "Global promotions"),
             ),
           ],
         );
@@ -258,14 +276,24 @@ class _ContactPaymentSettingsPanelState
       context: context,
       builder: (dialogContext) => AlertDialog(
         icon: const Icon(Icons.admin_panel_settings_outlined),
-        title: Text(enabled ? 'Activate $key?' : 'Pause $key?'),
+        title: Text(
+          enabled
+              ? mobileUiFormat(context, "Activate {0}?", [key])
+              : mobileUiFormat(context, "Pause {0}?", [key]),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             Text(
               enabled
-                  ? 'Activation requires completed payment-provider, policy and operational approval. It does not change historical records.'
-                  : 'New operations will stop. Existing paid bookings and obligations remain valid.',
+                  ? mobileUi(
+                      context,
+                      'Activation requires completed payment-provider, policy and operational approval. It does not change historical records.',
+                    )
+                  : mobileUi(
+                      context,
+                      'New operations will stop. Existing paid bookings and obligations remain valid.',
+                    ),
             ),
             const SizedBox(height: 14),
             TextField(
@@ -273,7 +301,9 @@ class _ContactPaymentSettingsPanelState
               minLines: 2,
               maxLines: 4,
               decoration: InputDecoration(
-                labelText: enabled ? 'Approval note (required)' : 'Reason',
+                labelText: enabled
+                    ? mobileUi(context, 'Approval note (required)')
+                    : mobileUi(context, 'Reason'),
               ),
             ),
           ],
@@ -281,11 +311,15 @@ class _ContactPaymentSettingsPanelState
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+            child: const LocalizedUiText('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(enabled ? 'Activate' : 'Pause'),
+            child: Text(
+              enabled
+                  ? mobileUi(context, 'Activate')
+                  : mobileUi(context, 'Pause'),
+            ),
           ),
         ],
       ),
@@ -300,12 +334,16 @@ class _ContactPaymentSettingsPanelState
         enabled: enabled,
         approvalNote: note,
       );
-      if (mounted) setState(() => _future = _load());
+      if (mounted) {
+        setState(() {
+          _future = _load();
+        });
+      }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(userFacingError(error))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: LocalizedUiText(userFacingError(error))),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -327,18 +365,22 @@ class _ContactPaymentSettingsPanelState
         ),
         title: Text(
           enablePayment
-              ? 'Enable payment for $feature?'
-              : 'Make $feature free?',
+              ? mobileUiFormat(context, "Enable payment for {0}?", [feature])
+              : mobileUiFormat(context, "Make {0} free?", [feature]),
         ),
         content: Text(enablePayment ? paidWarning : freeWarning),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
+            child: const LocalizedUiText('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(enablePayment ? 'Enable payment' : 'Make free'),
+            child: Text(
+              enablePayment
+                  ? mobileUi(context, 'Enable payment')
+                  : mobileUi(context, 'Make free'),
+            ),
           ),
         ],
       ),
@@ -360,17 +402,23 @@ class _ContactPaymentSettingsPanelState
           color: Theme.of(dialogContext).colorScheme.error,
         ),
         title: Text(
-          enabled ? 'Enable $feature payments?' : 'Pause $feature payments?',
+          enabled
+              ? mobileUiFormat(context, "Enable {0} payments?", [feature])
+              : mobileUiFormat(context, "Pause {0} payments?", [feature]),
         ),
         content: Text(enabled ? enabledWarning : pausedWarning),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
+            child: const LocalizedUiText('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(enabled ? 'Enable payments' : 'Pause payments'),
+            child: Text(
+              enabled
+                  ? mobileUi(context, 'Enable payments')
+                  : mobileUi(context, 'Pause payments'),
+            ),
           ),
         ],
       ),
@@ -491,28 +539,30 @@ class _ContactPaymentSettingsPanelState
     final int? amount = await showDialog<int>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Paid chat price'),
+        title: const LocalizedUiText('Paid chat price'),
         content: TextField(
           controller: controller,
           autofocus: true,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: 'Amount (TZS)',
-            helperText:
-                'Confirm the provider minimum before enabling payments.',
+          decoration: InputDecoration(
+            labelText: mobileUi(context, 'Amount (TZS)'),
+            helperText: mobileUi(
+              context,
+              'Confirm the provider minimum before enabling payments.',
+            ),
           ),
         ),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+            child: const LocalizedUiText('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(
               dialogContext,
               int.tryParse(controller.text.trim()),
             ),
-            child: const Text('Save price'),
+            child: const LocalizedUiText('Save price'),
           ),
         ],
       ),
@@ -522,12 +572,16 @@ class _ContactPaymentSettingsPanelState
     setState(() => _saving = true);
     try {
       await AppScope.of(context).repository.updatePaidChatUnlockPrice(amount);
-      if (mounted) setState(() => _future = _load());
+      if (mounted) {
+        setState(() {
+          _future = _load();
+        });
+      }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(userFacingError(error))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: LocalizedUiText(userFacingError(error))),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -552,7 +606,9 @@ class _ContactPaymentSettingsPanelState
         context,
       ).repository.updateSubscriptionPaymentsEnabled(enabled);
       if (mounted) {
-        setState(() => _future = _load());
+        setState(() {
+          _future = _load();
+        });
       }
     } catch (error) {
       if (mounted) {
@@ -582,7 +638,11 @@ class _ContactPaymentSettingsPanelState
       await AppScope.of(
         context,
       ).repository.updateBookingPaymentsEnabled(enabled);
-      if (mounted) setState(() => _future = _load());
+      if (mounted) {
+        setState(() {
+          _future = _load();
+        });
+      }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -607,7 +667,11 @@ class _ContactPaymentSettingsPanelState
     setState(() => _saving = true);
     try {
       await AppScope.of(context).repository.updateEventPaymentsEnabled(enabled);
-      if (mounted) setState(() => _future = _load());
+      if (mounted) {
+        setState(() {
+          _future = _load();
+        });
+      }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -637,7 +701,9 @@ class _ContactPaymentSettingsPanelState
         context,
       ).repository.updateListingBoostPaymentsEnabled(enabled);
       if (mounted) {
-        setState(() => _future = _load());
+        setState(() {
+          _future = _load();
+        });
       }
     } catch (error) {
       if (mounted) {
@@ -693,20 +759,29 @@ class _ContactPaymentSettingsPanelState
         final String? updatedAt = snapshot.data?["updated_at"] as String?;
         final String? updatedBy = snapshot.data?["updated_by"] as String?;
         return ManagePanel(
-          title: "Marketplace payment controls",
-          subtitle:
-              "Admin-only controls shared by the website and mobile apps. Pausing checkout never grants a paid product for free.",
+          title: mobileUi(context, "Marketplace payment controls"),
+          subtitle: mobileUi(
+            context,
+            "Admin-only controls shared by the website and mobile apps. Pausing checkout never grants a paid product for free.",
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: enabled,
-                title: Text(enabled ? "Payment required" : "Free contact"),
+                title: Text(
+                  enabled
+                      ? mobileUi(context, "Payment required")
+                      : mobileUi(context, "Free contact"),
+                ),
                 subtitle: Text(
                   _saving
-                      ? "Saving..."
-                      : "Turn this off when you want customers to see agent numbers without payment.",
+                      ? mobileUi(context, "Saving...")
+                      : mobileUi(
+                          context,
+                          "Turn this off when you want customers to see agent numbers without payment.",
+                        ),
                 ),
                 onChanged:
                     snapshot.connectionState == ConnectionState.waiting ||
@@ -720,13 +795,19 @@ class _ContactPaymentSettingsPanelState
                 value: agentListingEnabled,
                 title: Text(
                   agentListingEnabled
-                      ? "Agent listing payment required"
-                      : "Agent listings are free",
+                      ? mobileUi(context, "Agent listing payment required")
+                      : mobileUi(context, "Agent listings are free"),
                 ),
                 subtitle: Text(
                   agentListingEnabled
-                      ? "Verified agents publish after paying their plan fee. Unverified agents also require admin approval."
-                      : "Verified agents publish free. Unverified agents remain private until admin approval.",
+                      ? mobileUi(
+                          context,
+                          "Verified agents publish after paying their plan fee. Unverified agents also require admin approval.",
+                        )
+                      : mobileUi(
+                          context,
+                          "Verified agents publish free. Unverified agents remain private until admin approval.",
+                        ),
                 ),
                 onChanged:
                     snapshot.connectionState == ConnectionState.waiting ||
@@ -740,14 +821,18 @@ class _ContactPaymentSettingsPanelState
                 value: chatEnabled,
                 title: Text(
                   chatEnabled
-                      ? "Customer chat payment required"
-                      : "Customer chat is free",
+                      ? mobileUi(context, "Customer chat payment required")
+                      : mobileUi(context, "Customer chat is free"),
                 ),
                 subtitle: Text(
-                  "Paid mode charges TSh $chatPrice for 7 days of private listing chat. Each participant can send 10 messages per day.",
+                  mobileUiFormat(
+                    context,
+                    "Paid mode charges TSh {0} for 7 days of private listing chat. Each participant can send 10 messages per day.",
+                    [chatPrice],
+                  ),
                 ),
                 secondary: IconButton(
-                  tooltip: 'Change chat price',
+                  tooltip: mobileUi(context, 'Change chat price'),
                   onPressed: _saving ? null : () => _editChatPrice(chatPrice),
                   icon: const Icon(Icons.edit_outlined),
                 ),
@@ -763,10 +848,10 @@ class _ContactPaymentSettingsPanelState
                 value: subscriptionEnabled,
                 title: Text(
                   subscriptionEnabled
-                      ? 'Subscription payments enabled'
-                      : 'Subscription purchasing paused',
+                      ? mobileUi(context, 'Subscription payments enabled')
+                      : mobileUi(context, 'Subscription purchasing paused'),
                 ),
-                subtitle: const Text(
+                subtitle: const LocalizedUiText(
                   'Controls SonicPesa purchasing for Basic, Pro and Business packages. Existing subscriptions are not changed.',
                 ),
                 onChanged:
@@ -781,10 +866,10 @@ class _ContactPaymentSettingsPanelState
                 value: bookingEnabled,
                 title: Text(
                   bookingEnabled
-                      ? 'Customer pay and book enabled'
-                      : 'Customer booking checkout paused',
+                      ? mobileUi(context, 'Customer pay and book enabled')
+                      : mobileUi(context, 'Customer booking checkout paused'),
                 ),
-                subtitle: const Text(
+                subtitle: const LocalizedUiText(
                   'Controls SonicPesa checkout for ordinary booking reservations. Pausing does not confirm requests for free.',
                 ),
                 onChanged:
@@ -799,10 +884,10 @@ class _ContactPaymentSettingsPanelState
                 value: eventPaymentsEnabled,
                 title: Text(
                   eventPaymentsEnabled
-                      ? 'Events payments enabled'
-                      : 'Events checkout paused',
+                      ? mobileUi(context, 'Events payments enabled')
+                      : mobileUi(context, 'Events checkout paused'),
                 ),
-                subtitle: const Text(
+                subtitle: const LocalizedUiText(
                   'Controls SonicPesa deposits and balances after an event quotation and agreement are accepted.',
                 ),
                 onChanged:
@@ -812,17 +897,19 @@ class _ContactPaymentSettingsPanelState
                     : _setEventPaymentsEnabled,
               ),
               const Divider(height: 24),
-              Text(
+              LocalizedUiText(
                 'KODIMALI 3.0 controlled rollout',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 6),
-              const Text(
+              const LocalizedUiText(
                 'These audited Super Admin flags are separate from marketplace availability. Both controls must be approved before new financial automation can run.',
               ),
               const SizedBox(height: 8),
               if (rolloutFlags.isEmpty)
-                const Text('KODIMALI 3.0 rollout flags are not installed yet.')
+                const LocalizedUiText(
+                  'KODIMALI 3.0 rollout flags are not installed yet.',
+                )
               else
                 ...rolloutFlags.map((row) {
                   final key = row["key"].toString();
@@ -833,8 +920,12 @@ class _ContactPaymentSettingsPanelState
                     title: Text(key.replaceAll("_", " ")),
                     subtitle: Text(
                       enabled
-                          ? 'Active · approved ${DateFormatters.formatDateTime(row["approved_at"] as String?)}'
-                          : 'Inactive',
+                          ? mobileUiFormat(context, "Active · approved {0}", [
+                              DateFormatters.formatDateTime(
+                                row["approved_at"] as String?,
+                              ),
+                            ])
+                          : mobileUi(context, 'Inactive'),
                     ),
                     onChanged: _saving
                         ? null
@@ -847,10 +938,10 @@ class _ContactPaymentSettingsPanelState
                 value: boostEnabled,
                 title: Text(
                   boostEnabled
-                      ? 'Featured campaign payment required'
-                      : 'Featured campaigns are free',
+                      ? mobileUi(context, 'Featured campaign payment required')
+                      : mobileUi(context, 'Featured campaigns are free'),
                 ),
-                subtitle: const Text(
+                subtitle: const LocalizedUiText(
                   'Controls payment for featured, homepage and top-of-search campaigns.',
                 ),
                 onChanged:
@@ -907,18 +998,22 @@ class _ContactPaymentOperationsPanelState
 
   Future<void> _refresh() async {
     final Future<List<Map<String, dynamic>>> next = _load();
-    setState(() => _future = next);
+    setState(() {
+      _future = next;
+    });
     await next;
   }
 
   @override
   Widget build(BuildContext context) {
     return ManagePanel(
-      title: "Contact payment operations",
-      subtitle:
-          "Monitor provider status, reconciliation, webhook delivery, and whether contact access was revealed.",
+      title: mobileUi(context, "Contact payment operations"),
+      subtitle: mobileUi(
+        context,
+        "Monitor provider status, reconciliation, webhook delivery, and whether contact access was revealed.",
+      ),
       action: IconButton(
-        tooltip: "Refresh payments",
+        tooltip: mobileUi(context, "Refresh payments"),
         onPressed: _refresh,
         icon: const Icon(Icons.refresh_rounded),
       ),
@@ -927,26 +1022,35 @@ class _ContactPaymentOperationsPanelState
         children: <Widget>[
           DropdownButton<String?>(
             value: _status,
-            hint: const Text("All payment statuses"),
+            hint: const LocalizedUiText("All payment statuses"),
             items: const <DropdownMenuItem<String?>>[
-              DropdownMenuItem<String?>(value: null, child: Text("All")),
+              DropdownMenuItem<String?>(
+                value: null,
+                child: LocalizedUiText("All"),
+              ),
               DropdownMenuItem<String?>(
                 value: "pending",
-                child: Text("Pending"),
+                child: LocalizedUiText("Pending"),
               ),
               DropdownMenuItem<String?>(
                 value: "processing",
-                child: Text("Processing"),
+                child: LocalizedUiText("Processing"),
               ),
-              DropdownMenuItem<String?>(value: "paid", child: Text("Paid")),
-              DropdownMenuItem<String?>(value: "failed", child: Text("Failed")),
+              DropdownMenuItem<String?>(
+                value: "paid",
+                child: LocalizedUiText("Paid"),
+              ),
+              DropdownMenuItem<String?>(
+                value: "failed",
+                child: LocalizedUiText("Failed"),
+              ),
               DropdownMenuItem<String?>(
                 value: "expired",
-                child: Text("Expired"),
+                child: LocalizedUiText("Expired"),
               ),
               DropdownMenuItem<String?>(
                 value: "cancelled",
-                child: Text("Cancelled"),
+                child: LocalizedUiText("Cancelled"),
               ),
             ],
             onChanged: (String? value) {
@@ -968,12 +1072,12 @@ class _ContactPaymentOperationsPanelState
                     return const LinearProgressIndicator();
                   }
                   if (snapshot.hasError) {
-                    return Text(userFacingError(snapshot.error!));
+                    return LocalizedUiText(userFacingError(snapshot.error!));
                   }
                   final List<Map<String, dynamic>> rows =
                       snapshot.data ?? <Map<String, dynamic>>[];
                   if (rows.isEmpty) {
-                    return const Text(
+                    return const LocalizedUiText(
                       "No contact-payment operations match this filter yet.",
                     );
                   }
@@ -990,9 +1094,23 @@ class _ContactPaymentOperationsPanelState
                         spacing: 8,
                         runSpacing: 8,
                         children: <Widget>[
-                          Chip(label: Text("${rows.length} loaded")),
-                          Chip(label: Text("$paid paid")),
-                          Chip(label: Text("$failed failed")),
+                          Chip(
+                            label: Text(
+                              mobileUiFormat(context, "{0} loaded", [
+                                rows.length,
+                              ]),
+                            ),
+                          ),
+                          Chip(
+                            label: Text(
+                              mobileUiFormat(context, "{0} paid", [paid]),
+                            ),
+                          ),
+                          Chip(
+                            label: Text(
+                              mobileUiFormat(context, "{0} failed", [failed]),
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),

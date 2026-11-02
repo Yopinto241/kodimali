@@ -1,6 +1,8 @@
 "use client";
+import { UiButton, UiDiv, UiInput, UiNav, UiText } from "@/components/ui-text";
 
 import Link from "next/link";
+import { EventRecoveryControls } from "@/components/event-recovery-controls";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
@@ -131,7 +133,6 @@ export function CustomerAccountPortal({
         const accepted = quotes.find((quote) => quote.status === "accepted");
         const total = Math.round(Number(accepted?.total_tzs ?? 0));
         const deposit = Math.floor((total * 25 + 50) / 100);
-        const balance = total - deposit;
         const paid = intents.filter(
           (intent) =>
             String(intent.resource_id) === String(plan.id) &&
@@ -147,8 +148,8 @@ export function CustomerAccountPortal({
           ...plan,
           payment_summary: {
             total,
-            depositRemaining: Math.max(0, deposit - paidDeposit),
-            balanceRemaining: Math.max(0, balance - paidBalance),
+            depositRemaining: Math.max(0, deposit - paidDeposit - paidBalance),
+            balanceRemaining: Math.max(0, total - paidDeposit - paidBalance - Math.max(0, deposit - paidDeposit - paidBalance)),
           },
         };
       }),
@@ -420,7 +421,7 @@ export function CustomerAccountPortal({
     else { setRecoveryMode(false); setPassword(""); setConfirmPassword(""); setMessage("Nenosiri limebadilishwa. Akaunti yako iko tayari."); }
   }
 
-  if (recoveryMode) return <section className="auth-panel surface-card p-5 sm:p-8"><p className="eyebrow">Usalama wa akaunti</p><h2 className="mt-2 font-heading text-2xl font-semibold">Weka nenosiri jipya</h2><form className="auth-form mt-6 grid max-w-xl gap-4" onSubmit={updateRecoveredPassword}><label className="grid gap-2 font-semibold">Nenosiri jipya<span className="password-field"><input className="field-input" type={showPassword ? "text" : "password"} minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} required/><button type="button" aria-label={showPassword ? "Ficha nenosiri" : "Onyesha nenosiri"} onClick={() => setShowPassword((value) => !value)}><PasswordVisibilityIcon visible={showPassword}/></button></span></label><label className="grid gap-2 font-semibold">Thibitisha nenosiri<span className="password-field"><input className="field-input" type={showPassword ? "text" : "password"} minLength={6} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required/><button type="button" aria-label={showPassword ? "Ficha nenosiri" : "Onyesha nenosiri"} onClick={() => setShowPassword((value) => !value)}><PasswordVisibilityIcon visible={showPassword}/></button></span></label><button className="btn btn-success" disabled={busy}>{busy ? "Subiri..." : "Hifadhi nenosiri"}</button>{message ? <p role="status">{message}</p> : null}</form></section>;
+  if (recoveryMode) return <section className="auth-panel surface-card p-5 sm:p-8"><p className="eyebrow"><UiText text={"Usalama wa akaunti"} /></p><h2 className="mt-2 font-heading text-2xl font-semibold"><UiText text={"Weka nenosiri jipya"} /></h2><form className="auth-form mt-6 grid max-w-xl gap-4" onSubmit={updateRecoveredPassword}><label className="grid gap-2 font-semibold"><UiText text={"Nenosiri jipya"} /><span className="password-field"><input className="field-input" type={showPassword ? "text" : "password"} minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} required/><UiButton type="button" aria-label={showPassword ? "Ficha nenosiri" : "Onyesha nenosiri"} onClick={() => setShowPassword((value) => !value)}><PasswordVisibilityIcon visible={showPassword}/></UiButton></span></label><label className="grid gap-2 font-semibold"><UiText text={"Thibitisha nenosiri"} /><span className="password-field"><input className="field-input" type={showPassword ? "text" : "password"} minLength={6} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required/><UiButton type="button" aria-label={showPassword ? "Ficha nenosiri" : "Onyesha nenosiri"} onClick={() => setShowPassword((value) => !value)}><PasswordVisibilityIcon visible={showPassword}/></UiButton></span></label><button className="btn btn-success" disabled={busy}><UiText text={busy ? "Subiri..." : "Hifadhi nenosiri"} /></button>{message ? <p role="status"><UiText text={message} /></p> : null}</form></section>;
 
   async function claimRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -446,17 +447,11 @@ export function CustomerAccountPortal({
       <section className="auth-panel surface-card p-5 sm:p-8">
         {accountKind === "owner" ? (
           <div className="mb-6 max-w-xl">
-            <h2 className="font-heading text-2xl font-semibold">
-              Create your secure login
-            </h2>
-            <p className="mt-2 text-sm text-muted">
-              After your email is confirmed, you will provide your owner type,
-              legal name, phone number, and explain your ownership or management
-              authority for administrator review.
-            </p>
+            <h2 className="font-heading text-2xl font-semibold"><UiText text={"Create your secure login"} /></h2>
+            <p className="mt-2 text-sm text-muted"><UiText text={"After your email is confirmed, you will provide your owner type, legal name, phone number, and explain your ownership or management authority for administrator review."} /></p>
           </div>
         ) : null}
-        <div
+        <UiDiv
           className="flex flex-wrap gap-2"
           role="tablist"
           aria-label="Customer account"
@@ -465,23 +460,17 @@ export function CustomerAccountPortal({
             className={`btn ${mode === "login" ? "btn-success" : "btn-outline"}`}
             onClick={() => setMode("login")}
             type="button"
-          >
-            Ingia
-          </button>
+          ><UiText text={"Ingia"} /></button>
           <button
             className={`btn ${mode === "register" ? "btn-success" : "btn-outline"}`}
             onClick={() => setMode("register")}
             type="button"
-          >
-            Jisajili
-          </button>
-        </div>
+          ><UiText text={"Jisajili"} /></button>
+        </UiDiv>
         <form className="auth-form mt-6 grid max-w-xl gap-4" onSubmit={submit}>
           {mode === "register" ? (
             <>
-              <label className="grid gap-2 font-semibold">
-                Jina kamili
-                <input
+              <label className="grid gap-2 font-semibold"><UiText text={"Jina kamili"} /><input
                   className="rounded-2xl border border-brand-border bg-white px-4 py-3"
                   autoComplete="name"
                   value={fullName}
@@ -489,9 +478,7 @@ export function CustomerAccountPortal({
                   required
                 />
               </label>
-              <label className="grid gap-2 font-semibold">
-                Namba ya simu
-                <input
+              <label className="grid gap-2 font-semibold"><UiText text={"Namba ya simu"} /><input
                   className="rounded-2xl border border-brand-border bg-white px-4 py-3"
                   type="tel"
                   autoComplete="tel"
@@ -502,9 +489,7 @@ export function CustomerAccountPortal({
               </label>
             </>
           ) : null}
-          <label className="grid gap-2 font-semibold">
-            Barua pepe
-            <input
+          <label className="grid gap-2 font-semibold"><UiText text={"Barua pepe"} /><input
               className="rounded-2xl border border-brand-border bg-white px-4 py-3"
               type="email"
               autoComplete="email"
@@ -513,9 +498,7 @@ export function CustomerAccountPortal({
               required
             />
           </label>
-          <label className="grid gap-2 font-semibold">
-            Nenosiri
-            <span className="password-field"><input
+          <label className="grid gap-2 font-semibold"><UiText text={"Nenosiri"} /><span className="password-field"><input
               className="rounded-2xl border border-brand-border bg-white px-4 py-3"
               type={showPassword ? "text" : "password"}
               autoComplete={
@@ -525,21 +508,21 @@ export function CustomerAccountPortal({
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
-            /><button type="button" aria-label={showPassword ? "Ficha nenosiri" : "Onyesha nenosiri"} onClick={() => setShowPassword((value) => !value)}><PasswordVisibilityIcon visible={showPassword}/></button></span>
+            /><UiButton type="button" aria-label={showPassword ? "Ficha nenosiri" : "Onyesha nenosiri"} onClick={() => setShowPassword((value) => !value)}><PasswordVisibilityIcon visible={showPassword}/></UiButton></span>
           </label>
-          {mode === "register" ? <label className="grid gap-2 font-semibold">Thibitisha nenosiri<span className="password-field"><input className="rounded-2xl border border-brand-border bg-white px-4 py-3" type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={6} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required/><button type="button" aria-label={showPassword ? "Ficha nenosiri" : "Onyesha nenosiri"} onClick={() => setShowPassword((value) => !value)}><PasswordVisibilityIcon visible={showPassword}/></button></span></label> : null}
-          {mode === "login" ? <button className="auth-forgot-link" type="button" disabled={busy} onClick={() => void sendPasswordReset()}>Umesahau nenosiri?</button> : null}
+          {mode === "register" ? <label className="grid gap-2 font-semibold"><UiText text={"Thibitisha nenosiri"} /><span className="password-field"><input className="rounded-2xl border border-brand-border bg-white px-4 py-3" type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={6} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required/><UiButton type="button" aria-label={showPassword ? "Ficha nenosiri" : "Onyesha nenosiri"} onClick={() => setShowPassword((value) => !value)}><PasswordVisibilityIcon visible={showPassword}/></UiButton></span></label> : null}
+          {mode === "login" ? <button className="auth-forgot-link" type="button" disabled={busy} onClick={() => void sendPasswordReset()}><UiText text={"Umesahau nenosiri?"} /></button> : null}
           <button className="btn btn-success" disabled={busy}>
-            {busy ? "Subiri..." : mode === "login" ? "Ingia" : "Fungua akaunti"}
+            <UiText text={busy ? "Subiri..." : mode === "login" ? "Ingia" : "Fungua akaunti"} />
           </button>
           <p className="text-sm text-muted">
-            {mode === "login" ? "Huna akaunti?" : "Tayari una akaunti?"}{" "}
+            <UiText text={mode === "login" ? "Huna akaunti?" : "Tayari una akaunti?"} />{" "}
             <button
               className="font-semibold text-brand-navy underline"
               type="button"
               onClick={() => setMode(mode === "login" ? "register" : "login")}
             >
-              {mode === "login" ? "Jisajili hapa" : "Ingia hapa"}
+              <UiText text={mode === "login" ? "Jisajili hapa" : "Ingia hapa"} />
             </button>
           </p>
         </form>
@@ -548,7 +531,7 @@ export function CustomerAccountPortal({
             className="mt-4 rounded-2xl bg-brand-info-soft p-4 text-sm text-brand-navy"
             role="status"
           >
-            {message}
+            <UiText text={message} />
           </p>
         ) : null}
       </section>
@@ -561,7 +544,7 @@ export function CustomerAccountPortal({
         <div className="flex min-w-0 items-center gap-3">
           <span className="account-avatar" aria-hidden="true">{(user.email?.[0] ?? "K").toUpperCase()}</span>
           <div className="min-w-0">
-            <h1 className="truncate text-2xl font-bold">Akaunti Yangu</h1>
+            <h1 className="truncate text-2xl font-bold"><UiText text={"Akaunti Yangu"} /></h1>
             <p className="mt-0.5 truncate text-sm text-muted">{user.email}</p>
           </div>
         </div>
@@ -569,20 +552,18 @@ export function CustomerAccountPortal({
           className="btn btn-outline"
           type="button"
           onClick={() => void supabase.auth.signOut()}
-        >
-          Toka
-        </button>
+        ><UiText text={"Toka"} /></button>
       </div>
-      <nav className="account-section-nav mt-5" aria-label="Account sections">
+      <UiNav className="account-section-nav mt-5" aria-label="Account sections">
         {[
-          ["overview", "Muhtasari"], ["bookings", "Booking"], ["chats", "Chat"],
+          ["overview", "Muhtasari"], ["information", "Taarifa Zangu"], ["bookings", "Booking"], ["chats", "Chat"],
           ["invitations", "Mialiko"], ["events", "Matukio"], ["activity", "Shughuli"], ["settings", "Mipangilio"],
-        ].map(([key, label]) => <Link key={key} href={`/account?section=${key}`} className={section === key ? "active" : ""}>{label}</Link>)}
-      </nav>
+        ].map(([key, label]) => <Link key={key} href={`/account?section=${key}`} className={section === key ? "active" : ""}><UiText text={label} /></Link>)}
+      </UiNav>
       <div data-account-group="overview" className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <AccountAction href="/toa-taarifa" title="Toa Taarifa" />
         <AccountAction
-          href="/toa-taarifa#taarifa-zangu"
+          href="/account?section=information"
           title="Taarifa Zangu"
         />
         <AccountAction href="/listings" title="Tafuta Mali" />
@@ -594,9 +575,7 @@ export function CustomerAccountPortal({
         className="soft-panel mt-6 flex flex-col gap-3 p-4 sm:flex-row"
         onSubmit={claimRequest}
       >
-        <label className="grid flex-1 gap-2 font-semibold">
-          Connect an earlier guest request
-          <input
+        <label className="grid flex-1 gap-2 font-semibold"><UiText text={"Connect an earlier guest request"} /><UiInput
             className="rounded-2xl border border-brand-border bg-white px-4 py-3"
             placeholder="Request reference"
             value={claimReference}
@@ -604,21 +583,17 @@ export function CustomerAccountPortal({
             required
           />
         </label>
-        <button className="btn btn-success self-end" disabled={busy}>
-          Connect
-        </button>
+        <button className="btn btn-success self-end" disabled={busy}><UiText text={"Connect"} /></button>
       </form>
       {message ? (
         <p
           className="mt-4 rounded-2xl bg-brand-info-soft p-4 text-sm text-brand-navy"
           role="status"
         >
-          {message}
+          <UiText text={message} />
         </p>
       ) : null}
-      <label data-account-group="bookings events" className="mt-6 max-w-md gap-2 font-semibold">
-        Namba ya simu ya malipo
-        <input
+      <label data-account-group="bookings events" className="mt-6 max-w-md gap-2 font-semibold"><UiText text={"Namba ya simu ya malipo"} /><UiInput
           className="field-input"
           type="tel"
           inputMode="tel"
@@ -626,17 +601,13 @@ export function CustomerAccountPortal({
           value={paymentPhone}
           onChange={(event) => setPaymentPhone(event.target.value)}
         />
-        <span className="text-xs font-normal text-muted">
-          SonicPesa itatuma ombi la kuthibitisha malipo kwenye namba hii.
-        </span>
+        <span className="text-xs font-normal text-muted"><UiText text={"SonicPesa itatuma ombi la kuthibitisha malipo kwenye namba hii."} /></span>
       </label>
       <div data-account-group="bookings" className="mt-8">
-        <h2 className="font-heading text-2xl font-semibold">
-          Miadi na Booking Zangu
-        </h2>
+        <h2 className="font-heading text-2xl font-semibold"><UiText text={"Miadi na Booking Zangu"} /></h2>
         <div className="mt-4 grid gap-3">
           {bookings.length === 0 ? (
-            <p className="text-muted">Hakuna booking.</p>
+            <p className="text-muted"><UiText text={"Hakuna booking."} /></p>
           ) : (
             bookings.map((booking) => (
               <article className="soft-panel p-4" key={booking.id}>
@@ -651,14 +622,13 @@ export function CustomerAccountPortal({
                     </p>
                   </div>
                   <span className="rounded-full bg-brand-green-soft px-3 py-1 text-sm font-semibold text-brand-navy">
-                    {booking.booking_status.replaceAll("_", " ")}
+                    <UiText text={booking.booking_status.replaceAll("_", " ")} />
                   </span>
                 </div>
-                <p className="mt-3 text-sm text-muted">
-                  Assigned agent: {assignedAgentName(booking)}
+                <p className="mt-3 text-sm text-muted"><UiText text={"Assigned agent:"} />{assignedAgentName(booking)}
                 </p>
                 <p className="mt-2 rounded-xl bg-brand-green-soft px-3 py-2 text-sm font-semibold text-brand-navy">
-                  {booking.booking_status === "completed"
+                  <UiText text={booking.booking_status === "completed"
                     ? "Imekamilika: huduma au upangishaji umethibitishwa kuwa umefanyika."
                     : booking.booking_payment_transactions?.[0]?.status ===
                         "paid"
@@ -669,15 +639,13 @@ export function CustomerAccountPortal({
                           ? "Imekubaliwa. Lipa sasa ili kuhifadhi booking yako."
                           : booking.accepted_at
                             ? "Imekubaliwa; upatikanaji na hatua ya malipo vinaandaliwa."
-                            : "Imetumwa. Inasubiri agent aikubali na kuthibitisha upatikanaji."}
+                            : "Imetumwa. Inasubiri agent aikubali na kuthibitisha upatikanaji."} />
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Link
                     className="btn btn-outline"
                     href={`/account/request/${booking.id}`}
-                  >
-                    Track and chat
-                  </Link>
+                  ><UiText text={"Track and chat"} /></Link>
                   {booking.requested_start_at &&
                   booking.requested_end_at &&
                   booking.booking_payment_transactions?.[0]?.status !==
@@ -690,9 +658,7 @@ export function CustomerAccountPortal({
                       onClick={() =>
                         void pay("booking_reservation", booking.id)
                       }
-                    >
-                      Lipa na uhifadhi
-                    </button>
+                    ><UiText text={"Lipa na uhifadhi"} /></button>
                   ) : null}
                 </div>
               </article>
@@ -701,29 +667,23 @@ export function CustomerAccountPortal({
         </div>
       </div>
       <section data-account-group="invitations" className="mt-8">
-        <h2 className="font-heading text-2xl font-semibold">
-          Rental connection
-        </h2>
+        <h2 className="font-heading text-2xl font-semibold"><UiText text={"Rental connection"} /></h2>
         <form
           className="soft-panel mt-4 flex flex-col gap-3 p-4 sm:flex-row"
           onSubmit={acceptTenantInvitation}
         >
-          <label className="grid flex-1 gap-2 font-semibold">
-            Private invitation token
-            <input
+          <label className="grid flex-1 gap-2 font-semibold"><UiText text={"Private invitation token"} /><input
               className="field-input"
               value={tenantToken}
               onChange={(event) => setTenantToken(event.target.value)}
               required
             />
           </label>
-          <button className="btn btn-success self-end" disabled={busy}>
-            Accept owner invitation
-          </button>
+          <button className="btn btn-success self-end" disabled={busy}><UiText text={"Accept owner invitation"} /></button>
         </form>
         <div className="mt-4 grid gap-3">
           {rentalAgreements.length === 0 ? (
-            <p className="text-muted">No rental agreements found.</p>
+            <p className="text-muted"><UiText text={"No rental agreements found."} /></p>
           ) : (
             rentalAgreements.map((agreement) => (
               <article className="soft-panel p-4" key={String(agreement.id)}>
@@ -739,7 +699,7 @@ export function CustomerAccountPortal({
                   {String(agreement.rent_period)}
                 </p>
                 <p className="mt-2 text-sm font-semibold">
-                  {String(agreement.status).replaceAll("_", " ")}
+                  <UiText text={String(agreement.status).replaceAll("_", " ")} />
                 </p>
                 {agreement.status === "pending_tenant" ? (
                   <button
@@ -748,9 +708,7 @@ export function CustomerAccountPortal({
                     onClick={() =>
                       void acceptRentalAgreement(String(agreement.id))
                     }
-                  >
-                    Accept agreement
-                  </button>
+                  ><UiText text={"Accept agreement"} /></button>
                 ) : null}
               </article>
             ))
@@ -760,23 +718,17 @@ export function CustomerAccountPortal({
       <section data-account-group="events" className="mt-8" id="event-plans">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="font-heading text-2xl font-semibold">
-              Booking za kifaa na huduma
-            </h2>
-            <p className="mt-1 text-sm text-muted">
-              Maombi ya kifaa kimoja au mtaalamu mmoja.
-            </p>
+            <h2 className="font-heading text-2xl font-semibold"><UiText text={"Booking za kifaa na huduma"} /></h2>
+            <p className="mt-1 text-sm text-muted"><UiText text={"Maombi ya kifaa kimoja au mtaalamu mmoja."} /></p>
           </div>
           <Link
             href="/events#individual-marketplace"
             className="btn btn-outline"
-          >
-            Tafuta huduma
-          </Link>
+          ><UiText text={"Tafuta huduma"} /></Link>
         </div>
         <div className="mt-4 grid gap-3">
           {individualEventBookings.length === 0 ? (
-            <p className="text-muted">Bado huna booking ya Events.</p>
+            <p className="text-muted"><UiText text={"Bado huna booking ya Events."} /></p>
           ) : (
             individualEventBookings.map((booking) => {
               const item = booking.event_plan_items as Record<
@@ -815,7 +767,7 @@ export function CustomerAccountPortal({
                       </p>
                     </div>
                     <span className="rounded-full bg-brand-green-soft px-3 py-1 text-sm font-semibold">
-                      {String(booking.status).replaceAll("_", " ")}
+                      <UiText text={String(booking.status).replaceAll("_", " ")} />
                     </span>
                   </div>
                   <p className="mt-3 text-sm text-muted">
@@ -823,18 +775,17 @@ export function CustomerAccountPortal({
                     {period[1]
                       ? ` — ${new Date(period[1]).toLocaleString()}`
                       : ""}
-                    {booking.requested_quantity
+                    <UiText text={booking.requested_quantity
                       ? ` · Idadi ${String(booking.requested_quantity)}`
-                      : ""}
+                      : ""} />
                   </p>
                   {booking.quoted_amount_tzs != null ? (
                     <p className="mt-2 font-semibold">
                       TZS {Number(booking.quoted_amount_tzs).toLocaleString()}
                     </p>
                   ) : null}
-                  <p className="mt-2 text-sm">
-                    Malipo:{" "}
-                    {String(booking.payment_status).replaceAll("_", " ")}
+                  <p className="mt-2 text-sm"><UiText text={"Malipo:"} />{" "}
+                    <UiText text={String(booking.payment_status).replaceAll("_", " ")} />
                   </p>
                   {booking.provider_response ? (
                     <p className="mt-2 text-sm text-muted">
@@ -850,20 +801,14 @@ export function CustomerAccountPortal({
       <section data-account-group="events" className="mt-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="font-heading text-2xl font-semibold">
-              Sherehe na Matukio
-            </h2>
-            <p className="mt-1 text-sm text-muted">
-              Mipango, provider confirmations na quotations zako.
-            </p>
+            <h2 className="font-heading text-2xl font-semibold"><UiText text={"Sherehe na Matukio"} /></h2>
+            <p className="mt-1 text-sm text-muted"><UiText text={"Mipango, provider confirmations na quotations zako."} /></p>
           </div>
-          <Link href="/events#plan-event" className="btn btn-outline">
-            Panga tukio
-          </Link>
+          <Link href="/events/plan" className="btn btn-outline"><UiText text={"Panga tukio"} /></Link>
         </div>
         <div className="mt-4 grid gap-3">
           {eventPlans.length === 0 ? (
-            <p className="text-muted">Bado huna mpango wa tukio.</p>
+            <p className="text-muted"><UiText text={"Bado huna mpango wa tukio."} /></p>
           ) : (
             eventPlans.map((plan) => {
               const quotes =
@@ -888,37 +833,32 @@ export function CustomerAccountPortal({
                         {String(plan.title ?? plan.reference)}
                       </p>
                       <p className="mt-1 text-sm text-muted">
-                        {String(plan.reference)} · Wageni{" "}
+                        {String(plan.reference)}<UiText text={" · Wageni"} />{" "}
                         {String(plan.attendance)}
                       </p>
                     </div>
                     <span className="rounded-full bg-brand-green-soft px-3 py-1 text-sm font-semibold">
-                      {String(plan.status).replaceAll("_", " ")}
+                      <UiText text={String(plan.status).replaceAll("_", " ")} />
                     </span>
                   </div>
                   {sent ? (
                     <div className="mt-4 rounded-2xl border border-brand-border p-4">
-                      <p className="font-semibold">
-                        Quotation #{String(sent.revision)} · TZS{" "}
+                      <p className="font-semibold"><UiText text={"Quotation #"} />{String(sent.revision)} · TZS{" "}
                         {Number(sent.total_tzs ?? 0).toLocaleString()}
                       </p>
-                      <p className="mt-1 text-sm text-muted">
-                        Inaisha:{" "}
+                      <p className="mt-1 text-sm text-muted"><UiText text={"Inaisha:"} />{" "}
                         {new Date(String(sent.expires_at)).toLocaleString()}
                       </p>
                       <button
                         className="btn btn-success mt-3"
                         disabled={busy}
                         onClick={() => void acceptEventQuote(String(sent.id))}
-                      >
-                        Kubali quotation
-                      </button>
+                      ><UiText text={"Kubali quotation"} /></button>
                     </div>
                   ) : null}
                   {agreement ? (
                     <div className="mt-4 rounded-2xl border border-brand-border p-4">
-                      <p className="font-semibold">
-                        Makubaliano ya mwisho · Version{" "}
+                      <p className="font-semibold"><UiText text={"Makubaliano ya mwisho · Version"} />{" "}
                         {String(agreement.version)}
                       </p>
                       <p className="mt-2 whitespace-pre-line text-sm text-muted">
@@ -930,25 +870,20 @@ export function CustomerAccountPortal({
                         onClick={() =>
                           void acceptEventAgreement(String(agreement.id))
                         }
-                      >
-                        Kubali makubaliano
-                      </button>
+                      ><UiText text={"Kubali makubaliano"} /></button>
                     </div>
                   ) : null}
+                  <EventRecoveryControls planId={String(plan.id)} status={String(plan.status)} onChange={async () => { await Promise.all([loadEventPlans(), loadIndividualEventBookings()]); }} />
                   {plan.status === "payment_pending" ? (
                     <button
                       className="btn btn-success mt-4"
                       disabled={busy}
                       onClick={() => void pay("event_deposit", String(plan.id))}
-                    >
-                      Lipa deposit na thibitisha tukio
-                    </button>
+                    ><UiText text={"Lipa deposit na thibitisha tukio"} /></button>
                   ) : null}
                   {Number(payment.total ?? 0) > 0 ? (
-                    <p className="mt-3 text-sm font-semibold text-brand-navy">
-                      Deposit iliyobaki: TZS{" "}
-                      {Number(payment.depositRemaining ?? 0).toLocaleString()} ·
-                      Balance: TZS{" "}
+                    <p className="mt-3 text-sm font-semibold text-brand-navy"><UiText text={"Deposit iliyobaki: TZS"} />{" "}
+                      {Number(payment.depositRemaining ?? 0).toLocaleString()}<UiText text={" · Balance: TZS"} />{" "}
                       {Number(payment.balanceRemaining ?? 0).toLocaleString()}
                     </p>
                   ) : null}
@@ -959,18 +894,14 @@ export function CustomerAccountPortal({
                       className="btn btn-success mt-4"
                       disabled={busy}
                       onClick={() => void pay("event_balance", String(plan.id))}
-                    >
-                      Lipa balance
-                    </button>
+                    ><UiText text={"Lipa balance"} /></button>
                   ) : null}
                   {!sent &&
                   !agreement &&
                   !["confirmed", "payment_pending"].includes(
                     String(plan.status),
                   ) ? (
-                    <p className="mt-3 text-sm text-muted">
-                      Quotation au makubaliano bado yanaandaliwa.
-                    </p>
+                    <p className="mt-3 text-sm text-muted"><UiText text={"Quotation au makubaliano bado yanaandaliwa."} /></p>
                   ) : null}
                 </article>
               );
@@ -980,10 +911,10 @@ export function CustomerAccountPortal({
       </section>
       <section data-account-group="chats" className="mt-8">
         <div className="flex items-end justify-between gap-3">
-          <div><h2 className="text-2xl font-bold">Chat Zangu</h2><p className="mt-1 text-sm text-muted">Mazungumzo yako na mawakala wa listings.</p></div>
+          <div><h2 className="text-2xl font-bold"><UiText text={"Chat Zangu"} /></h2><p className="mt-1 text-sm text-muted"><UiText text={"Mazungumzo yako na mawakala wa listings."} /></p></div>
         </div>
         <div className="mt-4 grid gap-2">
-          {conversations.length === 0 ? <p className="account-empty">Huna chat kwa sasa.</p> : conversations.map((chat) => (
+          {conversations.length === 0 ? <p className="account-empty"><UiText text={"Huna chat kwa sasa."} /></p> : conversations.map((chat) => (
             <Link className="account-chat-row" href={`/account/chat/${String(chat.id)}`} key={String(chat.id)}>
               <span className="account-chat-avatar">{String(chat.agent_name ?? "A").slice(0,1).toUpperCase()}</span>
               <span className="min-w-0 flex-1"><strong className="block truncate">{String(chat.agent_name ?? "Wakala")}</strong><small className="block truncate text-muted">{String(chat.listing_title ?? "Listing")}</small></span>
@@ -992,11 +923,8 @@ export function CustomerAccountPortal({
           ))}
         </div>
       </section>
-      <p data-account-group="settings" className="mt-6 text-sm text-muted">
-        Need to remove your account?{" "}
-        <Link className="font-semibold underline" href="/delete-account">
-          Open account deletion
-        </Link>
+      <p data-account-group="settings" className="mt-6 text-sm text-muted"><UiText text={"Need to remove your account?"} />{" "}
+        <Link className="font-semibold underline" href="/delete-account"><UiText text={"Open account deletion"} /></Link>
         .
       </p>
     </section>
@@ -1010,7 +938,7 @@ function AccountAction({ href, title }: { href: string; title: string }) {
       className="account-action flex items-center gap-3 p-3.5"
     >
       <span className="account-action-icon" aria-hidden="true"><AccountActionIcon title={title} /></span>
-      <p className="font-semibold">{title}</p>
+      <p className="font-semibold"><UiText text={title} /></p>
       <span className="ml-auto text-xl text-[#8e9aa3]">›</span>
     </Link>
   );

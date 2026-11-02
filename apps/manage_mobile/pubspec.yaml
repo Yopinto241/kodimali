@@ -38,6 +38,7 @@ dependencies:
   video_player: ^2.10.0
 
 dev_dependencies:
+  http: ^1.6.0
   flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter_design_system/flutter_design_system.dart';
 
 class KodimaliStatusChip extends StatelessWidget {
@@ -15,14 +16,29 @@ class KodimaliStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final inferred = _inferTone(label);
     return KodimaliStatusBadge(
-      label: label,
-      tone: tone ?? (highlight ? KodimaliStatusTone.active : _inferTone(label)),
+      label: mobileUi(context, label.replaceAll('_', ' ')),
+      tone:
+          tone ??
+          (highlight && inferred == KodimaliStatusTone.info
+              ? KodimaliStatusTone.active
+              : inferred),
     );
   }
 
   KodimaliStatusTone _inferTone(String rawLabel) {
     final String normalized = rawLabel.toLowerCase();
+    if (normalized.contains('inactive') ||
+        normalized.contains('unavailable') ||
+        normalized.contains('expired') ||
+        normalized.contains('draft') ||
+        normalized.contains('archived')) {
+      return KodimaliStatusTone.muted;
+    }
+    if (normalized.contains('unverified')) {
+      return KodimaliStatusTone.pending;
+    }
     if (normalized.contains("active") ||
         normalized.contains("verified") ||
         normalized.contains("approved") ||

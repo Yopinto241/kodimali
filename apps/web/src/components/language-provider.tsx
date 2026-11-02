@@ -65,19 +65,24 @@ type MessageKey = keyof typeof messages.sw;
 type LanguageContextValue = { language: AppLanguage; setLanguage: (language: AppLanguage) => void; t: (key: MessageKey) => string };
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<AppLanguage>("sw");
+export function LanguageProvider({ children, initialLanguage = "sw" }: { children: ReactNode; initialLanguage?: AppLanguage }) {
+  const [language, setLanguageState] = useState<AppLanguage>(initialLanguage);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("kodimali-language");
-    const next: AppLanguage = saved === "en" ? "en" : "sw";
+    const task = window.setTimeout(() => {
+    let saved: string | null = null;
+    try { saved = window.localStorage.getItem("kodimali-language"); } catch { /* Language still works when storage is blocked. */ }
+    const next: AppLanguage = saved === "en" ? "en" : saved === "sw" ? "sw" : initialLanguage;
     setLanguageState(next);
     document.documentElement.lang = next;
-  }, []);
+    document.cookie = `kodimali_language=${next};path=/;max-age=31536000;samesite=lax`;
+    }, 0);
+    return () => window.clearTimeout(task);
+  }, [initialLanguage]);
 
   function setLanguage(next: AppLanguage) {
     setLanguageState(next);
-    window.localStorage.setItem("kodimali-language", next);
+    try { window.localStorage.setItem("kodimali-language", next); } catch { /* Keep the in-memory language choice. */ }
     document.cookie = `kodimali_language=${next};path=/;max-age=31536000;samesite=lax`;
     document.documentElement.lang = next;
   }

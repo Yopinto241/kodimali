@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_design_system/flutter_design_system.dart';
 import 'package:go_router/go_router.dart';
@@ -18,6 +19,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _identifierController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _submitting = false;
+  String? _message;
+  final _messageKey = GlobalKey();
 
   @override
   void dispose() {
@@ -31,7 +34,11 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
     final dependencies = AppScope.of(context);
-    setState(() => _submitting = true);
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _submitting = true;
+      _message = null;
+    });
     try {
       await dependencies.controller.signIn(
         identifier: _identifierController.text.trim(),
@@ -41,9 +48,13 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(userFacingError(error))));
+      setState(() => _message = userFacingError(error));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final messageContext = _messageKey.currentContext;
+        if (mounted && messageContext != null) {
+          Scrollable.ensureVisible(messageContext, alignment: .3);
+        }
+      });
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
@@ -54,6 +65,9 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final messageBackground = Color(dark ? 0xFF402427 : 0xFFFFF1EE);
+    final messageForeground = Color(dark ? 0xFFFFE3E0 : 0xFF722B24);
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -95,7 +109,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: KodimaliSpacing.sm),
                         Text(
-                          context.isSwahili ? "Karibu tena" : "Welcome back",
+                          context.isSwahili
+                              ? mobileUi(context, "Karibu tena")
+                              : mobileUi(context, "Welcome back"),
                           style: theme.textTheme.headlineSmall?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.w800,
@@ -104,8 +120,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: KodimaliSpacing.xs),
                         Text(
                           context.isSwahili
-                              ? "Ingia kwenye KODIMALI Manage App ya wakala, mmiliki au admin."
-                              : "Sign in to the KODIMALI Manage App as an agent, owner, or administrator.",
+                              ? mobileUi(
+                                  context,
+                                  "Ingia kwenye KODIMALI Manage App ya wakala, mmiliki au admin.",
+                                )
+                              : mobileUi(
+                                  context,
+                                  "Sign in to the KODIMALI Manage App as an agent, owner, or administrator.",
+                                ),
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: Colors.white.withValues(alpha: 0.9),
                           ),
@@ -122,28 +144,103 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
+                            if (_message != null) ...[
+                              Semantics(
+                                key: _messageKey,
+                                liveRegion: true,
+                                child: Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: messageBackground,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Color(
+                                        dark ? 0xFFE49A91 : 0xFF963D32,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        Icons.error_outline,
+                                        color: messageForeground,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: LocalizedUiText(
+                                          _message!,
+                                          style: theme.textTheme.bodyLarge
+                                              ?.copyWith(
+                                                color: messageForeground,
+                                                fontSize: 16,
+                                                height: 1.5,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                            ],
                             Text(
                               context.isSwahili
-                                  ? "Tumia jina la mtumiaji, namba ya simu au barua pepe pamoja na nenosiri lako. Mfumo utafungua sehemu sahihi ya kazi."
-                                  : "Use your username, phone number, or email with your password. The correct workspace will open automatically.",
-                              style: theme.textTheme.bodyMedium,
+                                  ? mobileUi(
+                                      context,
+                                      "Tumia jina la mtumiaji, namba ya simu au barua pepe pamoja na nenosiri lako. Mfumo utafungua sehemu sahihi ya kazi.",
+                                    )
+                                  : mobileUi(
+                                      context,
+                                      "Use your username, phone number, or email with your password. The correct workspace will open automatically.",
+                                    ),
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurface,
+                                height: 1.5,
+                              ),
                             ),
                             const SizedBox(height: KodimaliSpacing.lg),
                             TextFormField(
                               controller: _identifierController,
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                color: theme.colorScheme.onSurface,
+                              ),
                               decoration: InputDecoration(
+                                helperMaxLines: 3,
+                                errorMaxLines: 4,
                                 labelText: context.isSwahili
-                                    ? "Jina la mtumiaji, simu au barua pepe"
-                                    : "Username, phone, or email",
+                                    ? mobileUi(
+                                        context,
+                                        "Jina la mtumiaji, simu au barua pepe",
+                                      )
+                                    : mobileUi(
+                                        context,
+                                        "Username, phone, or email",
+                                      ),
                                 helperText: context.isSwahili
-                                    ? "Tumia njia yoyote kati ya hizo."
-                                    : "Use any one of these identifiers.",
+                                    ? mobileUi(
+                                        context,
+                                        "Tumia njia yoyote kati ya hizo.",
+                                      )
+                                    : mobileUi(
+                                        context,
+                                        "Use any one of these identifiers.",
+                                      ),
                               ),
                               validator: (String? value) {
                                 if (value == null || value.trim().isEmpty) {
                                   return context.isSwahili
-                                      ? "Weka jina la mtumiaji, simu au barua pepe."
-                                      : "Enter your username, phone, or email.";
+                                      ? mobileUi(
+                                          context,
+                                          "Weka jina la mtumiaji, simu au barua pepe.",
+                                        )
+                                      : mobileUi(
+                                          context,
+                                          "Enter your username, phone, or email.",
+                                        );
                                 }
                                 return null;
                               },
@@ -151,20 +248,34 @@ class _LoginScreenState extends State<LoginScreen> {
                             const SizedBox(height: KodimaliSpacing.md),
                             TextFormField(
                               controller: _passwordController,
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                color: theme.colorScheme.onSurface,
+                              ),
                               obscureText: true,
                               decoration: InputDecoration(
+                                helperMaxLines: 3,
+                                errorMaxLines: 4,
                                 labelText: context.isSwahili
-                                    ? "Nenosiri"
-                                    : "Password",
+                                    ? mobileUi(context, "Nenosiri")
+                                    : mobileUi(context, "Password"),
                                 helperText: context.isSwahili
-                                    ? "Angalau herufi 6."
-                                    : "At least 6 characters.",
+                                    ? mobileUi(context, "Angalau herufi 6.")
+                                    : mobileUi(
+                                        context,
+                                        "At least 6 characters.",
+                                      ),
                               ),
                               validator: (String? value) {
                                 if (value == null || value.length < 6) {
                                   return context.isSwahili
-                                      ? "Nenosiri liwe angalau herufi 6."
-                                      : "Password must have at least 6 characters.";
+                                      ? mobileUi(
+                                          context,
+                                          "Nenosiri liwe angalau herufi 6.",
+                                        )
+                                      : mobileUi(
+                                          context,
+                                          "Password must have at least 6 characters.",
+                                        );
                                 }
                                 return null;
                               },
@@ -176,8 +287,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 onPressed: () => context.go("/forgot-password"),
                                 child: Text(
                                   context.isSwahili
-                                      ? "Umesahau nenosiri?"
-                                      : "Forgot password?",
+                                      ? mobileUi(context, "Umesahau nenosiri?")
+                                      : mobileUi(context, "Forgot password?"),
                                 ),
                               ),
                             ),
@@ -189,11 +300,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                 child: Text(
                                   _submitting
                                       ? (context.isSwahili
-                                            ? "Inaingia..."
-                                            : "Signing in...")
+                                            ? mobileUi(context, "Inaingia...")
+                                            : mobileUi(
+                                                context,
+                                                "Signing in...",
+                                              ))
                                       : (context.isSwahili
-                                            ? "Ingia"
-                                            : "Sign in"),
+                                            ? mobileUi(context, "Ingia")
+                                            : mobileUi(context, "Sign in")),
                                 ),
                               ),
                             ),
@@ -206,8 +320,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                     : () => context.go('/register-owner'),
                                 child: Text(
                                   context.isSwahili
-                                      ? 'Jisajili kama mmiliki au meneja'
-                                      : 'Register as an owner or manager',
+                                      ? mobileUi(
+                                          context,
+                                          'Jisajili kama mmiliki au meneja',
+                                        )
+                                      : mobileUi(
+                                          context,
+                                          'Register as an owner or manager',
+                                        ),
                                 ),
                               ),
                             ),
@@ -220,8 +340,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                     : () => context.go("/register-agent"),
                                 child: Text(
                                   context.isSwahili
-                                      ? "Jisajili kama wakala"
-                                      : "Register as an agent",
+                                      ? mobileUi(
+                                          context,
+                                          "Jisajili kama wakala",
+                                        )
+                                      : mobileUi(
+                                          context,
+                                          "Register as an agent",
+                                        ),
                                 ),
                               ),
                             ),

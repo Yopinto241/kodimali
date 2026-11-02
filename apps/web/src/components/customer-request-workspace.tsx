@@ -1,4 +1,5 @@
 "use client";
+import { UiInput, UiText } from "@/components/ui-text";
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
@@ -298,9 +299,9 @@ export function CustomerRequestWorkspace({
   if (!booking) {
     return (
       <section className="surface-card p-6 sm:p-8">
-        <p className="section-copy">{notice}</p>
+        <p className="section-copy"><UiText text={notice} /></p>
         <Link className="btn btn-outline mt-5" href="/account">
-          {sw ? "Rudi kwenye akaunti" : "Back to account"}
+          <UiText text={sw ? "Rudi kwenye akaunti" : "Back to account"} />
         </Link>
       </section>
     );
@@ -328,7 +329,7 @@ export function CustomerRequestWorkspace({
     <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
       <div className="space-y-6">
         <section className="surface-card p-6">
-          <p className="eyebrow">Request {String(booking.request_reference)}</p>
+          <p className="eyebrow"><UiText text={"Request "} />{String(booking.request_reference)}</p>
           <h1 className="mt-3 font-heading text-3xl font-semibold">
             {String(listing?.title ?? "Rental request")}
           </h1>
@@ -337,15 +338,14 @@ export function CustomerRequestWorkspace({
           </p>
           <div className="soft-panel mt-5 p-4">
             <p className="text-sm text-muted">
-              {sw ? "Wakala anayehudumia" : "Assigned agent"}
+              <UiText text={sw ? "Wakala anayehudumia" : "Assigned agent"} />
             </p>
             <p className="mt-1 font-semibold">
               {String(
                 agent?.display_name ?? agent?.business_name ?? booking.agent_id,
               )}
             </p>
-            <p className="mt-2 text-sm text-muted">
-              Status: {String(booking.booking_status).replaceAll("_", " ")}
+            <p className="mt-2 text-sm text-muted"><UiText text={"Status:"} /><UiText text={String(booking.booking_status).replaceAll("_", " ")} />
             </p>
           </div>
           <div className="mt-5 grid gap-2 text-sm">
@@ -367,30 +367,25 @@ export function CustomerRequestWorkspace({
         </section>
         {terms ? (
           <section className="surface-card p-6">
-            <p className="eyebrow">{sw ? "Muhtasari wa malipo" : "Payment summary"}</p>
-            <h2 className="mt-2 font-heading text-2xl font-semibold">{sw ? "Bei iliyokubaliwa" : "Agreed price"}</h2>
+            <p className="eyebrow"><UiText text={sw ? "Muhtasari wa malipo" : "Payment summary"} /></p>
+            <h2 className="mt-2 font-heading text-2xl font-semibold"><UiText text={sw ? "Bei iliyokubaliwa" : "Agreed price"} /></h2>
             <div className="mt-4 grid gap-3 text-sm">
               <MoneyRow label={sw ? "Jumla" : "Total"} value={Number(terms.agreed_total_minor)} />
               <MoneyRow label={sw ? "Deposit ya kulipa sasa (25%)" : "Deposit due now (25%)"} value={Number(terms.deposit_minor)} />
               <MoneyRow label={sw ? "Salio la kulipa baadaye (75%)" : "Balance due later (75%)"} value={Number(terms.balance_minor)} />
-              {terms.balance_due_at ? <p className="text-muted">{sw ? "Mwisho wa kulipa salio" : "Balance deadline"}: {new Date(String(terms.balance_due_at)).toLocaleString()}</p> : null}
-              <p className="text-muted">{sw ? "Toleo la makubaliano" : "Agreement version"}: {String(terms.agreement_version)}</p>
+              {terms.balance_due_at ? <p className="text-muted"><UiText text={sw ? "Mwisho wa kulipa salio" : "Balance deadline"} />: {new Date(String(terms.balance_due_at)).toLocaleString()}</p> : null}
+              <p className="text-muted"><UiText text={sw ? "Toleo la makubaliano" : "Agreement version"} />: {String(terms.agreement_version)}</p>
             </div>
           </section>
         ) : null}
         {canReserve ? (
           <section className="surface-card p-6">
-            <p className="eyebrow">Hatua yako sasa</p>
+            <p className="eyebrow"><UiText text={"Hatua yako sasa"} /></p>
             <h2 className="mt-2 font-heading text-2xl font-semibold">
               {terms ? (sw ? "Lipa deposit" : "Pay deposit") : (sw ? "Reserve na ulipe" : "Reserve and pay")}
             </h2>
-            <p className="mt-2 text-sm text-muted">
-              Lipa deposit. Malipo yakithibitishwa, booking yako inakuwa
-              confirmed.
-            </p>
-            <label className="mt-4 grid gap-2 font-semibold">
-              Namba ya malipo
-              <input
+            <p className="mt-2 text-sm text-muted"><UiText text={"Lipa deposit. Malipo yakithibitishwa, booking yako inakuwa confirmed."} /></p>
+            <label className="mt-4 grid gap-2 font-semibold"><UiText text={"Namba ya malipo"} /><UiInput
                 className="field-input"
                 type="tel"
                 inputMode="tel"
@@ -409,14 +404,14 @@ export function CustomerRequestWorkspace({
                 }
               />
               <span>
-                {sw
+                <UiText text={sw
                   ? "Nimekagua muda, kiasi kitakachoonyeshwa na sera ya cancellation/refund."
-                  : "I have reviewed the dates, the amount to be shown, and the cancellation/refund policy."}{" "}
+                  : "I have reviewed the dates, the amount to be shown, and the cancellation/refund policy."} />{" "}
                 <Link
                   className="font-semibold underline"
                   href="/terms#booking-payments"
                 >
-                  {sw ? "Soma masharti" : "Read terms"}
+                  <UiText text={sw ? "Soma masharti" : "Read terms"} />
                 </Link>
               </span>
             </label>
@@ -431,33 +426,33 @@ export function CustomerRequestWorkspace({
         ) : null}
         {canPayBalance ? (
           <section className="surface-card p-6">
-            <p className="eyebrow">{sw ? "Salio" : "Outstanding balance"}</p>
+            <p className="eyebrow"><UiText text={sw ? "Salio" : "Outstanding balance"} /></p>
             <h2 className="mt-2 font-heading text-2xl font-semibold">TZS {Number(terms?.balance_minor ?? 0).toLocaleString()}</h2>
-            <p className="mt-2 text-sm text-muted">{sw ? "Lipa kabla ya handover au huduma kulingana na makubaliano yako." : "Pay before handover or service according to your agreement."}</p>
-            <label className="mt-4 grid gap-2 font-semibold">{sw ? "Namba ya malipo" : "Payment phone"}<input className="field-input" type="tel" inputMode="tel" value={paymentPhone} onChange={(event) => setPaymentPhone(event.target.value)} /></label>
-            <button className="btn btn-success mt-4 w-full" disabled={busy || !paymentPhone.trim()} onClick={() => void reserveAndPay("booking_balance")}>{sw ? "Lipa salio" : "Pay balance"}</button>
+            <p className="mt-2 text-sm text-muted"><UiText text={sw ? "Lipa kabla ya handover au huduma kulingana na makubaliano yako." : "Pay before handover or service according to your agreement."} /></p>
+            <label className="mt-4 grid gap-2 font-semibold"><UiText text={sw ? "Namba ya malipo" : "Payment phone"} /><input className="field-input" type="tel" inputMode="tel" value={paymentPhone} onChange={(event) => setPaymentPhone(event.target.value)} /></label>
+            <button className="btn btn-success mt-4 w-full" disabled={busy || !paymentPhone.trim()} onClick={() => void reserveAndPay("booking_balance")}><UiText text={sw ? "Lipa salio" : "Pay balance"} /></button>
           </section>
         ) : null}
         <section className="surface-card p-6">
-          <p className="eyebrow">{sw ? "Ulinzi wa booking" : "Booking protection"}</p>
-          <h2 className="mt-2 font-heading text-2xl font-semibold">{sw ? "Utekelezaji, matatizo na cancellation" : "Fulfillment, problems and cancellation"}</h2>
+          <p className="eyebrow"><UiText text={sw ? "Ulinzi wa booking" : "Booking protection"} /></p>
+          <h2 className="mt-2 font-heading text-2xl font-semibold"><UiText text={sw ? "Utekelezaji, matatizo na cancellation" : "Fulfillment, problems and cancellation"} /></h2>
           {milestones.length > 0 ? <div className="mt-4 grid gap-2">{milestones.map((item) => {
             const status = String(item.status ?? "pending");
             const canConfirm = ["ready", "provider_confirmed"].includes(status);
-            return <div className="soft-panel flex items-center justify-between gap-3 p-3" key={String(item.id)}><div><p className="font-semibold capitalize">{String(item.milestone_kind ?? "service step").replaceAll("_", " ")}</p><p className="text-sm text-muted">{status.replaceAll("_", " ")}</p></div>{canConfirm ? <button className="btn btn-outline" disabled={busy} onClick={() => void confirmMilestone(String(item.id))}>{sw ? "Thibitisha" : "Confirm"}</button> : null}</div>;
+            return <div className="soft-panel flex items-center justify-between gap-3 p-3" key={String(item.id)}><div><p className="font-semibold capitalize"><UiText text={String(item.milestone_kind ?? "service step").replaceAll("_", " ")} /></p><p className="text-sm text-muted"><UiText text={status.replaceAll("_", " ")} /></p></div>{canConfirm ? <button className="btn btn-outline" disabled={busy} onClick={() => void confirmMilestone(String(item.id))}><UiText text={sw ? "Thibitisha" : "Confirm"} /></button> : null}</div>;
           })}</div> : null}
-          {cancellations.length > 0 ? <div className="mt-4 grid gap-2">{cancellations.map((item) => <div className="soft-panel p-3" key={String(item.id)}><p className="font-semibold">Cancellation: {String(item.booking_status)}</p><p className="text-sm text-muted">{sw ? "Refund" : "Refund"}: TZS {Number(item.customer_refund_minor ?? 0).toLocaleString()} · {String(item.refund_status)}</p><p className="mt-1 text-sm">{String(item.reason ?? "")}</p></div>)}</div> : null}
-          {incidents.length > 0 ? <div className="mt-4 grid gap-2">{incidents.map((item) => <div className="soft-panel p-3" key={String(item.id)}><p className="font-semibold">{String(item.summary)}</p><p className="text-sm text-muted">{String(item.incident_kind).replaceAll("_", " ")} · {String(item.status)}</p></div>)}</div> : null}
-          {substitutions.length > 0 ? <div className="mt-4 grid gap-2">{substitutions.map((item) => <div className="soft-panel p-3" key={String(item.id)}><p className="font-semibold">{String(item.description)}</p><p className="text-sm text-muted">{sw ? "Tofauti ya bei" : "Price difference"}: TZS {Number(item.price_difference_minor ?? 0).toLocaleString()}</p>{item.status === "proposed" ? <div className="mt-3 flex gap-2"><button className="btn btn-outline" disabled={busy} onClick={() => void respondSubstitution(String(item.id), false)}>{sw ? "Kataa" : "Decline"}</button><button className="btn btn-success" disabled={busy} onClick={() => void respondSubstitution(String(item.id), true)}>{sw ? "Kubali" : "Accept"}</button></div> : <p className="mt-2 text-sm">{String(item.status)}</p>}</div>)}</div> : null}
-          {canReportProblem ? <form className="mt-5" onSubmit={reportProblem}><label className="grid gap-2 font-semibold">{sw ? "Ripoti tatizo" : "Report a problem"}<textarea className="field-input min-h-24" required value={problemSummary} onChange={(event) => setProblemSummary(event.target.value)} /></label><button className="btn btn-outline mt-3" disabled={busy || !problemSummary.trim()}>{sw ? "Tuma ripoti" : "Send report"}</button></form> : null}
-          {!terminal && !hasOpenCancellation ? <form className="mt-5 border-t border-white/10 pt-5" onSubmit={requestCancellation}><label className="grid gap-2 font-semibold">{sw ? "Sababu ya cancellation" : "Cancellation reason"}<textarea className="field-input min-h-20" required value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} /></label><button className="btn btn-outline mt-3" disabled={busy || !cancellationReason.trim()}>{sw ? "Omba cancellation" : "Request cancellation"}</button></form> : null}
+          {cancellations.length > 0 ? <div className="mt-4 grid gap-2">{cancellations.map((item) => <div className="soft-panel p-3" key={String(item.id)}><p className="font-semibold"><UiText text={"Cancellation: "} /><UiText text={String(item.booking_status)} /></p><p className="text-sm text-muted"><UiText text={sw ? "Refund" : "Refund"} />: TZS {Number(item.customer_refund_minor ?? 0).toLocaleString()} · {String(item.refund_status)}</p><p className="mt-1 text-sm">{String(item.reason ?? "")}</p></div>)}</div> : null}
+          {incidents.length > 0 ? <div className="mt-4 grid gap-2">{incidents.map((item) => <div className="soft-panel p-3" key={String(item.id)}><p className="font-semibold">{String(item.summary)}</p><p className="text-sm text-muted"><UiText text={String(item.incident_kind).replaceAll("_", " ")} /> · <UiText text={String(item.status)} /></p></div>)}</div> : null}
+          {substitutions.length > 0 ? <div className="mt-4 grid gap-2">{substitutions.map((item) => <div className="soft-panel p-3" key={String(item.id)}><p className="font-semibold">{String(item.description)}</p><p className="text-sm text-muted"><UiText text={sw ? "Tofauti ya bei" : "Price difference"} />: TZS {Number(item.price_difference_minor ?? 0).toLocaleString()}</p>{item.status === "proposed" ? <div className="mt-3 flex gap-2"><button className="btn btn-outline" disabled={busy} onClick={() => void respondSubstitution(String(item.id), false)}><UiText text={sw ? "Kataa" : "Decline"} /></button><button className="btn btn-success" disabled={busy} onClick={() => void respondSubstitution(String(item.id), true)}><UiText text={sw ? "Kubali" : "Accept"} /></button></div> : <p className="mt-2 text-sm"><UiText text={String(item.status)} /></p>}</div>)}</div> : null}
+          {canReportProblem ? <form className="mt-5" onSubmit={reportProblem}><label className="grid gap-2 font-semibold"><UiText text={sw ? "Ripoti tatizo" : "Report a problem"} /><textarea className="field-input min-h-24" required value={problemSummary} onChange={(event) => setProblemSummary(event.target.value)} /></label><button className="btn btn-outline mt-3" disabled={busy || !problemSummary.trim()}><UiText text={sw ? "Tuma ripoti" : "Send report"} /></button></form> : null}
+          {!terminal && !hasOpenCancellation ? <form className="mt-5 border-t border-white/10 pt-5" onSubmit={requestCancellation}><label className="grid gap-2 font-semibold"><UiText text={sw ? "Sababu ya cancellation" : "Cancellation reason"} /><textarea className="field-input min-h-20" required value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} /></label><button className="btn btn-outline mt-3" disabled={busy || !cancellationReason.trim()}><UiText text={sw ? "Omba cancellation" : "Request cancellation"} /></button></form> : null}
         </section>
         <form className="surface-card p-6" onSubmit={proposeViewing}>
           <h2 className="font-heading text-xl font-semibold">
-            {sw ? "Panga viewing (si lazima)" : "Propose a viewing (optional)"}
+            <UiText text={sw ? "Panga viewing (si lazima)" : "Propose a viewing (optional)"} />
           </h2>
           <label className="mt-4 grid gap-2 font-semibold">
-            {sw ? "Tarehe na muda" : "Date and time"}
+            <UiText text={sw ? "Tarehe na muda" : "Date and time"} />
             <input
               className="rounded-2xl border border-brand-border bg-white px-4 py-3"
               type="datetime-local"
@@ -467,17 +462,13 @@ export function CustomerRequestWorkspace({
             />
           </label>
           <button className="btn btn-success mt-4" disabled={busy}>
-            {sw ? "Tuma kwa wakala" : "Send to assigned agent"}
+            <UiText text={sw ? "Tuma kwa wakala" : "Send to assigned agent"} />
           </button>
         </form>
         {completed ? (
           <form className="surface-card p-6" onSubmit={submitReview}>
-            <h2 className="font-heading text-xl font-semibold">
-              Verified rental review
-            </h2>
-            <label className="mt-4 grid gap-2 font-semibold">
-              Rating
-              <select
+            <h2 className="font-heading text-xl font-semibold"><UiText text={"Verified rental review"} /></h2>
+            <label className="mt-4 grid gap-2 font-semibold"><UiText text={"Rating"} /><select
                 className="rounded-2xl border border-brand-border bg-white px-4 py-3"
                 value={rating}
                 onChange={(event) => setRating(Number(event.target.value))}
@@ -489,37 +480,27 @@ export function CustomerRequestWorkspace({
                 ))}
               </select>
             </label>
-            <label className="mt-4 grid gap-2 font-semibold">
-              Comment
-              <textarea
+            <label className="mt-4 grid gap-2 font-semibold"><UiText text={"Comment"} /><textarea
                 className="min-h-24 rounded-2xl border border-brand-border bg-white px-4 py-3"
                 value={reviewComment}
                 onChange={(event) => setReviewComment(event.target.value)}
               />
             </label>
-            <button className="btn btn-success mt-4" disabled={busy}>
-              Submit review
-            </button>
+            <button className="btn btn-success mt-4" disabled={busy}><UiText text={"Submit review"} /></button>
           </form>
         ) : null}
       </div>
       <section className="surface-card flex min-h-[560px] flex-col p-6">
         <h2 className="font-heading text-2xl font-semibold">
-          {sw ? "Ufuatiliaji wa booking" : "Booking follow-up"}
+          <UiText text={sw ? "Ufuatiliaji wa booking" : "Booking follow-up"} />
         </h2>
-        <p className="mt-2 text-sm text-muted">
-          Tumia majibu haya mafupi kuthibitisha hatua. Chat ya kawaida inabaki
-          kwenye paid chat ya listing.
-        </p>
+        <p className="mt-2 text-sm text-muted"><UiText text={"Tumia majibu haya mafupi kuthibitisha hatua. Chat ya kawaida inabaki kwenye paid chat ya listing."} /></p>
         <div
           className="my-5 flex-1 space-y-3 overflow-y-auto rounded-2xl bg-brand-card-soft p-4"
           aria-live="polite"
         >
           {messages.length === 0 ? (
-            <p className="text-sm text-muted">
-              No messages yet. Ask the assigned agent about availability or a
-              viewing.
-            </p>
+            <p className="text-sm text-muted"><UiText text={"No messages yet. Ask the assigned agent about availability or a viewing."} /></p>
           ) : (
             messages.map((message) => (
               <article
@@ -539,41 +520,31 @@ export function CustomerRequestWorkspace({
             className="btn btn-outline"
             disabled={busy || !conversationId}
             onClick={() => void sendResponse("acknowledged")}
-          >
-            Nimepokea
-          </button>
+          ><UiText text={"Nimepokea"} /></button>
           <button
             className="btn btn-outline"
             disabled={busy || !conversationId}
             onClick={() => void sendResponse("still_interested")}
-          >
-            Bado ninahitaji
-          </button>
+          ><UiText text={"Bado ninahitaji"} /></button>
           <button
             className="btn btn-outline"
             disabled={busy || !conversationId}
             onClick={() => void sendResponse("confirm_viewing")}
-          >
-            Thibitisha viewing
-          </button>
+          ><UiText text={"Thibitisha viewing"} /></button>
           <button
             className="btn btn-outline"
             disabled={busy || !conversationId}
             onClick={() => void sendResponse("request_reschedule")}
-          >
-            Badilisha muda
-          </button>
+          ><UiText text={"Badilisha muda"} /></button>
           <button
             className="btn btn-outline"
             disabled={busy || !conversationId}
             onClick={() => void sendResponse("not_interested")}
-          >
-            Sihitaji tena
-          </button>
+          ><UiText text={"Sihitaji tena"} /></button>
         </div>
         {notice ? (
           <p className="mt-3 text-sm text-brand-navy" role="status">
-            {notice}
+            <UiText text={notice} />
           </p>
         ) : null}
       </section>
@@ -602,11 +573,11 @@ function Progress({ done, label }: { done: boolean; label: string }) {
     <div
       className={`rounded-xl px-3 py-2 font-semibold ${done ? "bg-brand-green-soft text-brand-navy" : "bg-brand-card-soft text-muted"}`}
     >
-      {done ? "✓" : "○"} {label}
+      {done ? "✓" : "○"} <UiText text={label} />
     </div>
   );
 }
 
 function MoneyRow({ label, value }: { label: string; value: number }) {
-  return <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-2"><span className="text-muted">{label}</span><strong>TZS {Number.isFinite(value) ? value.toLocaleString() : "0"}</strong></div>;
+  return <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-2"><span className="text-muted"><UiText text={label} /></span><strong>TZS {Number.isFinite(value) ? value.toLocaleString() : "0"}</strong></div>;
 }

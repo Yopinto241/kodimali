@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_models/shared_models.dart';
 
@@ -58,9 +59,9 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
       await _refresh();
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(userFacingError(error))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: LocalizedUiText(userFacingError(error))),
+        );
       }
     } finally {
       if (mounted) {
@@ -112,14 +113,19 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.hasError) {
-              return Center(child: Text(userFacingError(snapshot.error!)));
+              return Center(
+                child: LocalizedUiText(userFacingError(snapshot.error!)),
+              );
             }
             final List<Map<String, dynamic>> allBookings =
                 snapshot.data ?? <Map<String, dynamic>>[];
             if (allBookings.isEmpty) {
-              return const KodimaliEmptyState(
-                title: "Hakuna maombi",
-                message: "Maombi yote ya wateja yataonekana hapa.",
+              return KodimaliEmptyState(
+                title: mobileUi(context, "Hakuna maombi"),
+                message: mobileUi(
+                  context,
+                  "Maombi yote ya wateja yataonekana hapa.",
+                ),
               );
             }
             final List<Map<String, dynamic>> bookings = _filtered(allBookings);
@@ -132,9 +138,11 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
               onRefresh: _refresh,
               children: <Widget>[
                 ManageHeroCard(
-                  title: "Booking oversight",
-                  subtitle:
-                      "See exactly which agent received every request, investigate delayed responses, and audit the request-to-rental workflow.",
+                  title: mobileUi(context, "Booking oversight"),
+                  subtitle: mobileUi(
+                    context,
+                    "See exactly which agent received every request, investigate delayed responses, and audit the request-to-rental workflow.",
+                  ),
                   bottom: ManageMetaWrap(
                     items: <String>[
                       "$attentionCount need attention",
@@ -150,22 +158,22 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
                     segments: const <ButtonSegment<String>>[
                       ButtonSegment<String>(
                         value: "attention",
-                        label: Text("Needs attention"),
+                        label: LocalizedUiText("Needs attention"),
                         icon: Icon(Icons.priority_high_rounded),
                       ),
                       ButtonSegment<String>(
                         value: "viewings",
-                        label: Text("Viewings"),
+                        label: LocalizedUiText("Viewings"),
                         icon: Icon(Icons.event_outlined),
                       ),
                       ButtonSegment<String>(
                         value: "completed",
-                        label: Text("Completed"),
+                        label: LocalizedUiText("Completed"),
                         icon: Icon(Icons.task_alt_outlined),
                       ),
                       ButtonSegment<String>(
                         value: "all",
-                        label: Text("All"),
+                        label: LocalizedUiText("All"),
                         icon: Icon(Icons.list_alt_outlined),
                       ),
                     ],
@@ -179,7 +187,7 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
                 const SizedBox(height: 16),
                 if (bookings.isEmpty)
                   const ManagePanel(
-                    child: Text("No requests match this queue."),
+                    child: LocalizedUiText("No requests match this queue."),
                   )
                 else
                   ...bookings.map(_buildBookingCard),
@@ -219,7 +227,9 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
                       ),
                       const SizedBox(height: 5),
                       Text(
-                        "Customer: ${booking["customer_name"] ?? "-"}",
+                        mobileUiFormat(context, "Customer: {0}", [
+                          booking["customer_name"] ?? "-",
+                        ]),
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                     ],
@@ -245,7 +255,7 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        const Text("Assigned agent"),
+                        const LocalizedUiText("Assigned agent"),
                         Text(
                           agentName,
                           style: Theme.of(context).textTheme.titleMedium,
@@ -265,18 +275,30 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
               spacing: 12,
               runSpacing: 8,
               children: <Widget>[
-                Text("Reference ${booking["request_reference"] ?? "-"}"),
                 Text(
-                  "Sent ${DateFormatters.formatDateTime(booking["created_at"] as String?)}",
+                  mobileUiFormat(context, "Reference {0}", [
+                    booking["request_reference"] ?? "-",
+                  ]),
+                ),
+                Text(
+                  mobileUiFormat(context, "Sent {0}", [
+                    DateFormatters.formatDateTime(
+                      booking["created_at"] as String?,
+                    ),
+                  ]),
                 ),
                 Text(
                   booking["customer_id"] == null
-                      ? "Guest request"
-                      : "Customer login linked",
+                      ? mobileUi(context, "Guest request")
+                      : mobileUi(context, "Customer login linked"),
                 ),
                 if (booking["first_agent_response_at"] != null)
                   Text(
-                    "Responded ${DateFormatters.formatDateTime(booking["first_agent_response_at"] as String?)}",
+                    mobileUiFormat(context, "Responded {0}", [
+                      DateFormatters.formatDateTime(
+                        booking["first_agent_response_at"] as String?,
+                      ),
+                    ]),
                   ),
               ],
             ),
@@ -293,7 +315,7 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
                 FilledButton.tonalIcon(
                   onPressed: busy ? null : () => _openWorkspace(booking),
                   icon: const Icon(Icons.manage_accounts_outlined),
-                  label: const Text("Open audit & workflow"),
+                  label: const LocalizedUiText("Open audit & workflow"),
                 ),
                 PopupMenuButton<BookingStatus>(
                   enabled: !busy,
@@ -309,7 +331,7 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
                       .toList(growable: false),
                   child: const Chip(
                     avatar: Icon(Icons.account_tree_outlined, size: 18),
-                    label: Text("Admin stage override"),
+                    label: LocalizedUiText("Admin stage override"),
                   ),
                 ),
               ],

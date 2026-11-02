@@ -1,4 +1,5 @@
 "use client";
+import { UiButton, UiText } from "@/components/ui-text";
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -62,10 +63,10 @@ export function FirstVisitWelcome() {
         <div className="relative overflow-hidden bg-brand-navy px-6 pb-7 pt-8 text-white sm:px-9 sm:pt-10">
           <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full bg-brand-green/25 blur-2xl" />
           <div className="absolute -bottom-24 -left-12 h-48 w-48 rounded-full bg-[#3f83c5]/25 blur-2xl" />
-          <button type="button" onClick={dismiss} className="absolute right-5 top-5 rounded-full border border-white/20 bg-white/10 px-3 py-2 text-sm font-bold text-white transition hover:bg-white/20" aria-label="Funga">Ruka</button>
-          <p className="relative text-xs font-black uppercase tracking-[0.25em] text-brand-green">Karibu KODIMALI</p>
-          <h2 id="welcome-title" className="relative mt-4 max-w-xl font-heading text-3xl font-semibold leading-tight sm:text-4xl">Mali na shughuli zako, sehemu moja.</h2>
-          <p className="relative mt-4 max-w-xl text-base leading-7 text-white/80">Tafuta mali, toa taarifa ya mali inayopatikana, na ufuatilie miadi au booking kwa akaunti yako.</p>
+          <UiButton type="button" onClick={dismiss} className="absolute right-5 top-5 z-10 rounded-full border border-white/20 bg-white/10 px-3 py-2 text-sm font-bold text-white transition hover:bg-white/20" aria-label="Funga"><UiText text={"Ruka"} /></UiButton>
+          <p className="relative text-xs font-black uppercase tracking-[0.25em] text-brand-green"><UiText text={"Karibu KODIMALI"} /></p>
+          <h2 id="welcome-title" className="relative mt-4 max-w-xl font-heading text-3xl font-semibold leading-tight sm:text-4xl"><UiText text={"Mali na shughuli zako, sehemu moja."} /></h2>
+          <p className="relative mt-4 max-w-xl text-base leading-7 text-white/80"><UiText text={"Tafuta mali, toa taarifa ya mali inayopatikana, na ufuatilie miadi au booking kwa akaunti yako."} /></p>
         </div>
 
         <div className="p-6 sm:p-9">
@@ -76,14 +77,14 @@ export function FirstVisitWelcome() {
               <WelcomePoint number="03" title="Fuatilia" body="Akaunti yako huhifadhi taarifa, miadi, booking na ustahiki wa zawadi." />
             </div>
           ) : (
-            <p className="text-sm leading-6 text-muted">KODIMALI haichapishi taarifa ya referral moja kwa moja. Tunathibitisha mali na ruhusa ya mmiliki kwanza. Zawadi hutegemea lead kustahili na deal kukamilika.</p>
+            <p className="text-sm leading-6 text-muted"><UiText text={"KODIMALI haichapishi taarifa ya referral moja kwa moja. Tunathibitisha mali na ruhusa ya mmiliki kwanza. Zawadi hutegemea lead kustahili na deal kukamilika."} /></p>
           )}
 
           <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <button type="button" className="btn btn-ghost" onClick={() => setReading((value) => !value)}>{reading ? "Fupisha" : "Soma zaidi"}</button>
+            <button type="button" className="btn btn-ghost" onClick={() => setReading((value) => !value)}><UiText text={reading ? "Fupisha" : "Soma zaidi"} /></button>
             <div className="flex gap-3">
-              <button type="button" className="btn btn-outline flex-1 sm:flex-none" onClick={dismiss}>Ruka</button>
-              <Link href="/listings" className="btn btn-success flex-1 sm:flex-none" onClick={dismiss}>Anza sasa</Link>
+              <button type="button" className="btn btn-outline flex-1 sm:flex-none" onClick={dismiss}><UiText text={"Ruka"} /></button>
+              <Link href="/listings" className="btn btn-success flex-1 sm:flex-none" onClick={dismiss}><UiText text={"Anza sasa"} /></Link>
             </div>
           </div>
         </div>
@@ -93,5 +94,5 @@ export function FirstVisitWelcome() {
 }
 
 function WelcomePoint({ number, title, body }: { number: string; title: string; body: string }) {
-  return <article className="rounded-2xl border border-brand-border bg-brand-card-soft p-4"><p className="text-xs font-black tracking-[0.2em] text-brand-green-strong">{number}</p><h3 className="mt-2 font-heading text-xl font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-muted">{body}</p></article>;
+  return <article className="rounded-2xl border border-brand-border bg-brand-card-soft p-4"><p className="text-xs font-black tracking-[0.2em] text-brand-green-strong">{number}</p><h3 className="mt-2 font-heading text-xl font-semibold"><UiText text={title} /></h3><p className="mt-2 text-sm leading-6 text-muted"><UiText text={body} /></p></article>;
 }

@@ -1,10 +1,11 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_design_system/flutter_design_system.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/utils/user_facing_error.dart';
+import '../../../core/utils/agent_registration_error.dart';
 import '../../../core/widgets/agent_location_fields.dart';
 import '../../../core/widgets/app_scope.dart';
 
@@ -79,7 +80,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
       setState(() {
         _loadingOptions = false;
-        _optionsError = userFacingError(error);
+        _optionsError =
+            'Sorry, registration options could not load. Please check your connection and try again.';
       });
     }
   }
@@ -159,7 +161,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() {
         _checkingUsername = false;
         _usernameAvailable = null;
-        _usernameStatusText = userFacingError(error);
+        _usernameStatusText =
+            'Sorry, we could not check this username just now. Please try again.';
       });
     }
   }
@@ -170,7 +173,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
     if (_selectedCategoryId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Choose the base category first.")),
+        const SnackBar(
+          content: LocalizedUiText("Choose the base category first."),
+        ),
       );
       return;
     }
@@ -179,7 +184,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _locationSelection.wardId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Choose region, district, ward, and area first."),
+          content: LocalizedUiText(
+            "Choose region, district, ward, and area first.",
+          ),
         ),
       );
       return;
@@ -191,13 +198,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         .toLowerCase();
     if (_passwordController.text != _confirmPasswordController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Passwords do not match yet.")),
+        const SnackBar(content: LocalizedUiText("Passwords do not match yet.")),
       );
       return;
     }
     if (_usernameAvailable == false) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Choose another username first.")),
+        const SnackBar(
+          content: LocalizedUiText("Choose another username first."),
+        ),
       );
       return;
     }
@@ -229,7 +238,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
+          content: LocalizedUiText(
             "Registration saved. Wait for admin approval before signing in as an agent.",
           ),
         ),
@@ -239,9 +248,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(userFacingError(error))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: LocalizedUiText(agentRegistrationError(error))),
+      );
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
@@ -291,7 +300,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: Row(
                       children: <Widget>[
                         Expanded(
-                          child: Text(
+                          child: LocalizedUiText(
                             "Choose base category",
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
@@ -308,8 +317,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: TextField(
                       controller: searchController,
                       onChanged: (_) => setSheetState(() {}),
-                      decoration: const InputDecoration(
-                        labelText: "Search category",
+                      decoration: InputDecoration(
+                        labelText: mobileUi(context, "Search category"),
                         prefixIcon: Icon(Icons.search_rounded),
                       ),
                     ),
@@ -318,7 +327,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Expanded(
                     child: filteredCategories.isEmpty
                         ? const Center(
-                            child: Text("No category matches your search."),
+                            child: LocalizedUiText(
+                              "No category matches your search.",
+                            ),
                           )
                         : ListView(
                             children: filteredCategories.map((
@@ -398,12 +409,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
-                            const KodimaliStatusBadge(
-                              label: "Agent registration",
+                            KodimaliStatusBadge(
+                              label: mobileUi(context, "Agent registration"),
                               tone: KodimaliStatusTone.pending,
                             ),
                             const SizedBox(height: KodimaliSpacing.sm),
-                            Text(
+                            LocalizedUiText(
                               "Jisajili kama agent",
                               style: theme.textTheme.headlineSmall?.copyWith(
                                 color: Colors.white,
@@ -411,7 +422,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                             ),
                             const SizedBox(height: KodimaliSpacing.xs),
-                            Text(
+                            LocalizedUiText(
                               "Chagua region, district, ward, kisha tumia area iliyopo au andika area mpya. Area mpya itaunganishwa moja kwa moja chini ya ward husika.",
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: Colors.white.withValues(alpha: 0.9),
@@ -440,7 +451,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 const SizedBox(width: KodimaliSpacing.sm),
                                 TextButton(
                                   onPressed: _loadOptions,
-                                  child: const Text("Retry"),
+                                  child: const LocalizedUiText("Retry"),
                                 ),
                               ],
                             ),
@@ -459,7 +470,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 if (_loadingOptions) ...<Widget>[
                                   const LinearProgressIndicator(),
                                   const SizedBox(height: KodimaliSpacing.sm),
-                                  Text(
+                                  LocalizedUiText(
                                     "Loading registration options...",
                                     style: theme.textTheme.bodySmall,
                                   ),
@@ -467,8 +478,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ],
                                 TextFormField(
                                   controller: _fullNameController,
-                                  decoration: const InputDecoration(
-                                    labelText: "Full name",
+                                  decoration: InputDecoration(
+                                    labelText: mobileUi(context, "Full name"),
                                   ),
                                   validator: (String? value) {
                                     if (value == null || value.trim().isEmpty) {
@@ -481,10 +492,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 TextFormField(
                                   controller: _usernameController,
                                   onChanged: _onUsernameChanged,
-                                  decoration: const InputDecoration(
-                                    labelText: "Username",
-                                    helperText:
-                                        "Use 3-32 lowercase letters, numbers, or underscores.",
+                                  decoration: InputDecoration(
+                                    labelText: mobileUi(context, "Username"),
+                                    helperText: mobileUi(
+                                      context,
+                                      "Use 3-32 lowercase letters, numbers, or underscores.",
+                                    ),
                                   ),
                                   validator: (String? value) {
                                     final String normalized =
@@ -546,8 +559,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 TextFormField(
                                   controller: _phoneController,
                                   keyboardType: TextInputType.phone,
-                                  decoration: const InputDecoration(
-                                    labelText: "Mobile number (optional)",
+                                  decoration: InputDecoration(
+                                    labelText: mobileUi(
+                                      context,
+                                      "Mobile number (optional)",
+                                    ),
                                   ),
                                   validator: (String? value) {
                                     final String normalized =
@@ -563,10 +579,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 TextFormField(
                                   controller: _activationEmailController,
                                   keyboardType: TextInputType.emailAddress,
-                                  decoration: const InputDecoration(
-                                    labelText: "Account email",
-                                    helperText:
-                                        "Used for password recovery and email login. It is not used as the public agent contact email.",
+                                  decoration: InputDecoration(
+                                    labelText: mobileUi(
+                                      context,
+                                      "Account email",
+                                    ),
+                                    helperText: mobileUi(
+                                      context,
+                                      "Used for password recovery and email login. It is not used as the public agent contact email.",
+                                    ),
                                   ),
                                   validator: (String? value) {
                                     if (value == null ||
@@ -586,8 +607,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 const SizedBox(height: KodimaliSpacing.md),
                                 TextFormField(
                                   controller: _nidaController,
-                                  decoration: const InputDecoration(
-                                    labelText: "NIDA number",
+                                  decoration: InputDecoration(
+                                    labelText: mobileUi(context, "NIDA number"),
                                   ),
                                   validator: (String? value) {
                                     if (value == null || value.trim().isEmpty) {
@@ -600,9 +621,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 TextFormField(
                                   controller: _passwordController,
                                   obscureText: true,
-                                  decoration: const InputDecoration(
-                                    labelText: "Password",
-                                    helperText: "At least 6 characters.",
+                                  decoration: InputDecoration(
+                                    labelText: mobileUi(context, "Password"),
+                                    helperText: mobileUi(
+                                      context,
+                                      "At least 6 characters.",
+                                    ),
                                   ),
                                   validator: (String? value) {
                                     if (value == null || value.length < 6) {
@@ -615,10 +639,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 TextFormField(
                                   controller: _confirmPasswordController,
                                   obscureText: true,
-                                  decoration: const InputDecoration(
-                                    labelText: "Re-enter password",
-                                    helperText:
-                                        "Type the same password again to confirm it.",
+                                  decoration: InputDecoration(
+                                    labelText: mobileUi(
+                                      context,
+                                      "Re-enter password",
+                                    ),
+                                    helperText: mobileUi(
+                                      context,
+                                      "Type the same password again to confirm it.",
+                                    ),
                                   ),
                                   validator: (String? value) {
                                     if (value == null || value.isEmpty) {
@@ -633,8 +662,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 const SizedBox(height: KodimaliSpacing.md),
                                 TextFormField(
                                   controller: _businessNameController,
-                                  decoration: const InputDecoration(
-                                    labelText: "Business name",
+                                  decoration: InputDecoration(
+                                    labelText: mobileUi(
+                                      context,
+                                      "Business name",
+                                    ),
                                   ),
                                   validator: (String? value) {
                                     if (value == null || value.trim().isEmpty) {
@@ -659,8 +691,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         },
                                   borderRadius: BorderRadius.circular(16),
                                   child: InputDecorator(
-                                    decoration: const InputDecoration(
-                                      labelText: "Base category",
+                                    decoration: InputDecoration(
+                                      labelText: mobileUi(
+                                        context,
+                                        "Base category",
+                                      ),
                                     ),
                                     child: Row(
                                       children: <Widget>[
@@ -680,12 +715,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   controller: _businessDescriptionController,
                                   minLines: 2,
                                   maxLines: 4,
-                                  decoration: const InputDecoration(
-                                    labelText: "Business description",
+                                  decoration: InputDecoration(
+                                    labelText: mobileUi(
+                                      context,
+                                      "Business description",
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: KodimaliSpacing.md),
-                                Text(
+                                LocalizedUiText(
                                   "After registration, admin still needs to approve your agent account before you can use the agent workspace.",
                                   style: theme.textTheme.bodyMedium,
                                 ),
@@ -701,8 +739,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         : _submit,
                                     child: Text(
                                       _submitting
-                                          ? "Inahifadhi..."
-                                          : "Submit registration",
+                                          ? mobileUi(context, "Inahifadhi...")
+                                          : mobileUi(
+                                              context,
+                                              "Submit registration",
+                                            ),
                                     ),
                                   ),
                                 ),
@@ -713,7 +754,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     onPressed: _submitting
                                         ? null
                                         : () => context.go("/login"),
-                                    child: const Text("Back to login"),
+                                    child: const LocalizedUiText(
+                                      "Back to login",
+                                    ),
                                   ),
                                 ),
                               ],

@@ -1,8 +1,10 @@
 "use client";
+import { UiButton, UiText } from "@/components/ui-text";
+import { browserPreferences, readStoredIds } from "@/lib/browser-preferences";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "@/components/navigation-progress";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
 import { useLanguage } from "@/components/language-provider";
 
@@ -12,13 +14,15 @@ export function ListingActions({
   listingId,
   bookingHref,
   bookingMode,
+  hasWhatsApp = false,
 }: {
   listingId: string;
   bookingHref?: string;
   bookingMode?: "not_bookable" | "request_booking" | "instant_booking";
+  hasWhatsApp?: boolean;
 }) {
   const supabase = useMemo(() => getBrowserSupabase(), []);
-  const router = useRouter();
+  const navigate = useNavigate();
   const { language } = useLanguage();
   const sw = language === "sw";
   const [saved, setSaved] = useState(false);
@@ -27,9 +31,7 @@ export function ListingActions({
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const ids = JSON.parse(
-      localStorage.getItem(comparisonKey) || "[]",
-    ) as string[];
+    const ids = readStoredIds(comparisonKey);
     queueMicrotask(() => setCompared(ids.includes(listingId)));
     void supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
@@ -68,7 +70,7 @@ export function ListingActions({
   async function createPriceAlert() {
     const { data } = await supabase.auth.getUser();
     if (!data.user) {
-      router.push(`/login?next=${encodeURIComponent(window.location.pathname)}&action=price-alert`);
+      navigate(`/login?next=${encodeURIComponent(window.location.pathname)}&action=price-alert`);
       return;
     }
     const result = await supabase.from("price_alerts").upsert(
@@ -84,13 +86,11 @@ export function ListingActions({
   }
 
   function toggleCompared() {
-    const current = JSON.parse(
-      localStorage.getItem(comparisonKey) || "[]",
-    ) as string[];
+    const current = readStoredIds(comparisonKey);
     const next = current.includes(listingId)
       ? current.filter((id) => id !== listingId)
       : [...current, listingId].slice(-4);
-    localStorage.setItem(comparisonKey, JSON.stringify(next));
+    if (!browserPreferences.setItem(comparisonKey, JSON.stringify(next))) { setMessage(sw ? "Kivinjari kimezuia kuhifadhi ulinganisho." : "Your browser has blocked saving comparisons."); return; }
     setCompared(next.includes(listingId));
     setMessage(
       next.includes(listingId)
@@ -102,21 +102,24 @@ export function ListingActions({
   return (
     <div onClick={(event) => event.stopPropagation()}>
       <div className="flex flex-wrap gap-2">
+        {hasWhatsApp && <Link href={`/listing/${listingId}/contact?intent=whatsapp`} className="listing-icon-action listing-whatsapp-action" aria-label={sw ? "Fungua WhatsApp ya wakala" : "Unlock agent WhatsApp"} title={sw ? "Fungua WhatsApp ya wakala" : "Unlock agent WhatsApp"}>
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><path d="M20 11.7a8 8 0 0 1-11.8 7L4 20l1.3-4.1A8 8 0 1 1 20 11.7Z" stroke="currentColor" strokeWidth="1.8"/><path d="M9 7.8c-.6 0-1 .8-1 1.4 0 2.5 3.3 5.8 5.8 5.8.7 0 1.5-.4 1.5-1l-2-1-1 1c-1.1-.5-2.6-2-3.1-3.1l1-1-1.2-2.1Z" fill="currentColor"/></svg>
+        </Link>}
         {bookingHref ? (
           <Link
             href={bookingHref}
             className="btn btn-success !min-h-9 !px-3 !py-2 text-xs"
           >
-            {bookingMode === "instant_booking"
+            <UiText text={bookingMode === "instant_booking"
               ? sw
                 ? "Book sasa"
                 : "Book Now"
               : sw
                 ? "Tuma booking"
-                : "Request Booking"}
+                : "Request Booking"} />
           </Link>
         ) : null}
-        <button
+        <UiButton
           type="button"
           className={`listing-icon-action ${saved ? "active" : ""}`}
           onClick={() => void toggleSaved()}
@@ -124,19 +127,19 @@ export function ListingActions({
           title={saved ? (sw ? "Imehifadhiwa" : "Saved") : (sw ? "Hifadhi" : "Save")}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-4-6 4V4.5Z" /></svg>
-        </button>
+        </UiButton>
         <button
           type="button"
           className="btn btn-outline !min-h-9 !px-3 !py-2 text-xs"
           onClick={toggleCompared}
         >
-          {compared
+          <UiText text={compared
             ? sw
               ? "Inalinganishwa"
               : "Comparing"
             : sw
               ? "Linganisha"
-              : "Compare"}
+              : "Compare"} />
         </button>
         <button
           type="button"
@@ -149,12 +152,12 @@ export function ListingActions({
           href="/compare"
           className="btn btn-ghost !min-h-9 !px-3 !py-2 text-xs"
         >
-          {sw ? "Angalia ulinganisho" : "View comparison"}
+          <UiText text={sw ? "Angalia ulinganisho" : "View comparison"} />
         </Link>
       </div>
       {message ? (
         <p className="mt-2 text-xs text-muted" role="status">
-          {message}
+          <UiText text={message} />
         </p>
       ) : null}
     </div>
@@ -164,10 +167,8 @@ export function ListingActions({
 export function ListingViewRecorder({ listingId }: { listingId: string }) {
   const supabase = useMemo(() => getBrowserSupabase(), []);
   useEffect(() => {
-    const recent = JSON.parse(
-      localStorage.getItem("kodimali-recent-listings") || "[]",
-    ) as string[];
-    localStorage.setItem(
+    const recent = readStoredIds("kodimali-recent-listings");
+    browserPreferences.setItem(
       "kodimali-recent-listings",
       JSON.stringify(
         [listingId, ...recent.filter((id) => id !== listingId)].slice(0, 12),

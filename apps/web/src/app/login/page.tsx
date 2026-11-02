@@ -1,3 +1,4 @@
+import { UiText } from "@/components/ui-text";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -14,7 +15,7 @@ export default function LoginPage() {
         eyebrow="Akaunti ya mteja"
         title="Ingia KODIMALI"
         description="Fuatilia taarifa ulizotoa, miadi, booking na historia yako kwa usalama."
-        actions={<Link href="/register" className="btn btn-outline">Huna akaunti? Jisajili</Link>}
+        actions={<Link href="/register" className="btn btn-outline"><UiText text={"Huna akaunti? Jisajili"} /></Link>}
       />
       <CustomerAccountPortal initialMode="login" />
     </PageShell>

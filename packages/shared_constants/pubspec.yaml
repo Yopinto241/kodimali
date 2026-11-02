@@ -1,6 +1,7 @@
 name: shared_constants
 description: "Shared constants for KODIMALI"
 version: 0.0.1
+publish_to: none
 homepage: https://kodimali.co.tz
 
 environment:

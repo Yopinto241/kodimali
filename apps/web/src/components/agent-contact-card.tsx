@@ -1,7 +1,10 @@
 "use client";
+import { UiInput, UiText } from "@/components/ui-text";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { browserPreferences } from "@/lib/browser-preferences";
+import { whatsAppUrl } from "@/lib/whatsapp";
 import { StatusPill } from "@/components/status-pill";
 import Link from "next/link";
 import { useLanguage } from "@/components/language-provider";
@@ -55,17 +58,21 @@ export function AgentContactCard({
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [checking, setChecking] = useState(false);
+  const whatsappIntent = useRef(false);
+  const redirected = useRef(false);
+  const validated = useRef<string | undefined>(undefined);
 
   useEffect(() => {
+    whatsappIntent.current = new URLSearchParams(window.location.search).get("intent") === "whatsapp";
     const timer = window.setTimeout(() => {
-      const raw = window.localStorage.getItem(storageKey(listingId));
+      const raw = browserPreferences.getItem(storageKey(listingId));
       if (!raw) return;
       try {
         const saved = JSON.parse(raw) as PaymentSession;
-        setSession(saved);
+        setSession({ ...saved, phone_number: null });
         setMessage(typeof saved.message === "string" ? saved.message : null);
       } catch {
-        window.localStorage.removeItem(storageKey(listingId));
+        browserPreferences.removeItem(storageKey(listingId));
       }
     }, 0);
     return () => window.clearTimeout(timer);
@@ -88,10 +95,10 @@ export function AgentContactCard({
         return;
       }
       if (!next) {
-        window.localStorage.removeItem(storageKey(listingId));
+        browserPreferences.removeItem(storageKey(listingId));
         return;
       }
-      window.localStorage.setItem(storageKey(listingId), JSON.stringify(next));
+      browserPreferences.setItem(storageKey(listingId), JSON.stringify(next));
     },
     [listingId],
   );
@@ -175,7 +182,7 @@ export function AgentContactCard({
           status:
             (payload.paymentStatus as string | undefined) ?? session.status,
           phone_number:
-            (payload.phoneNumber as string | undefined) ?? session.phone_number,
+            (payload.phoneNumber as string | undefined) ?? null,
           message: payload.message as string | undefined,
         };
         persistSession(nextSession);
@@ -206,6 +213,23 @@ export function AgentContactCard({
     return () => window.clearInterval(timer);
   }, [checkPayment, session]);
 
+  useEffect(() => {
+    if (session?.payment_id && session.access_token && validated.current !== session.payment_id) {
+      validated.current = session.payment_id;
+      void checkPayment(true);
+    }
+  }, [session, checkPayment]);
+
+  useEffect(() => {
+    const destination = whatsAppUrl(unlockedPhone);
+    if (!whatsappIntent.current || redirected.current || !destination) return;
+    redirected.current = true;
+    const current = new URL(window.location.href);
+    current.searchParams.delete("intent");
+    window.history.replaceState(window.history.state, "", `${current.pathname}${current.search}`);
+    window.location.assign(destination);
+  }, [unlockedPhone]);
+
   function resetSession() {
     persistSession(null);
     setMessage(null);
@@ -215,7 +239,7 @@ export function AgentContactCard({
     <div className="listing-agent-card surface-card rounded-[20px] p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="eyebrow">{sw ? "Wakala" : "Agent"}</p>
+          <p className="eyebrow"><UiText text={sw ? "Wakala" : "Agent"} /></p>
           <h2 className="mt-3 font-heading text-2xl font-semibold text-brand-ink">
             {displayName}
           </h2>
@@ -227,7 +251,7 @@ export function AgentContactCard({
               className="mt-2 inline-block text-sm font-bold text-brand-navy underline"
               href={`/agent/${agentSummary.id}`}
             >
-              {sw ? "Wasifu wa wakala" : "Agent profile"}
+              <UiText text={sw ? "Wasifu wa wakala" : "Agent profile"} />
             </Link>
           ) : null}
         </div>
@@ -239,16 +263,14 @@ export function AgentContactCard({
 
       {unlockedPhone ? (
         <div className="soft-panel mt-5 p-5">
-          <p className="eyebrow">Unlocked number</p>
+          <p className="eyebrow"><UiText text={"Unlocked number"} /></p>
           <p className="mt-3 text-2xl font-bold text-brand-navy">
             {unlockedPhone}
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <a href={`tel:${unlockedPhone}`} className="btn btn-success">
-              Call agent
-            </a>
+            <a href={`tel:${unlockedPhone}`} className="btn btn-success"><UiText text={"Call agent"} /></a>
             <a
-              href={`https://wa.me/${unlockedPhone.replace(/[^\d]/g, "")}`}
+              href={whatsAppUrl(unlockedPhone) ?? undefined}
               target="_blank"
               rel="noreferrer"
               className="btn btn-outline"
@@ -259,21 +281,18 @@ export function AgentContactCard({
         </div>
       ) : session ? (
         <div className="soft-panel mt-5 p-5">
-          <p className="text-lg font-semibold text-brand-ink">
-            Amount: {session.amount ?? "-"} {session.currency ?? "TZS"}
+          <p className="text-lg font-semibold text-brand-ink"><UiText text={"Amount:"} />{session.amount ?? "-"} {session.currency ?? "TZS"}
           </p>
           <p className="section-copy mt-3 text-sm">
             {message ??
               "Payment request sent. Confirm it on your phone to unlock the agent number."}
           </p>
           {session.payment_method ? (
-            <p className="mt-3 text-sm font-semibold text-brand-ink">
-              Payment method: {session.payment_method}
+            <p className="mt-3 text-sm font-semibold text-brand-ink"><UiText text={"Payment method:"} />{session.payment_method}
             </p>
           ) : null}
           {session.customer_phone_number ? (
-            <p className="field-help mt-2">
-              Payment prompt sent to {session.customer_phone_number}.
+            <p className="field-help mt-2"><UiText text={"Payment prompt sent to"} />{session.customer_phone_number}.
             </p>
           ) : null}
           <div className="mt-5 flex flex-wrap gap-3">
@@ -283,30 +302,28 @@ export function AgentContactCard({
               disabled={checking}
               className="btn btn-outline"
             >
-              {checking ? "Checking..." : "Check payment now"}
+              <UiText text={checking ? "Checking..." : "Check payment now"} />
             </button>
             <button
               type="button"
               onClick={resetSession}
               className="btn btn-ghost"
-            >
-              Start a new payment
-            </button>
+            ><UiText text={"Start a new payment"} /></button>
           </div>
         </div>
       ) : (
         <div className="mt-5 grid gap-4">
           <div className="rounded-2xl border border-[#b9e5d5] bg-[#e7f7f1] p-3 text-sm text-[#31564c]">
-            {sw ? "Fungua namba kwa saa 24. Ada hii si malipo ya booking." : "Unlock the number for 24 hours. This fee is not a booking payment."}
+            <UiText text={sw ? "Fungua namba kwa saa 24. Ada hii si malipo ya booking." : "Unlock the number for 24 hours. This fee is not a booking payment."} />
           </div>
           <p className="section-copy text-sm">
-            {sw
+            <UiText text={sw
               ? "Lipa mara moja kufungua namba ya wakala kwenye kifaa hiki."
-              : "Pay once to reveal the agent phone number on this device."}
+              : "Pay once to reveal the agent phone number on this device."} />
           </p>
           <label className="grid gap-2">
-            <span className="field-label">Full name</span>
-            <input
+            <span className="field-label"><UiText text={"Full name"} /></span>
+            <UiInput
               value={customerName}
               onChange={(event) => setCustomerName(event.target.value)}
               className="field-input"
@@ -314,8 +331,8 @@ export function AgentContactCard({
             />
           </label>
           <label className="grid gap-2">
-            <span className="field-label">Phone number</span>
-            <input
+            <span className="field-label"><UiText text={"Phone number"} /></span>
+            <UiInput
               value={customerPhoneNumber}
               onChange={(event) => setCustomerPhoneNumber(event.target.value)}
               className="field-input"
@@ -328,12 +345,12 @@ export function AgentContactCard({
             disabled={submitting}
             className="btn btn-success"
           >
-            {submitting ? "Starting payment..." : "Pay and unlock number"}
+            <UiText text={submitting ? "Starting payment..." : "Pay and unlock number"} />
           </button>
         </div>
       )}
 
-      {message ? <p className="mt-4 text-sm text-muted">{message}</p> : null}
+      {message ? <p className="mt-4 text-sm text-muted"><UiText text={message} /></p> : null}
     </div>
   );
 }

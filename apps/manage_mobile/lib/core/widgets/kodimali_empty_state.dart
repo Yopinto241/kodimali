@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_design_system/flutter_design_system.dart';
 
@@ -24,8 +25,8 @@ class KodimaliEmptyState extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                const KodimaliStatusBadge(
-                  label: "Nothing to show",
+                KodimaliStatusBadge(
+                  label: mobileUi(context, "Nothing to show"),
                   tone: KodimaliStatusTone.muted,
                 ),
                 const SizedBox(height: KodimaliSpacing.sm),

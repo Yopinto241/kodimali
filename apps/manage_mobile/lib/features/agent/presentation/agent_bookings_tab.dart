@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_models/shared_models.dart';
 
@@ -79,9 +80,9 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
       await _refresh();
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(userFacingError(error))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: LocalizedUiText(userFacingError(error))),
+        );
       }
     } finally {
       if (mounted) {
@@ -95,9 +96,9 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
       await action();
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(userFacingError(error))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: LocalizedUiText(userFacingError(error))),
+        );
       }
     }
   }
@@ -164,14 +165,19 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.hasError) {
-              return Center(child: Text(userFacingError(snapshot.error!)));
+              return Center(
+                child: LocalizedUiText(userFacingError(snapshot.error!)),
+              );
             }
             final List<Map<String, dynamic>> allBookings =
                 snapshot.data ?? <Map<String, dynamic>>[];
             if (allBookings.isEmpty) {
-              return const KodimaliEmptyState(
-                title: "Hakuna maombi",
-                message: "Maombi mapya ya listings zako yataonekana hapa.",
+              return KodimaliEmptyState(
+                title: mobileUi(context, "Hakuna maombi"),
+                message: mobileUi(
+                  context,
+                  "Maombi mapya ya listings zako yataonekana hapa.",
+                ),
               );
             }
             final List<Map<String, dynamic>> bookings = _filteredBookings(
@@ -187,9 +193,11 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
               onRefresh: _refresh,
               children: <Widget>[
                 ManageHeroCard(
-                  title: "Customer request queue",
-                  subtitle:
-                      "Every request below is assigned to your agent account. Accept, contact, schedule a viewing, chat with signed-in customers, and record completion here.",
+                  title: mobileUi(context, "Customer request queue"),
+                  subtitle: mobileUi(
+                    context,
+                    "Every request below is assigned to your agent account. Accept, contact, schedule a viewing, chat with signed-in customers, and record completion here.",
+                  ),
                   bottom: ManageMetaWrap(
                     items: <String>[
                       "$attentionCount need attention",
@@ -205,27 +213,27 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
                     segments: const <ButtonSegment<String>>[
                       ButtonSegment<String>(
                         value: "attention",
-                        label: Text("Needs attention"),
+                        label: LocalizedUiText("Needs attention"),
                         icon: Icon(Icons.priority_high_rounded),
                       ),
                       ButtonSegment<String>(
                         value: "active",
-                        label: Text("In progress"),
+                        label: LocalizedUiText("In progress"),
                         icon: Icon(Icons.pending_actions_outlined),
                       ),
                       ButtonSegment<String>(
                         value: "viewings",
-                        label: Text("Viewings"),
+                        label: LocalizedUiText("Viewings"),
                         icon: Icon(Icons.event_outlined),
                       ),
                       ButtonSegment<String>(
                         value: "completed",
-                        label: Text("Completed"),
+                        label: LocalizedUiText("Completed"),
                         icon: Icon(Icons.task_alt_outlined),
                       ),
                       ButtonSegment<String>(
                         value: "all",
-                        label: Text("All"),
+                        label: LocalizedUiText("All"),
                         icon: Icon(Icons.list_alt_outlined),
                       ),
                     ],
@@ -239,7 +247,7 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
                 const SizedBox(height: 16),
                 if (bookings.isEmpty)
                   const ManagePanel(
-                    child: Text("No requests match this queue."),
+                    child: LocalizedUiText("No requests match this queue."),
                   )
                 else
                   ...bookings.map(_buildBookingCard),
@@ -305,7 +313,7 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
               children: <Widget>[
                 const Chip(
                   avatar: Icon(Icons.assignment_ind_outlined, size: 18),
-                  label: Text("Assigned to you"),
+                  label: LocalizedUiText("Assigned to you"),
                 ),
                 Chip(
                   avatar: Icon(
@@ -316,8 +324,8 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
                   ),
                   label: Text(
                     hasLinkedCustomer
-                        ? "Account-linked follow-up"
-                        : "Guest contact",
+                        ? mobileUi(context, "Account-linked follow-up")
+                        : mobileUi(context, "Guest contact"),
                   ),
                 ),
                 Chip(
@@ -331,12 +339,15 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
                   ),
                   label: Text(
                     paid
-                        ? "Reservation paid"
+                        ? mobileUi(context, "Reservation paid")
                         : paymentReady
-                        ? "Customer can reserve/pay"
+                        ? mobileUi(context, "Customer can reserve/pay")
                         : status == "new"
-                        ? "Accept to continue"
-                        : "Approval/availability in progress",
+                        ? mobileUi(context, "Accept to continue")
+                        : mobileUi(
+                            context,
+                            "Approval/availability in progress",
+                          ),
                   ),
                 ),
               ],
@@ -352,12 +363,19 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
               runSpacing: 8,
               children: <Widget>[
                 Text(
-                  "Sent ${DateFormatters.formatDateTime(booking["created_at"] as String?)}",
+                  mobileUiFormat(context, "Sent {0}", [
+                    DateFormatters.formatDateTime(
+                      booking["created_at"] as String?,
+                    ),
+                  ]),
                 ),
-                if (phone.isNotEmpty) Text("Phone $phone"),
+                if (phone.isNotEmpty)
+                  Text(mobileUiFormat(context, "Phone {0}", [phone])),
                 if (requestedServices.isNotEmpty)
                   Text(
-                    "Services ${requestedServices.map(_formatRequestedService).join(", ")}",
+                    mobileUiFormat(context, "Services {0}", [
+                      requestedServices.map(_formatRequestedService).join(", "),
+                    ]),
                   ),
               ],
             ),
@@ -374,21 +392,21 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
                           BookingStatus.checkingAvailability,
                         ),
                   icon: const Icon(Icons.check_rounded),
-                  label: const Text("Accept & notify customer"),
+                  label: const LocalizedUiText("Accept & notify customer"),
                 ),
                 OutlinedButton.icon(
                   onPressed: phone.isEmpty
                       ? null
                       : () => _runExternal(() => Launchers.callPhone(phone)),
                   icon: const Icon(Icons.call_outlined),
-                  label: const Text("Call"),
+                  label: const LocalizedUiText("Call"),
                 ),
                 OutlinedButton.icon(
                   onPressed: phone.isEmpty
                       ? null
                       : () => _runExternal(() => Launchers.openWhatsApp(phone)),
                   icon: const Icon(Icons.chat_outlined),
-                  label: const Text("WhatsApp"),
+                  label: const LocalizedUiText("WhatsApp"),
                 ),
                 OutlinedButton.icon(
                   onPressed: busy ? null : () => _openWorkspace(booking),
@@ -399,8 +417,8 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
                   ),
                   label: Text(
                     hasLinkedCustomer
-                        ? "Open booking workflow"
-                        : "Open workflow",
+                        ? mobileUi(context, "Open booking workflow")
+                        : mobileUi(context, "Open workflow"),
                   ),
                 ),
                 TextButton.icon(
@@ -408,7 +426,7 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
                       ? null
                       : () => _updateStatus(booking, BookingStatus.rejected),
                   icon: const Icon(Icons.close_rounded),
-                  label: const Text("Reject"),
+                  label: const LocalizedUiText("Reject"),
                 ),
               ],
             ),

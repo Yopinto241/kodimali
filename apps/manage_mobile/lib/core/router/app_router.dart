@@ -15,6 +15,7 @@ import '../../features/owner/presentation/owner_workspace_screen.dart';
 import '../../features/events/presentation/events_provider_workspace_screen.dart';
 import '../../features/shared/presentation/workspace_switcher_screen.dart';
 import '../state/app_controller.dart';
+import 'workspace_location.dart';
 
 GoRouter createAppRouter(AppController controller) {
   return GoRouter(
@@ -40,17 +41,11 @@ GoRouter createAppRouter(AppController controller) {
       if (controller.workspaceRoles.length > 1 && location == "/splash") {
         return "/workspaces";
       }
-      final String target = switch (role) {
-        AppRole.admin => "/admin",
-        AppRole.agent =>
-          controller.isAgentAccessBlocked
-              ? "/agent-account-status"
-              : controller.isEventsAgent
-              ? "/events-provider"
-              : "/agent",
-        AppRole.owner => "/owner",
-        _ => "/access-denied",
-      };
+      final String target = workspaceLocation(
+        role,
+        agentBlocked: controller.isAgentAccessBlocked,
+        eventsAgent: controller.isEventsAgent,
+      );
 
       if (location == "/splash") {
         return target;
@@ -62,11 +57,17 @@ GoRouter createAppRouter(AppController controller) {
         return null;
       }
       if (location.startsWith("/agent") && role == AppRole.agent) {
-        return controller.isAgentAccessBlocked ? "/agent-account-status" : null;
+        return controller.isAgentAccessBlocked
+            ? "/agent-account-status"
+            : controller.isEventsAgent && location == "/agent"
+            ? "/events-provider"
+            : null;
       }
       if (location == "/events-provider" &&
-          role == AppRole.agent &&
-          controller.isEventsAgent) {
+          (role == AppRole.owner ||
+              (role == AppRole.agent &&
+                  !controller.isAgentAccessBlocked &&
+                  controller.isEventsAgent))) {
         return null;
       }
       if (location.startsWith("/owner") && role == AppRole.owner) {
@@ -79,7 +80,7 @@ GoRouter createAppRouter(AppController controller) {
         return controller.isAgentAccessBlocked ? "/agent-account-status" : null;
       }
       if (location == "/agent-account-status" && role == AppRole.agent) {
-        return controller.isAgentAccessBlocked ? null : "/agent";
+        return controller.isAgentAccessBlocked ? null : target;
       }
       if (location == "/access-denied" &&
           role != AppRole.admin &&

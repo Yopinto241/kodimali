@@ -28,11 +28,25 @@ Deno.serve(async (request) => {
       "profile_id",
       user.id,
     ).single();
+    if (!agent) return json({ error: "Active agent account required." }, 403);
     const { data: payment } = await service.from("agent_listing_payments")
       .select(
         "id,listing_id,order_reference,payment_status,provider_payment_id",
       ).eq("id", paymentId).eq("agent_id", agent?.id ?? "").single();
     if (!payment) return json({ error: "Payment not found." }, 404);
+    const { data: fee, error: feeError } = await service.rpc(
+      "agent_listing_publication_fee", { p_agent_id: agent.id },
+    );
+    if (feeError) throw new Error(feeError.message);
+    if (typeof fee !== "number" || fee < 0) throw new Error("Publication settings unavailable");
+    if (fee === 0) {
+      const { data: published, error } = await service.rpc(
+        "release_agent_listing_if_eligible", { p_listing_id: payment.listing_id },
+      );
+      if (error) throw new Error(error.message);
+      // Do not mark an unpaid provider transaction paid or cancel it implicitly.
+      return json({ success: true, paymentRequired: false, paymentStatus: "free", published: published === true });
+    }
     if (
       !["paid", "failed", "expired", "cancelled"].includes(
         payment.payment_status,

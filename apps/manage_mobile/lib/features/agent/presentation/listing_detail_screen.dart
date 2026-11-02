@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/utils/date_formatters.dart';
@@ -7,9 +8,14 @@ import '../../../core/widgets/kodimali_status_chip.dart';
 import '../../../core/widgets/manage_ui.dart';
 
 class ListingDetailScreen extends StatefulWidget {
-  const ListingDetailScreen({super.key, required this.listingId});
+  const ListingDetailScreen({
+    super.key,
+    required this.listingId,
+    this.adminMode = false,
+  });
 
   final String listingId;
+  final bool adminMode;
 
   @override
   State<ListingDetailScreen> createState() => _ListingDetailScreenState();
@@ -22,6 +28,10 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
   final TextEditingController _depositController = TextEditingController();
+  final _ownerName = TextEditingController(),
+      _ownerPhone = TextEditingController(),
+      _ownerNotes = TextEditingController();
+  bool _saving = false;
   final TextEditingController _rulesController = TextEditingController();
   final Map<String, TextEditingController> _attributeControllers =
       <String, TextEditingController>{};
@@ -47,6 +57,9 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
 
   @override
   void dispose() {
+    _ownerName.dispose();
+    _ownerPhone.dispose();
+    _ownerNotes.dispose();
     _titleController.dispose();
     _descriptionController.dispose();
     _priceController.dispose();
@@ -63,6 +76,10 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     final Map<String, dynamic> detail = await AppScope.of(
       context,
     ).repository.fetchListingDetail(widget.listingId);
+    final owner = (detail['owners'] as Map?) ?? {};
+    _ownerName.text = owner['full_name']?.toString() ?? '';
+    _ownerPhone.text = owner['phone_number']?.toString() ?? '';
+    _ownerNotes.text = owner['notes']?.toString() ?? '';
     _titleController.text = detail["title"] as String? ?? "";
     _descriptionController.text = detail["description"] as String? ?? "";
     _publicLocationLabel = detail["public_location_label"] as String? ?? "";
@@ -157,24 +174,60 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    await AppScope.of(context).repository.updateListingBasic(
-      listingId: widget.listingId,
-      title: _titleController.text.trim(),
-      description: _descriptionController.text.trim(),
-      priceAmount: double.tryParse(_priceController.text.trim()) ?? 0,
-      pricePeriod: _pricePeriod,
-      depositAmount: double.tryParse(_depositController.text.trim()) ?? 0,
-      rules: _rulesController.text.trim(),
-      availabilityStatus: _availability,
-      listingAttributes: _listingAttributes(),
-    );
-    if (!mounted) {
-      return;
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await AppScope.of(context).repository.updateListingBasic(
+        listingId: widget.listingId,
+        title: _titleController.text.trim(),
+        description: _descriptionController.text.trim(),
+        priceAmount: double.tryParse(_priceController.text.trim()) ?? 0,
+        pricePeriod: _pricePeriod,
+        depositAmount: double.tryParse(_depositController.text.trim()) ?? 0,
+        rules: _rulesController.text.trim(),
+        availabilityStatus: _availability,
+        listingAttributes: _listingAttributes(),
+        ownerName: _ownerName.text,
+        ownerPhone: _ownerPhone.text,
+        ownerNotes: _ownerNotes.text,
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: LocalizedUiText("Listing imehifadhiwa.")),
+      );
+      await _refresh();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Listing imehifadhiwa.")));
-    await _refresh();
+  }
+
+  Future<void> _moderateAsAdmin(String status, [String? reason]) async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await AppScope.of(context).repository.moderateListing(
+        listingId: widget.listingId,
+        status: status,
+        removedReason: reason,
+      );
+      if (mounted) await _refresh();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<void> _markAsRented() async {
@@ -183,7 +236,9 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Listing imeondolewa sokoni kama rented.")),
+      const SnackBar(
+        content: LocalizedUiText("Listing imeondolewa sokoni kama rented."),
+      ),
     );
     await _refresh();
   }
@@ -196,7 +251,7 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Listing imeondolewa sokoni.")),
+      const SnackBar(content: LocalizedUiText("Listing imeondolewa sokoni.")),
     );
     await _refresh();
   }
@@ -213,7 +268,7 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
+            content: LocalizedUiText(
               "TSh 1,000 payment request sent to your agent phone.",
             ),
           ),
@@ -232,12 +287,21 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
       SnackBar(
         content: Text(
           !paymentRequired && published
-              ? "Listing published free. It is now live on the marketplace."
+              ? mobileUi(
+                  context,
+                  "Listing published free. It is now live on the marketplace.",
+                )
               : status == "paid"
-              ? "Payment confirmed. Listing is now live."
+              ? mobileUi(context, "Payment confirmed. Listing is now live.")
               : !paymentRequired
-              ? "Free publication is enabled, but this listing needs a valid cover image before it can go live."
-              : "Payment is not confirmed yet; the listing remains private.",
+              ? mobileUi(
+                  context,
+                  "Free publication is enabled, but this listing needs a valid cover image before it can go live.",
+                )
+              : mobileUi(
+                  context,
+                  "Payment is not confirmed yet; the listing remains private.",
+                ),
         ),
       ),
     );
@@ -248,18 +312,18 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) => AlertDialog(
-        title: const Text("Delete permanently?"),
-        content: const Text(
+        title: const LocalizedUiText("Delete permanently?"),
+        content: const LocalizedUiText(
           "This wrong listing has zero inquiries and will be removed completely together with its media files.",
         ),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text("Cancel"),
+            child: const LocalizedUiText("Cancel"),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text("Delete"),
+            child: const LocalizedUiText("Delete"),
           ),
         ],
       ),
@@ -280,7 +344,7 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Listing detail")),
+      appBar: AppBar(title: const LocalizedUiText("Listing detail")),
       body: FutureBuilder<Map<String, dynamic>>(
         future: _future,
         builder: (BuildContext context, AsyncSnapshot<Map<String, dynamic>> snapshot) {
@@ -305,8 +369,10 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                   title: _titleController.text.isEmpty
                       ? "Listing detail"
                       : _titleController.text,
-                  subtitle:
-                      "Update the public summary, price, availability, and marketplace status from one place.",
+                  subtitle: mobileUi(
+                    context,
+                    "Update the public summary, price, availability, and marketplace status from one place.",
+                  ),
                   trailing: Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: <Widget>[
@@ -330,30 +396,37 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                 ),
                 const SizedBox(height: 18),
                 ManagePanel(
-                  title: "Public details",
-                  subtitle:
-                      "These are the main fields that shape how the asset appears in the marketplace.",
+                  title: mobileUi(context, "Public details"),
+                  subtitle: mobileUi(
+                    context,
+                    "These are the main fields that shape how the asset appears in the marketplace.",
+                  ),
                   child: Column(
                     children: <Widget>[
                       TextFormField(
                         controller: _titleController,
-                        decoration: const InputDecoration(labelText: "Title"),
+                        decoration: InputDecoration(
+                          labelText: mobileUi(context, "Title"),
+                        ),
                         validator: ListingContentValidator.titleError,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _descriptionController,
                         maxLines: 4,
-                        decoration: const InputDecoration(
-                          labelText: "Description *",
-                          helperText: "At least 10 characters",
+                        decoration: InputDecoration(
+                          labelText: mobileUi(context, "Description *"),
+                          helperText: mobileUi(
+                            context,
+                            "At least 10 characters",
+                          ),
                         ),
                         validator: ListingContentValidator.descriptionError,
                       ),
                       const SizedBox(height: 12),
                       InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: "Public location label",
+                        decoration: InputDecoration(
+                          labelText: mobileUi(context, "Public location label"),
                         ),
                         child: Text(
                           _publicLocationLabel.isEmpty
@@ -366,56 +439,75 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                 ),
                 const SizedBox(height: 16),
                 ManagePanel(
-                  title: "Category listing fields",
-                  subtitle:
-                      "These fields are configured by the administrator for this listing category.",
+                  title: mobileUi(context, "Category listing fields"),
+                  subtitle: mobileUi(
+                    context,
+                    "These fields are configured by the administrator for this listing category.",
+                  ),
                   child: _attributeSchema.isEmpty
-                      ? const Text(
+                      ? const LocalizedUiText(
                           "No extra fields configured for this category.",
                         )
                       : Column(children: _buildAttributeFields()),
                 ),
                 const SizedBox(height: 16),
                 ManagePanel(
-                  title: "Pricing and rules",
-                  subtitle:
-                      "Keep the commercial terms clear so requests are more qualified when they arrive.",
+                  title: mobileUi(context, "Pricing and rules"),
+                  subtitle: mobileUi(
+                    context,
+                    "Keep the commercial terms clear so requests are more qualified when they arrive.",
+                  ),
                   child: Column(
                     children: <Widget>[
                       TextFormField(
                         controller: _priceController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: "Price amount",
+                        decoration: InputDecoration(
+                          labelText: mobileUi(context, "Price amount"),
                         ),
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         initialValue: _pricePeriod,
-                        decoration: const InputDecoration(
-                          labelText: "Price period",
+                        decoration: InputDecoration(
+                          labelText: mobileUi(context, "Price period"),
                         ),
                         items: const <DropdownMenuItem<String>>[
-                          DropdownMenuItem(value: "hour", child: Text("Hour")),
-                          DropdownMenuItem(value: "day", child: Text("Day")),
-                          DropdownMenuItem(value: "week", child: Text("Week")),
+                          DropdownMenuItem(
+                            value: "hour",
+                            child: LocalizedUiText("Hour"),
+                          ),
+                          DropdownMenuItem(
+                            value: "day",
+                            child: LocalizedUiText("Day"),
+                          ),
+                          DropdownMenuItem(
+                            value: "week",
+                            child: LocalizedUiText("Week"),
+                          ),
                           DropdownMenuItem(
                             value: "month",
-                            child: Text("Month"),
+                            child: LocalizedUiText("Month"),
                           ),
-                          DropdownMenuItem(value: "year", child: Text("Year")),
-                          DropdownMenuItem(value: "trip", child: Text("Trip")),
+                          DropdownMenuItem(
+                            value: "year",
+                            child: LocalizedUiText("Year"),
+                          ),
+                          DropdownMenuItem(
+                            value: "trip",
+                            child: LocalizedUiText("Trip"),
+                          ),
                           DropdownMenuItem(
                             value: "event",
-                            child: Text("Event"),
+                            child: LocalizedUiText("Event"),
                           ),
                           DropdownMenuItem(
                             value: "piece",
-                            child: Text("Piece"),
+                            child: LocalizedUiText("Piece"),
                           ),
                           DropdownMenuItem(
                             value: "custom",
-                            child: Text("Custom"),
+                            child: LocalizedUiText("Custom"),
                           ),
                         ],
                         onChanged: (String? value) {
@@ -428,32 +520,32 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                       TextFormField(
                         controller: _depositController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: "Deposit amount",
+                        decoration: InputDecoration(
+                          labelText: mobileUi(context, "Deposit amount"),
                         ),
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         initialValue: _availability,
-                        decoration: const InputDecoration(
-                          labelText: "Availability",
+                        decoration: InputDecoration(
+                          labelText: mobileUi(context, "Availability"),
                         ),
                         items: const <DropdownMenuItem<String>>[
                           DropdownMenuItem(
                             value: "available",
-                            child: Text("Available"),
+                            child: LocalizedUiText("Available"),
                           ),
                           DropdownMenuItem(
                             value: "reserved",
-                            child: Text("Reserved"),
+                            child: LocalizedUiText("Reserved"),
                           ),
                           DropdownMenuItem(
                             value: "rented",
-                            child: Text("Rented"),
+                            child: LocalizedUiText("Rented"),
                           ),
                           DropdownMenuItem(
                             value: "unavailable",
-                            child: Text("Unavailable"),
+                            child: LocalizedUiText("Unavailable"),
                           ),
                         ],
                         onChanged: (String? value) {
@@ -466,18 +558,73 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                       TextFormField(
                         controller: _rulesController,
                         maxLines: 3,
-                        decoration: const InputDecoration(labelText: "Rules"),
+                        decoration: InputDecoration(
+                          labelText: mobileUi(context, "Rules"),
+                        ),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 16),
                 ManagePanel(
-                  title: "Media records",
-                  subtitle:
-                      "Current media already attached to this listing. Cover assets stay easy to audit here.",
+                  title: mobileUi(context, 'Private owner contact (optional)'),
+                  subtitle: mobileUi(
+                    context,
+                    'Leave all fields empty to publish without an owner contact. This does not create or verify an owner account.',
+                  ),
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _ownerName,
+                        decoration: InputDecoration(
+                          labelText: mobileUi(context, 'Owner name'),
+                        ),
+                        validator: (value) =>
+                            (_ownerPhone.text.trim().isNotEmpty ||
+                                    _ownerNotes.text.trim().isNotEmpty) &&
+                                (value?.trim().isEmpty ?? true)
+                            ? mobileUi(
+                                context,
+                                'Enter the owner name or clear all owner fields.',
+                              )
+                            : null,
+                      ),
+                      TextFormField(
+                        controller: _ownerPhone,
+                        keyboardType: TextInputType.phone,
+                        decoration: InputDecoration(
+                          labelText: mobileUi(context, 'Owner phone'),
+                        ),
+                        validator: (value) =>
+                            (_ownerName.text.trim().isNotEmpty ||
+                                    _ownerNotes.text.trim().isNotEmpty) &&
+                                (value?.trim().isEmpty ?? true)
+                            ? mobileUi(
+                                context,
+                                'Enter the owner phone or clear all owner fields.',
+                              )
+                            : null,
+                      ),
+                      TextFormField(
+                        controller: _ownerNotes,
+                        decoration: InputDecoration(
+                          labelText: mobileUi(context, 'Owner notes'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ManagePanel(
+                  title: mobileUi(context, "Media records"),
+                  subtitle: mobileUi(
+                    context,
+                    "Current media already attached to this listing. Cover assets stay easy to audit here.",
+                  ),
                   child: media.isEmpty
-                      ? const Text("No media found for this listing yet.")
+                      ? const LocalizedUiText(
+                          "No media found for this listing yet.",
+                        )
                       : Column(
                           children: media.map((dynamic item) {
                             return Card(
@@ -487,18 +634,74 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                                   horizontal: 16,
                                   vertical: 8,
                                 ),
-                                leading: Icon(
-                                  item["media_type"] == "video"
-                                      ? Icons.videocam_outlined
-                                      : Icons.image_outlined,
-                                ),
+                                onTap:
+                                    item['media_type'] == 'image' &&
+                                        item['preview_url'] != null
+                                    ? () => showDialog<void>(
+                                        context: context,
+                                        builder: (context) => Dialog(
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Flexible(
+                                                child: InteractiveViewer(
+                                                  child: Image.network(
+                                                    item['preview_url']
+                                                        .toString(),
+                                                    errorBuilder:
+                                                        (
+                                                          _,
+                                                          error,
+                                                          stack,
+                                                        ) => const LocalizedUiText(
+                                                          'Image could not load',
+                                                        ),
+                                                  ),
+                                                ),
+                                              ),
+                                              TextButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(context),
+                                                child: const LocalizedUiText(
+                                                  'Close',
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      )
+                                    : null,
+                                leading:
+                                    item['media_type'] == 'image' &&
+                                        item['preview_url'] != null
+                                    ? Image.network(
+                                        item['preview_url'].toString(),
+                                        width: 56,
+                                        height: 56,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, error, stack) =>
+                                            const Icon(
+                                              Icons
+                                                  .image_not_supported_outlined,
+                                            ),
+                                      )
+                                    : Icon(
+                                        item["media_type"] == "video"
+                                            ? Icons.videocam_outlined
+                                            : Icons.image_outlined,
+                                      ),
                                 title: Text(
-                                  item["storage_path"] as String? ?? "-",
+                                  mobileUi(
+                                    context,
+                                    item['media_type'] == 'video'
+                                        ? 'Video'
+                                        : 'Image',
+                                  ),
                                 ),
                                 subtitle: Text(
                                   item["is_cover"] == true
-                                      ? "Cover media"
-                                      : "Standard media",
+                                      ? mobileUi(context, "Cover media")
+                                      : mobileUi(context, "Standard media"),
                                 ),
                               ),
                             );
@@ -507,46 +710,81 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                 ),
                 const SizedBox(height: 16),
                 ManagePanel(
-                  title: "Listing actions",
-                  subtitle:
-                      "Save changes first, then use lifecycle actions depending on whether the listing should stay public.",
+                  title: mobileUi(context, "Listing actions"),
+                  subtitle: mobileUi(
+                    context,
+                    "Save changes first, then use lifecycle actions depending on whether the listing should stay public.",
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       FilledButton.icon(
-                        onPressed: _save,
+                        onPressed: _saving ? null : _save,
                         icon: const Icon(Icons.save_outlined),
-                        label: const Text("Save changes"),
+                        label: const LocalizedUiText("Save changes"),
                       ),
                       const SizedBox(height: 12),
-                      if (_status == "active")
+                      if (widget.adminMode)
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: [
+                            OutlinedButton(
+                              onPressed: _saving
+                                  ? null
+                                  : () => _moderateAsAdmin('active'),
+                              child: const LocalizedUiText(
+                                'Approve and activate',
+                              ),
+                            ),
+                            OutlinedButton(
+                              onPressed: _saving
+                                  ? null
+                                  : () => _moderateAsAdmin(
+                                      'inactive',
+                                      'admin_removed',
+                                    ),
+                              child: const LocalizedUiText('Remove'),
+                            ),
+                            OutlinedButton(
+                              onPressed: _saving
+                                  ? null
+                                  : () =>
+                                        _moderateAsAdmin('inactive', 'rented'),
+                              child: const LocalizedUiText('Mark rented'),
+                            ),
+                          ],
+                        ),
+                      if (!widget.adminMode && _status == "active")
                         Wrap(
                           spacing: 12,
                           runSpacing: 12,
                           children: <Widget>[
                             OutlinedButton(
                               onPressed: _markAsRented,
-                              child: const Text("Mark as rented"),
+                              child: const LocalizedUiText("Mark as rented"),
                             ),
                             OutlinedButton(
                               onPressed: _removeFromMarketplace,
-                              child: const Text("Remove from marketplace"),
+                              child: const LocalizedUiText(
+                                "Remove from marketplace",
+                              ),
                             ),
                           ],
                         ),
-                      if (_status == "inactive")
+                      if (!widget.adminMode && _status == "inactive")
                         OutlinedButton(
                           onPressed: _payAndPublish,
-                          child: const Text("Publish listing"),
+                          child: const LocalizedUiText("Publish listing"),
                         ),
                       const SizedBox(height: 14),
-                      if (inquiryCount == 0)
+                      if (!widget.adminMode && inquiryCount == 0)
                         TextButton(
                           onPressed: _delete,
-                          child: const Text("Delete permanently"),
+                          child: const LocalizedUiText("Delete permanently"),
                         )
-                      else
-                        const Text(
+                      else if (!widget.adminMode)
+                        const LocalizedUiText(
                           "Listing yenye maombi haiwezi kufutwa kabisa. Tumia Remove from marketplace.",
                         ),
                     ],
@@ -563,10 +801,13 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
   List<Widget> _buildAttributeFields() {
     return _attributeSchema.map((Map<String, dynamic> field) {
       final String key = field['key'].toString();
-      final String label = field['label']?.toString() ?? key;
+      final String label = mobileUi(context, field['label']?.toString() ?? key);
       final String type = field['type']?.toString() ?? 'text';
       final bool required = field['required'] == true;
-      final String? helpText = field['help_text']?.toString().trim();
+      final String? rawHelpText = field['help_text']?.toString().trim();
+      final String? helpText = rawHelpText == null
+          ? null
+          : mobileUi(context, rawHelpText);
       if (type == 'boolean') {
         return CheckboxListTile(
           value: _attributeBooleans[key] ?? false,
@@ -595,7 +836,7 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                 .map(
                   (String option) => DropdownMenuItem<String>(
                     value: option,
-                    child: Text(option),
+                    child: LocalizedUiText(option),
                   ),
                 )
                 .toList(),

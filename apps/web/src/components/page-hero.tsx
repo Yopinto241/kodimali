@@ -1,8 +1,10 @@
+import { UiText } from "@/components/ui-text";
 import type { ReactNode } from "react";
 
 type PageHeroProps = {
   eyebrow: string;
   title: string;
+  preserveTitle?: boolean;
   description: string;
   actions?: ReactNode;
   aside?: ReactNode;
@@ -11,6 +13,7 @@ type PageHeroProps = {
 export function PageHero({
   eyebrow,
   title,
+  preserveTitle = false,
   description,
   actions,
   aside,
@@ -27,12 +30,12 @@ export function PageHero({
         }`}
       >
         <div className="min-w-0">
-          <p className="eyebrow">{eyebrow}</p>
+          <p className="eyebrow"><UiText text={eyebrow} /></p>
           <h1 className="mt-2 max-w-4xl break-words font-heading text-3xl font-semibold tracking-tight text-brand-ink sm:text-4xl">
-            {title}
+            {preserveTitle ? title : <UiText text={title} />}
           </h1>
           <p className="section-copy mt-3 line-clamp-2 max-w-3xl text-sm sm:text-base">
-            {description}
+            <UiText text={description} />
           </p>
           {actions ? <div className="mt-4 flex flex-wrap gap-2">{actions}</div> : null}
         </div>

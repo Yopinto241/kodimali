@@ -1,11 +1,16 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/utils/date_formatters.dart';
 import '../../../core/widgets/app_scope.dart';
 import '../../../core/widgets/manage_ui.dart';
+import '../../../core/utils/user_facing_error.dart';
+import 'admin_workspace_access.dart';
 
 class AdminGrowthOperationsScreen extends StatefulWidget {
-  const AdminGrowthOperationsScreen({super.key});
+  const AdminGrowthOperationsScreen({super.key, required this.access});
+
+  final AdminWorkspaceAccess access;
   @override
   State<AdminGrowthOperationsScreen> createState() =>
       _AdminGrowthOperationsScreenState();
@@ -37,33 +42,66 @@ class _AdminGrowthOperationsScreenState
   }
 
   Future<List<dynamic>> load() {
+    final access = widget.access;
     final r = AppScope.of(context).repository;
     return Future.wait<dynamic>([
-      r.fetchAdminGrowthOperations(),
-      r.fetchRiskFlags(),
-      r.fetchRefunds(),
-      r.fetchPendingBoosts(),
-      r.fetchCommercialPayments(),
-      r.fetchAdminRoleDefinitions(),
-      r.fetchAdminRoleDirectory(),
-      r.fetchAdminAgentWallets(),
-      r.fetchAdminFinancialOverview(),
-      r.fetchAdminExternalDeals(),
-      r.fetchAdminFinancialActivity(
-        from: reportDates?.start,
-        until: reportDates?.end.add(const Duration(days: 1)),
-        product: reportProduct,
-        status: reportStatus,
-        bookingId: bookingFilter.text,
-        providerProfileId: providerFilter.text,
-        category: reportCategory,
-        paymentProvider: reportPaymentProvider,
-      ),
-      r.fetchKodimaliRolloutFlags(),
-      r.fetchRefundObligations(),
-      r.fetchProviderPayables(),
-      r.fetchSettlementBatches(),
-      r.fetchFinancialReconciliationCases(),
+      access.analytics
+          ? r.fetchAdminGrowthOperations()
+          : Future.value(<String, dynamic>{}),
+      access.risks
+          ? r.fetchRiskFlags()
+          : Future.value(<Map<String, dynamic>>[]),
+      access.refunds
+          ? r.fetchRefunds()
+          : Future.value(<Map<String, dynamic>>[]),
+      access.boosts
+          ? r.fetchPendingBoosts()
+          : Future.value(<Map<String, dynamic>>[]),
+      access.payments
+          ? r.fetchCommercialPayments()
+          : Future.value(<Map<String, dynamic>>[]),
+      access.roles
+          ? r.fetchAdminRoleDefinitions()
+          : Future.value(<Map<String, dynamic>>[]),
+      access.roles
+          ? r.fetchAdminRoleDirectory()
+          : Future.value(<Map<String, dynamic>>[]),
+      access.wallets
+          ? r.fetchAdminAgentWallets()
+          : Future.value(<Map<String, dynamic>>[]),
+      access.financialReports
+          ? r.fetchAdminFinancialOverview()
+          : Future.value(<String, dynamic>{}),
+      access.payments
+          ? r.fetchAdminExternalDeals()
+          : Future.value(<Map<String, dynamic>>[]),
+      access.financialReports
+          ? r.fetchAdminFinancialActivity(
+              from: reportDates?.start,
+              until: reportDates?.end.add(const Duration(days: 1)),
+              product: reportProduct,
+              status: reportStatus,
+              bookingId: bookingFilter.text,
+              providerProfileId: providerFilter.text,
+              category: reportCategory,
+              paymentProvider: reportPaymentProvider,
+            )
+          : Future.value(<Map<String, dynamic>>[]),
+      access.payments || access.refunds
+          ? r.fetchKodimaliRolloutFlags()
+          : Future.value(<Map<String, dynamic>>[]),
+      access.refunds
+          ? r.fetchRefundObligations()
+          : Future.value(<Map<String, dynamic>>[]),
+      access.payments
+          ? r.fetchProviderPayables()
+          : Future.value(<Map<String, dynamic>>[]),
+      access.payments
+          ? r.fetchSettlementBatches()
+          : Future.value(<Map<String, dynamic>>[]),
+      access.payments
+          ? r.fetchFinancialReconciliationCases()
+          : Future.value(<Map<String, dynamic>>[]),
     ]);
   }
 
@@ -155,7 +193,11 @@ class _AdminGrowthOperationsScreenState
     await Clipboard.setData(ClipboardData(text: csv));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${rows.length} rows copied as CSV.')),
+        SnackBar(
+          content: Text(
+            mobileUiFormat(context, "{0} rows copied as CSV.", [rows.length]),
+          ),
+        ),
       );
     }
   }
@@ -170,19 +212,19 @@ class _AdminGrowthOperationsScreenState
           controller: controller,
           minLines: 2,
           maxLines: 4,
-          decoration: const InputDecoration(
-            labelText: 'Reason / approval note',
-            hintText: 'At least 10 characters',
+          decoration: InputDecoration(
+            labelText: mobileUi(context, 'Reason / approval note'),
+            hintText: mobileUi(context, 'At least 10 characters'),
           ),
         ),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+            child: const LocalizedUiText('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, controller.text),
-            child: const Text('Continue'),
+            child: const LocalizedUiText('Continue'),
           ),
         ],
       ),
@@ -279,7 +321,11 @@ class _AdminGrowthOperationsScreenState
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialog) => AlertDialog(
-          title: Text('Roles · ${user['full_name'] ?? user['account_email']}'),
+          title: Text(
+            mobileUiFormat(context, "Roles · {0}", [
+              user['full_name'] ?? user['account_email'],
+            ]),
+          ),
           content: SizedBox(
             width: 520,
             child: ListView(
@@ -288,8 +334,8 @@ class _AdminGrowthOperationsScreenState
                   .map(
                     (role) => CheckboxListTile(
                       value: selected.contains(role['id']),
-                      title: Text(role['name'].toString()),
-                      subtitle: Text(role['description'].toString()),
+                      title: LocalizedUiText(role['name'].toString()),
+                      subtitle: LocalizedUiText(role['description'].toString()),
                       onChanged: (value) => setDialog(() {
                         if (value == true) {
                           selected.add(role['id'].toString());
@@ -305,11 +351,11 @@ class _AdminGrowthOperationsScreenState
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
+              child: const LocalizedUiText('Cancel'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext, selected),
-              child: const Text('Save roles'),
+              child: const LocalizedUiText('Save roles'),
             ),
           ],
         ),
@@ -341,7 +387,9 @@ class _AdminGrowthOperationsScreenState
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(
-          'Wallet · ${wallet['business_name'] ?? wallet['display_name'] ?? 'Agent'}',
+          mobileUiFormat(context, "Wallet · {0}", [
+            wallet['business_name'] ?? wallet['display_name'] ?? 'Agent',
+          ]),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -349,24 +397,29 @@ class _AdminGrowthOperationsScreenState
             TextField(
               controller: amount,
               keyboardType: const TextInputType.numberWithOptions(signed: true),
-              decoration: const InputDecoration(
-                labelText: 'Amount (positive credit, negative debit)',
+              decoration: InputDecoration(
+                labelText: mobileUi(
+                  context,
+                  'Amount (positive credit, negative debit)',
+                ),
               ),
             ),
             TextField(
               controller: description,
-              decoration: const InputDecoration(labelText: 'Reason'),
+              decoration: InputDecoration(
+                labelText: mobileUi(context, 'Reason'),
+              ),
             ),
           ],
         ),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+            child: const LocalizedUiText('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Apply adjustment'),
+            child: const LocalizedUiText('Apply adjustment'),
           ),
         ],
       ),
@@ -386,8 +439,28 @@ class _AdminGrowthOperationsScreenState
   Widget build(BuildContext context) => FutureBuilder<List<dynamic>>(
     future: future,
     builder: (context, s) {
+      if (s.hasError) {
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                userFacingError(
+                  s.error!,
+                  fallback: 'Could not load this workspace.',
+                ),
+              ),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: () => setState(() => future = load()),
+                child: const LocalizedUiText('Retry'),
+              ),
+            ],
+          ),
+        );
+      }
       if (!s.hasData) return const Center(child: CircularProgressIndicator());
-      if (s.hasError) return Center(child: Text('${s.error}'));
+      final access = widget.access;
       final d = s.data!,
           summary = (d[0] as Map).cast<String, dynamic>(),
           risks = (d[1] as List).cast<Map<String, dynamic>>(),
@@ -409,223 +482,269 @@ class _AdminGrowthOperationsScreenState
         onRefresh: refresh,
         children: [
           ManageHeroCard(
-            title: 'Growth operations',
-            subtitle:
-                'Control subscriptions, campaigns, refunds, fraud signals and payment reliability.',
-            bottom: Wrap(
-              spacing: 12,
-              children: [
-                Text(
-                  '${summary['subscriptions'] ?? 0} subscriptions',
-                  style: const TextStyle(color: Colors.white),
-                ),
-                Text(
-                  '${summary['active_boosts'] ?? 0} active campaigns',
-                  style: const TextStyle(color: Colors.white),
-                ),
-                Text(
-                  '${summary['open_risks'] ?? 0} risks',
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ],
+            title: mobileUi(context, 'Growth operations'),
+            subtitle: mobileUi(
+              context,
+              'Control subscriptions, campaigns, refunds, fraud signals and payment reliability.',
             ),
+            bottom: !access.analytics
+                ? null
+                : Wrap(
+                    spacing: 12,
+                    children: [
+                      Text(
+                        mobileUiFormat(context, "{0} subscriptions", [
+                          summary['subscriptions'] ?? 0,
+                        ]),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      Text(
+                        mobileUiFormat(context, "{0} campaigns", [
+                          summary['active_boosts'] ?? 0,
+                        ]),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      Text(
+                        mobileUiFormat(context, "{0} risks", [
+                          summary['open_risks'] ?? 0,
+                        ]),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
           ),
           const SizedBox(height: 16),
-          _financialPanel(finance),
+          if (access.financialReports) _financialPanel(finance),
           const SizedBox(height: 16),
-          _financialActivityPanel(financialActivity),
+          if (access.financialReports)
+            _financialActivityPanel(financialActivity),
           const SizedBox(height: 16),
-          _refundSettlementPanel(
-            rolloutFlags: rolloutFlags,
-            refunds: refundObligations,
-            payables: providerPayables,
-            batches: settlementBatches,
-            reconciliationCases: reconciliationCases,
-          ),
-          const SizedBox(height: 16),
-          _panel(
-            'External deal declarations',
-            'These values were reported outside KODIMALI and are not platform collections.',
-            externalDeals.map(
-              (deal) => ListTile(
-                leading: const Icon(Icons.handshake_outlined),
-                title: Text(
-                  '${DateFormatters.formatCurrency(deal['claimed_value_minor'] as num?)} · ${deal['status']}',
-                ),
-                subtitle: Text(
-                  '${deal['listing_id'] != null ? 'Listing ${deal['listing_id']}' : 'Referral ${deal['referral_submission_id']}'} · ${deal['transaction_date']}',
-                ),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (value) =>
-                      externalDeal(deal['id'].toString(), value),
-                  itemBuilder: (_) => const <PopupMenuEntry<String>>[
-                    PopupMenuItem(value: 'verified', child: Text('Verify')),
-                    PopupMenuItem(
-                      value: 'commission_assessed',
-                      child: Text('Commission assessed'),
-                    ),
-                    PopupMenuItem(value: 'disputed', child: Text('Dispute')),
-                    PopupMenuItem(value: 'rejected', child: Text('Reject')),
-                    PopupMenuItem(value: 'settled', child: Text('Settled')),
-                  ],
-                ),
-              ),
+          if (access.payments || access.refunds)
+            _refundSettlementPanel(
+              rolloutFlags: rolloutFlags,
+              refunds: refundObligations,
+              payables: providerPayables,
+              batches: settlementBatches,
+              reconciliationCases: reconciliationCases,
             ),
-          ),
           const SizedBox(height: 16),
-          _panel(
-            'Promotion approvals',
-            'Review paid and pending featured-listing campaigns.',
-            boosts.map(
-              (b) => ListTile(
-                leading: const Icon(Icons.campaign_outlined),
-                title: Text(
-                  ((b['listings'] as Map?)?['title'] ?? 'Listing').toString(),
-                ),
-                subtitle: Text(
-                  '${b['placement']} · ${b['duration_days']} days · ${b['amount_tzs']} TZS',
-                ),
-                trailing: b['status'] == 'pending'
-                    ? Wrap(
-                        children: [
-                          IconButton(
-                            tooltip: 'Approve',
-                            onPressed: () =>
-                                boost(b['id'].toString(), 'active'),
-                            icon: const Icon(Icons.check_circle_outline),
-                          ),
-                          IconButton(
-                            tooltip: 'Reject',
-                            onPressed: () =>
-                                boost(b['id'].toString(), 'cancelled'),
-                            icon: const Icon(Icons.cancel_outlined),
-                          ),
-                        ],
-                      )
-                    : Chip(label: Text(b['status'].toString())),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _panel(
-            'Fraud and duplicate review',
-            'Resolve or dismiss automatically detected risks.',
-            risks.map(
-              (r) => ListTile(
-                leading: Icon(
-                  Icons.shield_outlined,
-                  color: r['severity'] == 'critical' ? Colors.red : null,
-                ),
-                title: Text(r['risk_type'].toString().replaceAll('_', ' ')),
-                subtitle: Text(r['reason'].toString()),
-                trailing: r['status'] == 'open'
-                    ? PopupMenuButton<String>(
-                        onSelected: (v) => risk(r['id'].toString(), v),
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(
-                            value: 'reviewing',
-                            child: Text('Reviewing'),
-                          ),
-                          PopupMenuItem(
-                            value: 'resolved',
-                            child: Text('Resolve'),
-                          ),
-                          PopupMenuItem(
-                            value: 'dismissed',
-                            child: Text('Dismiss'),
-                          ),
-                        ],
-                      )
-                    : Chip(label: Text(r['status'].toString())),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _panel(
-            'Refund queue',
-            'Approve or reject customer and agent refund requests.',
-            refunds.map(
-              (r) => ListTile(
-                leading: const Icon(Icons.currency_exchange),
-                title: Text('${r['amount_tzs']} TZS · ${r['payment_kind']}'),
-                subtitle: Text(r['reason'].toString()),
-                trailing: r['status'] == 'requested'
-                    ? Wrap(
-                        children: [
-                          IconButton(
-                            onPressed: () =>
-                                refund(r['id'].toString(), 'approved'),
-                            icon: const Icon(Icons.check),
-                          ),
-                          IconButton(
-                            onPressed: () =>
-                                refund(r['id'].toString(), 'rejected'),
-                            icon: const Icon(Icons.close),
-                          ),
-                        ],
-                      )
-                    : Chip(label: Text(r['status'].toString())),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _panel(
-            'Administrative roles',
-            'Only Super Admins can assign roles. The final Super Admin cannot remove their own access.',
-            admins.map(
-              (admin) => ListTile(
-                leading: const Icon(Icons.admin_panel_settings_outlined),
-                title: Text(admin['full_name']?.toString() ?? 'Administrator'),
-                subtitle: Text(
-                  ((admin['roles'] as List?) ?? const <dynamic>[])
-                      .whereType<Map>()
-                      .map((r) => r['name'])
-                      .join(' · '),
-                ),
-                trailing: const Icon(Icons.manage_accounts_outlined),
-                onTap: () => _editRoles(admin, definitions),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _panel(
-            'Agent promotional wallets',
-            'Finance Admins can grant or remove platform credits with a permanent ledger entry.',
-            wallets.map(
-              (wallet) => ListTile(
-                leading: const Icon(Icons.account_balance_wallet_outlined),
-                title: Text(
-                  wallet['business_name']?.toString() ??
-                      wallet['display_name']?.toString() ??
-                      'Agent',
-                ),
-                subtitle: Text(
-                  'Available: ${wallet['available_balance_tzs']} TZS · Promotional: ${wallet['promotional_credits_tzs']} TZS',
-                ),
-                trailing: const Icon(Icons.edit_outlined),
-                onTap: () => _adjustWallet(wallet),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _panel(
-            'Payment monitoring',
-            'Latest subscription and promotion transactions.',
-            payments
-                .take(50)
-                .map(
-                  (p) => ListTile(
-                    leading: const Icon(Icons.payments_outlined),
-                    title: Text(
-                      '${p['requested_amount']} TZS · ${p['product_type']}',
-                    ),
-                    subtitle: Text(
-                      '${p['order_reference']} · ${p['created_at'].toString().split('T').first}',
-                    ),
-                    trailing: Chip(label: Text(p['payment_status'].toString())),
+          if (access.payments)
+            _panel(
+              'External deal declarations',
+              'These values were reported outside KODIMALI and are not platform collections.',
+              externalDeals.map(
+                (deal) => ListTile(
+                  leading: const Icon(Icons.handshake_outlined),
+                  title: Text(
+                    '${DateFormatters.formatCurrency(deal['claimed_value_minor'] as num?)} · ${deal['status']}',
+                  ),
+                  subtitle: Text(
+                    '${deal['listing_id'] != null ? mobileUiFormat(context, "Listing {0}", [deal['listing_id']]) : mobileUiFormat(context, "Referral {0}", [deal['referral_submission_id']])} · ${deal['transaction_date']}',
+                  ),
+                  trailing: PopupMenuButton<String>(
+                    onSelected: (value) =>
+                        externalDeal(deal['id'].toString(), value),
+                    itemBuilder: (_) => const <PopupMenuEntry<String>>[
+                      PopupMenuItem(
+                        value: 'verified',
+                        child: LocalizedUiText('Verify'),
+                      ),
+                      PopupMenuItem(
+                        value: 'commission_assessed',
+                        child: LocalizedUiText('Commission assessed'),
+                      ),
+                      PopupMenuItem(
+                        value: 'disputed',
+                        child: LocalizedUiText('Dispute'),
+                      ),
+                      PopupMenuItem(
+                        value: 'rejected',
+                        child: LocalizedUiText('Reject'),
+                      ),
+                      PopupMenuItem(
+                        value: 'settled',
+                        child: LocalizedUiText('Settled'),
+                      ),
+                    ],
                   ),
                 ),
-          ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          if (access.boosts)
+            _panel(
+              'Promotion approvals',
+              'Review paid and pending featured-listing campaigns.',
+              boosts.map(
+                (b) => ListTile(
+                  leading: const Icon(Icons.campaign_outlined),
+                  title: Text(
+                    ((b['listings'] as Map?)?['title'] ?? 'Listing').toString(),
+                  ),
+                  subtitle: Text(
+                    mobileUiFormat(context, "{0} · {1} days · {2} TZS", [
+                      b['placement'],
+                      b['duration_days'],
+                      b['amount_tzs'],
+                    ]),
+                  ),
+                  trailing: b['status'] == 'pending'
+                      ? Wrap(
+                          children: [
+                            IconButton(
+                              tooltip: mobileUi(context, 'Approve'),
+                              onPressed: () =>
+                                  boost(b['id'].toString(), 'active'),
+                              icon: const Icon(Icons.check_circle_outline),
+                            ),
+                            IconButton(
+                              tooltip: mobileUi(context, 'Reject'),
+                              onPressed: () =>
+                                  boost(b['id'].toString(), 'cancelled'),
+                              icon: const Icon(Icons.cancel_outlined),
+                            ),
+                          ],
+                        )
+                      : Chip(label: Text(b['status'].toString())),
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          if (access.risks)
+            _panel(
+              'Fraud and duplicate review',
+              'Resolve or dismiss automatically detected risks.',
+              risks.map(
+                (r) => ListTile(
+                  leading: Icon(
+                    Icons.shield_outlined,
+                    color: r['severity'] == 'critical' ? Colors.red : null,
+                  ),
+                  title: Text(r['risk_type'].toString().replaceAll('_', ' ')),
+                  subtitle: Text(r['reason'].toString()),
+                  trailing: r['status'] == 'open'
+                      ? PopupMenuButton<String>(
+                          onSelected: (v) => risk(r['id'].toString(), v),
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(
+                              value: 'reviewing',
+                              child: LocalizedUiText('Reviewing'),
+                            ),
+                            PopupMenuItem(
+                              value: 'resolved',
+                              child: LocalizedUiText('Resolve'),
+                            ),
+                            PopupMenuItem(
+                              value: 'dismissed',
+                              child: LocalizedUiText('Dismiss'),
+                            ),
+                          ],
+                        )
+                      : Chip(label: Text(r['status'].toString())),
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          if (access.refunds)
+            _panel(
+              'Refund queue',
+              'Approve or reject customer and agent refund requests.',
+              refunds.map(
+                (r) => ListTile(
+                  leading: const Icon(Icons.currency_exchange),
+                  title: Text('${r['amount_tzs']} TZS · ${r['payment_kind']}'),
+                  subtitle: Text(r['reason'].toString()),
+                  trailing: r['status'] == 'requested'
+                      ? Wrap(
+                          children: [
+                            IconButton(
+                              onPressed: () =>
+                                  refund(r['id'].toString(), 'approved'),
+                              icon: const Icon(Icons.check),
+                            ),
+                            IconButton(
+                              onPressed: () =>
+                                  refund(r['id'].toString(), 'rejected'),
+                              icon: const Icon(Icons.close),
+                            ),
+                          ],
+                        )
+                      : Chip(label: Text(r['status'].toString())),
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          if (access.roles)
+            _panel(
+              'Administrative roles',
+              'Only Super Admins can assign roles. The final Super Admin cannot remove their own access.',
+              admins.map(
+                (admin) => ListTile(
+                  leading: const Icon(Icons.admin_panel_settings_outlined),
+                  title: Text(
+                    admin['full_name']?.toString() ?? 'Administrator',
+                  ),
+                  subtitle: Text(
+                    ((admin['roles'] as List?) ?? const <dynamic>[])
+                        .whereType<Map>()
+                        .map((r) => r['name'])
+                        .join(' · '),
+                  ),
+                  trailing: const Icon(Icons.manage_accounts_outlined),
+                  onTap: () => _editRoles(admin, definitions),
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          if (access.wallets)
+            _panel(
+              'Agent promotional wallets',
+              'Finance Admins can grant or remove platform credits with a permanent ledger entry.',
+              wallets.map(
+                (wallet) => ListTile(
+                  leading: const Icon(Icons.account_balance_wallet_outlined),
+                  title: Text(
+                    wallet['business_name']?.toString() ??
+                        wallet['display_name']?.toString() ??
+                        'Agent',
+                  ),
+                  subtitle: Text(
+                    mobileUiFormat(
+                      context,
+                      "Available: {0} TZS · Promotional: {1} TZS",
+                      [
+                        wallet['available_balance_tzs'],
+                        wallet['promotional_credits_tzs'],
+                      ],
+                    ),
+                  ),
+                  trailing: const Icon(Icons.edit_outlined),
+                  onTap: () => _adjustWallet(wallet),
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          if (access.payments)
+            _panel(
+              'Payment monitoring',
+              'Latest subscription and promotion transactions.',
+              payments
+                  .take(50)
+                  .map(
+                    (p) => ListTile(
+                      leading: const Icon(Icons.payments_outlined),
+                      title: Text(
+                        '${p['requested_amount']} TZS · ${p['product_type']}',
+                      ),
+                      subtitle: Text(
+                        '${p['order_reference']} · ${p['created_at'].toString().split('T').first}',
+                      ),
+                      trailing: Chip(
+                        label: Text(p['payment_status'].toString()),
+                      ),
+                    ),
+                  ),
+            ),
           const SizedBox(height: 90),
         ],
       );
@@ -636,26 +755,32 @@ class _AdminGrowthOperationsScreenState
         title: title,
         subtitle: subtitle,
         child: children.isEmpty
-            ? const Text('Nothing needs attention.')
+            ? const LocalizedUiText('Nothing needs attention.')
             : Column(children: children.toList()),
       );
 
   Widget _financialPanel(Map<String, dynamic> finance) {
     if (finance.isEmpty) {
-      return const ManagePanel(
-        title: 'Financial control center',
-        subtitle:
-            'Requires the KODIMALI 3.0 financial migration and permission.',
-        child: Text('Financial totals are not available on this server yet.'),
+      return ManagePanel(
+        title: mobileUi(context, 'Financial control center'),
+        subtitle: mobileUi(
+          context,
+          'Requires the KODIMALI 3.0 financial migration and permission.',
+        ),
+        child: LocalizedUiText(
+          'Financial totals are not available on this server yet.',
+        ),
       );
     }
     String money(String key) => DateFormatters.formatCurrency(
       finance[key] is num ? finance[key] as num : 0,
     );
     return ManagePanel(
-      title: 'Financial control center',
-      subtitle:
-          'Collections, liabilities, KODIMALI revenue and external deals are shown separately.',
+      title: mobileUi(context, 'Financial control center'),
+      subtitle: mobileUi(
+        context,
+        'Collections, liabilities, KODIMALI revenue and external deals are shown separately.',
+      ),
       child: Column(
         children: <Widget>[
           ManageMetaWrap(
@@ -685,7 +810,7 @@ class _AdminGrowthOperationsScreenState
           const SizedBox(height: 12),
           const Align(
             alignment: Alignment.centerLeft,
-            child: Text(
+            child: LocalizedUiText(
               'Read-only summary. Posted ledger balances cannot be edited here.',
             ),
           ),
@@ -707,7 +832,10 @@ class _AdminGrowthOperationsScreenState
         isExpanded: true,
         decoration: InputDecoration(labelText: label),
         items: <DropdownMenuItem<String>>[
-          const DropdownMenuItem<String>(value: null, child: Text('All')),
+          const DropdownMenuItem<String>(
+            value: null,
+            child: LocalizedUiText('All'),
+          ),
           ...values.map(
             (item) => DropdownMenuItem<String>(
               value: item,
@@ -727,13 +855,15 @@ class _AdminGrowthOperationsScreenState
     }
 
     return ManagePanel(
-      title: 'Financial activity',
-      subtitle:
-          'Read-only payment-intent report. Filters and exports are permission checked and audited.',
+      title: mobileUi(context, 'Financial activity'),
+      subtitle: mobileUi(
+        context,
+        'Read-only payment-intent report. Filters and exports are permission checked and audited.',
+      ),
       action: OutlinedButton.icon(
         onPressed: rows.isEmpty ? null : () => exportFinancialActivity(rows),
         icon: const Icon(Icons.content_copy_outlined),
-        label: const Text('Copy CSV'),
+        label: const LocalizedUiText('Copy CSV'),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -743,7 +873,7 @@ class _AdminGrowthOperationsScreenState
             runSpacing: 10,
             children: <Widget>[
               filterDropdown(
-                label: 'Product',
+                label: mobileUi(context, 'Product'),
                 value: reportProduct,
                 values: const <String>[
                   'booking_deposit',
@@ -758,7 +888,7 @@ class _AdminGrowthOperationsScreenState
                 onChanged: (value) => updateFilter(() => reportProduct = value),
               ),
               filterDropdown(
-                label: 'Status',
+                label: mobileUi(context, 'Status'),
                 value: reportStatus,
                 values: const <String>[
                   'created',
@@ -775,7 +905,7 @@ class _AdminGrowthOperationsScreenState
                 onChanged: (value) => updateFilter(() => reportStatus = value),
               ),
               filterDropdown(
-                label: 'Category',
+                label: mobileUi(context, 'Category'),
                 value: reportCategory,
                 values: const <String>[
                   'house',
@@ -790,7 +920,7 @@ class _AdminGrowthOperationsScreenState
                     updateFilter(() => reportCategory = value),
               ),
               filterDropdown(
-                label: 'Payment provider',
+                label: mobileUi(context, 'Payment provider'),
                 value: reportPaymentProvider,
                 values: const <String>['sonicpesa', 'clickpesa'],
                 onChanged: (value) =>
@@ -801,7 +931,7 @@ class _AdminGrowthOperationsScreenState
                 icon: const Icon(Icons.date_range_outlined),
                 label: Text(
                   reportDates == null
-                      ? 'Date range'
+                      ? mobileUi(context, 'Date range')
                       : '${reportDates!.start.toIso8601String().split('T').first} – ${reportDates!.end.toIso8601String().split('T').first}',
                 ),
               ),
@@ -817,9 +947,9 @@ class _AdminGrowthOperationsScreenState
                 width: 300,
                 child: TextField(
                   controller: bookingFilter,
-                  decoration: const InputDecoration(
-                    labelText: 'Booking ID',
-                    hintText: 'Optional UUID',
+                  decoration: InputDecoration(
+                    labelText: mobileUi(context, 'Booking ID'),
+                    hintText: mobileUi(context, 'Optional UUID'),
                   ),
                 ),
               ),
@@ -827,27 +957,31 @@ class _AdminGrowthOperationsScreenState
                 width: 300,
                 child: TextField(
                   controller: providerFilter,
-                  decoration: const InputDecoration(
-                    labelText: 'Provider profile ID',
-                    hintText: 'Optional UUID',
+                  decoration: InputDecoration(
+                    labelText: mobileUi(context, 'Provider profile ID'),
+                    hintText: mobileUi(context, 'Optional UUID'),
                   ),
                 ),
               ),
               FilledButton(
                 onPressed: () => setState(() => future = load()),
-                child: const Text('Apply'),
+                child: const LocalizedUiText('Apply'),
               ),
               TextButton(
                 onPressed: clearFinancialFilters,
-                child: const Text('Clear'),
+                child: const LocalizedUiText('Clear'),
               ),
             ],
           ),
           const Divider(height: 28),
           if (rows.isEmpty)
-            const Text('No payment activity matches these filters.')
+            const LocalizedUiText('No payment activity matches these filters.')
           else ...<Widget>[
-            Text('${rows.length} row(s) · newest first'),
+            Text(
+              mobileUiFormat(context, "{0} row(s) · newest first", [
+                rows.length,
+              ]),
+            ),
             const SizedBox(height: 8),
             ...rows
                 .take(50)
@@ -864,7 +998,13 @@ class _AdminGrowthOperationsScreenState
                   ),
                 ),
             if (rows.length > 50)
-              Text('${rows.length - 50} additional rows are included in CSV.'),
+              Text(
+                mobileUiFormat(
+                  context,
+                  "{0} additional rows are included in CSV.",
+                  [rows.length - 50],
+                ),
+              ),
           ],
         ],
       ),
@@ -898,9 +1038,11 @@ class _AdminGrowthOperationsScreenState
         .toList(growable: false);
 
     return ManagePanel(
-      title: 'Refunds and provider settlements',
-      subtitle:
-          'Approvals are separated from payment-provider execution. Provider results can only be recorded by the server.',
+      title: mobileUi(context, 'Refunds and provider settlements'),
+      subtitle: mobileUi(
+        context,
+        'Approvals are separated from payment-provider execution. Provider results can only be recorded by the server.',
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
@@ -914,19 +1056,19 @@ class _AdminGrowthOperationsScreenState
           ),
           if (!refundsEnabled || !payoutsEnabled) ...<Widget>[
             const SizedBox(height: 10),
-            const Text(
+            const LocalizedUiText(
               'Disabled automation cannot move money. A Super Admin must separately approve a rollout flag before execution can begin.',
             ),
           ],
           const Divider(height: 28),
-          const Text(
+          const LocalizedUiText(
             'Refund obligations',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
           ),
           if (refunds.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 10),
-              child: Text('No refund obligations.'),
+              child: LocalizedUiText('No refund obligations.'),
             )
           else
             ...refunds
@@ -938,14 +1080,18 @@ class _AdminGrowthOperationsScreenState
                       '${DateFormatters.formatCurrency(refund['amount_minor'] as num?)} · ${refund['status']}',
                     ),
                     subtitle: Text(
-                      '${refund['reason']} · Booking ${refund['booking_request_id']}',
+                      mobileUiFormat(context, "{0} · Booking {1}", [
+                        refund['reason'],
+                        refund['booking_request_id'],
+                      ]),
                     ),
-                    trailing: refund['status'] == 'approved'
+                    trailing:
+                        widget.access.refunds && refund['status'] == 'approved'
                         ? FilledButton.tonal(
                             onPressed: refundsEnabled
                                 ? () => prepareRefund(refund['id'].toString())
                                 : null,
-                            child: const Text('Prepare'),
+                            child: const LocalizedUiText('Prepare'),
                           )
                         : null,
                   ),
@@ -954,24 +1100,28 @@ class _AdminGrowthOperationsScreenState
           Row(
             children: <Widget>[
               const Expanded(
-                child: Text(
+                child: LocalizedUiText(
                   'Eligible provider payables',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
               ),
               FilledButton.icon(
-                onPressed: selectedPayableIds.isEmpty
+                onPressed: !widget.access.payments || selectedPayableIds.isEmpty
                     ? null
                     : createSettlementBatch,
                 icon: const Icon(Icons.playlist_add_check_outlined),
-                label: Text('Create batch (${selectedPayableIds.length})'),
+                label: Text(
+                  mobileUiFormat(context, "Create batch ({0})", [
+                    selectedPayableIds.length,
+                  ]),
+                ),
               ),
             ],
           ),
           if (eligiblePayables.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 10),
-              child: Text('No provider payables are eligible.'),
+              child: LocalizedUiText('No provider payables are eligible.'),
             )
           else
             ...eligiblePayables
@@ -994,14 +1144,17 @@ class _AdminGrowthOperationsScreenState
                       ),
                     ),
                     subtitle: Text(
-                      'Provider ${payable['provider_profile_id']} · Booking ${payable['booking_request_id']}',
+                      mobileUiFormat(context, "Provider {0} · Booking {1}", [
+                        payable['provider_profile_id'],
+                        payable['booking_request_id'],
+                      ]),
                     ),
                     controlAffinity: ListTileControlAffinity.leading,
                   ),
                 ),
           if (heldPayables.isNotEmpty) ...<Widget>[
             const SizedBox(height: 12),
-            const Text(
+            const LocalizedUiText(
               'Settlement recovery',
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
@@ -1011,26 +1164,34 @@ class _AdminGrowthOperationsScreenState
                   (payable) => ListTile(
                     leading: const Icon(Icons.pause_circle_outline),
                     title: Text(
-                      '${DateFormatters.formatCurrency(payable['amount_minor'] as num?)} · on hold',
+                      mobileUiFormat(context, "{0} · on hold", [
+                        DateFormatters.formatCurrency(
+                          payable['amount_minor'] as num?,
+                        ),
+                      ]),
                     ),
-                    subtitle: Text('Booking ${payable['booking_request_id']}'),
+                    subtitle: Text(
+                      mobileUiFormat(context, "Booking {0}", [
+                        payable['booking_request_id'],
+                      ]),
+                    ),
                     trailing: OutlinedButton(
                       onPressed: () =>
                           releaseFailedPayable(payable['id'].toString()),
-                      child: const Text('Review and release'),
+                      child: const LocalizedUiText('Review and release'),
                     ),
                   ),
                 ),
           ],
           const Divider(height: 28),
-          const Text(
+          const LocalizedUiText(
             'Settlement batches',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
           ),
           if (batches.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 10),
-              child: Text('No settlement batches.'),
+              child: LocalizedUiText('No settlement batches.'),
             )
           else
             ...batches.take(30).map((batch) {
@@ -1047,25 +1208,30 @@ class _AdminGrowthOperationsScreenState
                 title: Text(
                   '${batch['reference']} · ${DateFormatters.formatCurrency(amount)}',
                 ),
-                subtitle: Text('${batch['status']} · ${items.length} item(s)'),
-                trailing: batch['status'] == 'draft'
+                subtitle: Text(
+                  mobileUiFormat(context, "{0} · {1} item(s)", [
+                    batch['status'],
+                    items.length,
+                  ]),
+                ),
+                trailing: widget.access.payments && batch['status'] == 'draft'
                     ? OutlinedButton(
                         onPressed: () =>
                             approveSettlementBatch(batch['id'].toString()),
-                        child: const Text('Approve'),
+                        child: const LocalizedUiText('Approve'),
                       )
                     : Chip(label: Text(batch['status'].toString())),
               );
             }),
           const Divider(height: 28),
-          const Text(
+          const LocalizedUiText(
             'Reconciliation cases',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
           ),
           if (reconciliationCases.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 10),
-              child: Text('No financial discrepancies.'),
+              child: LocalizedUiText('No financial discrepancies.'),
             )
           else
             ...reconciliationCases.take(50).map((item) {
@@ -1080,7 +1246,20 @@ class _AdminGrowthOperationsScreenState
                 leading: const Icon(Icons.balance_outlined),
                 title: Text('${item['provider']} · ${item['status']}'),
                 subtitle: Text(
-                  '${item['reason']}\nExpected ${DateFormatters.formatCurrency(expected)} · Reported ${DateFormatters.formatCurrency(reported)}${difference == null ? '' : ' · Difference ${DateFormatters.formatCurrency(difference)}'}',
+                  mobileUiFormat(
+                    context,
+                    "{0}\nExpected {1} · Reported {2}{3}",
+                    [
+                      item['reason'],
+                      DateFormatters.formatCurrency(expected),
+                      DateFormatters.formatCurrency(reported),
+                      difference == null
+                          ? ''
+                          : mobileUiFormat(context, ' · Difference {0}', [
+                              DateFormatters.formatCurrency(difference),
+                            ]),
+                    ],
+                  ),
                 ),
                 isThreeLine: true,
                 trailing: isOpen
@@ -1090,15 +1269,15 @@ class _AdminGrowthOperationsScreenState
                         itemBuilder: (_) => const <PopupMenuEntry<String>>[
                           PopupMenuItem<String>(
                             value: 'investigating',
-                            child: Text('Investigate'),
+                            child: LocalizedUiText('Investigate'),
                           ),
                           PopupMenuItem<String>(
                             value: 'resolved',
-                            child: Text('Resolve'),
+                            child: LocalizedUiText('Resolve'),
                           ),
                           PopupMenuItem<String>(
                             value: 'written_off',
-                            child: Text('Record write-off decision'),
+                            child: LocalizedUiText('Record write-off decision'),
                           ),
                         ],
                       )

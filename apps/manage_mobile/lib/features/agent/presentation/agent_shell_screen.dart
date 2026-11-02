@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 
 import '../../shared/presentation/notifications_screen.dart';
@@ -36,7 +37,7 @@ class _AgentShellScreenState extends State<AgentShellScreen> {
     final List<ManageWorkspaceDestination> destinations =
         <ManageWorkspaceDestination>[
           ManageWorkspaceDestination(
-            label: "Dashboard",
+            label: mobileUi(context, "Dashboard"),
             icon: Icons.dashboard_outlined,
             screen: AgentDashboardTab(
               onOpenRequests: () => setState(() => _currentIndex = 3),
@@ -44,38 +45,38 @@ class _AgentShellScreenState extends State<AgentShellScreen> {
               onOpenNotifications: () => setState(() => _currentIndex = 6),
             ),
           ),
-          const ManageWorkspaceDestination(
-            label: "My Listings",
+          ManageWorkspaceDestination(
+            label: mobileUi(context, "My Listings"),
             icon: Icons.home_work_outlined,
             screen: AgentListingsTab(),
           ),
-          const ManageWorkspaceDestination(
-            label: "Add Asset",
+          ManageWorkspaceDestination(
+            label: mobileUi(context, "Add Asset"),
             icon: Icons.add_box_outlined,
             screen: AddAssetScreen(),
           ),
-          const ManageWorkspaceDestination(
-            label: "Requests",
+          ManageWorkspaceDestination(
+            label: mobileUi(context, "Requests"),
             icon: Icons.calendar_month_outlined,
             screen: AgentBookingsTab(),
           ),
-          const ManageWorkspaceDestination(
-            label: "Chats",
+          ManageWorkspaceDestination(
+            label: mobileUi(context, "Chats"),
             icon: Icons.forum_outlined,
             screen: AgentListingChatsTab(),
           ),
-          const ManageWorkspaceDestination(
-            label: "Business",
+          ManageWorkspaceDestination(
+            label: mobileUi(context, "Business"),
             icon: Icons.auto_graph_outlined,
             screen: AgentBusinessCenterScreen(),
           ),
-          const ManageWorkspaceDestination(
-            label: "Notifications",
+          ManageWorkspaceDestination(
+            label: mobileUi(context, "Notifications"),
             icon: Icons.notifications_outlined,
             screen: NotificationsScreen(),
           ),
-          const ManageWorkspaceDestination(
-            label: "Profile",
+          ManageWorkspaceDestination(
+            label: mobileUi(context, "Profile"),
             icon: Icons.person_outline,
             screen: ProfileScreen(),
           ),

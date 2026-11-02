@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_core/localized_ui.dart';
 
 class CustomerAppScope extends InheritedWidget {
   const CustomerAppScope({
@@ -50,7 +51,7 @@ extension CustomerLocalizationX on BuildContext {
     for (final MapEntry<String, String> entry in values.entries) {
       text = text.replaceAll("{${entry.key}}", entry.value);
     }
-    return text;
+    return translateMobileUi(languageCode, text);
   }
 }
 
@@ -538,7 +539,7 @@ _localizedStrings = <String, Map<String, String>>{
     "farm.crops": "Mazao bora",
     "farm.size": "Ukubwa wa ardhi",
     "apartment.servicesTitle": "Huduma zinazopatikana",
-    "apartment.bookingTitle": "Weka nafasi katika apartment hii",
+    "apartment.bookingTitle": "Book apartment hii",
     "apartment.bookingBody":
         "Chagua tarehe za kukaa, weka barua pepe yako na uchague huduma unazotaka wakala athibitishe.",
     "apartment.service.wifi": "WiFi",

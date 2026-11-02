@@ -1,12 +1,14 @@
+import { UiNav, UiText } from "@/components/ui-text";
+import { notFound } from "next/navigation";
+import { pageMetadata, summary, isPublicId, breadcrumbs, serviceSchema } from "@/lib/seo";
+import { StructuredData } from "@/components/structured-data";
+import Link from "next/link";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
-import { AgentContactCard } from "@/components/agent-contact-card";
 import { BackNavButton } from "@/components/back-nav-button";
-import { GuestRequestForm } from "@/components/guest-request-form";
 import { GoogleAdSlot } from "@/components/google-ad-slot";
 import { ListingMediaGallery } from "@/components/listing-media-gallery";
-import { ListingChatCard } from "@/components/listing-chat-card";
 import { ListingShareButton } from "@/components/listing-share-button";
 import {
   ListingActions,
@@ -17,7 +19,6 @@ import { PromotionStrip } from "@/components/promotion-strip";
 import { StatusPill } from "@/components/status-pill";
 import {
   fetchListingDetail,
-  fetchListingBookingCapability,
   fetchPromotions,
   fetchPublicListings,
 } from "@/lib/supabase-public";
@@ -31,20 +32,12 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
+  if (!isPublicId(id)) notFound();
   const listing = await fetchListingDetail(id);
-  if (!listing) {
-    return { title: "Listing unavailable" };
-  }
-  const description = `${listing.public_location_label ?? "Tanzania"} — TZS ${listing.price_amount ?? "-"} ${listing.price_period ?? ""}`;
-  return {
-    title: String(listing.title ?? "Rental listing"),
-    description,
-    alternates: { canonical: `/listing/${id}` },
-    openGraph: {
-      title: String(listing.title ?? "Rental listing"),
-      description,
-    },
-  };
+  if (!listing) notFound();
+  const description = summary(listing.description, `${listing.title}. ${listing.public_location_label ?? "Tanzania"}. Angalia bei na maelezo ya kukodisha kupitia KODIMALI.`);
+  const image = listing.listing_media?.find((item: { signed_url?: string | null }) => item.signed_url)?.signed_url;
+  return pageMetadata(String(listing.title), description, `/listing/${id}`, image || undefined);
 }
 
 function displayValue(value: unknown) {
@@ -122,25 +115,17 @@ export default async function ListingPage({
   const adsenseClientId = process.env.ADSENSE_CLIENT_ID ?? "";
   const adsenseDetailSlot = process.env.ADSENSE_SLOT_DETAIL ?? "";
   const { id } = await params;
-  const [listing, promotions, bookingCapability] = await Promise.all([
+  if (!isPublicId(id)) notFound();
+  const [listing, promotions] = await Promise.all([
     fetchListingDetail(id),
     fetchPromotions({
       surface: "website",
       placement: "listing_detail",
       limit: 1,
     }),
-    fetchListingBookingCapability(id),
   ]);
 
-  if (!listing) {
-    return (
-      <PageShell>
-        <div className="surface-card rounded-[20px] p-8">
-          Listing not found.
-        </div>
-      </PageShell>
-    );
-  }
+  if (!listing) notFound();
 
   const attributes = (listing.listing_attributes ?? {}) as Record<
     string,
@@ -196,22 +181,10 @@ export default async function ListingPage({
   return (
     <PageShell className="listing-detail-page pb-20">
       <ListingViewRecorder listingId={id} />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "Offer",
-            name: listing.title,
-            description: listing.description,
-            price: listing.price_amount,
-            priceCurrency: "TZS",
-            availability: "https://schema.org/InStock",
-            areaServed: listing.public_location_label,
-            url: `https://kodimali.co.tz/listing/${id}`,
-          }).replaceAll("<", "\\u003c"),
-        }}
-      />
+      <StructuredData data={[
+        breadcrumbs([["Nyumbani", "/"], [String(listing.asset_categories?.name ?? "Mali"), `/category/${listing.asset_categories?.slug}`], [String(listing.title), `/listing/${id}`]]),
+        serviceSchema({ title: String(listing.title), description: listing.description, path: `/listing/${id}`, location: listing.public_location_label, price: listing.price_amount, period: listing.price_period, images: media.flatMap(item => item.signed_url ? [item.signed_url] : []) }),
+      ]} />
       <div className="mb-4">
         <BackNavButton fallbackHref="/listings" label={sw ? "Rudi" : "Back"} />
       </div>
@@ -241,11 +214,11 @@ export default async function ListingPage({
           </div>
 
           <div className="listing-price mt-5">
-            <p className="text-xs font-bold uppercase tracking-[0.14em]">{sw ? "Bei" : "Price"}</p>
+            <p className="text-xs font-bold uppercase tracking-[0.14em]"><UiText text={sw ? "Bei" : "Price"} /></p>
             <p className="mt-1 text-3xl font-extrabold">
               TZS {Number(listing.price_amount ?? 0).toLocaleString()}
             </p>
-            <p className="mt-1 text-sm font-semibold opacity-70">/ {listing.price_period}</p>
+            <p className="mt-1 text-sm font-semibold opacity-70">/ <UiText text={listing.price_period} /></p>
           </div>
 
           <p className="section-copy mt-6 text-base">
@@ -259,14 +232,14 @@ export default async function ListingPage({
 
           {showFarmHighlights ? (
             <div className="listing-detail-group mt-7 p-5">
-              <p className="eyebrow">Farm highlights</p>
+              <p className="eyebrow"><UiText text={"Farm highlights"} /></p>
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 {highlights.map((item) => (
                   <div
                     key={item.label}
                     className="rounded-[16px] border border-brand-border bg-card px-4 py-4"
                   >
-                    <p className="eyebrow text-[0.7rem]">{item.label}</p>
+                    <p className="eyebrow text-[0.7rem]"><UiText text={item.label} /></p>
                     <p className="mt-3 text-base font-semibold text-brand-ink">
                       {item.value}
                     </p>
@@ -278,14 +251,14 @@ export default async function ListingPage({
 
           {showApartmentServices && services.length > 0 ? (
             <div className="listing-detail-group mt-7 p-5">
-              <p className="eyebrow">Available services</p>
+              <p className="eyebrow"><UiText text={"Available services"} /></p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {services.map((service) => (
                   <span
                     key={service.key}
                     className="rounded-full border border-brand-border-strong bg-card px-4 py-2 text-sm font-semibold text-brand-navy"
                   >
-                    {service.label}
+                    <UiText text={service.label} />
                   </span>
                 ))}
               </div>
@@ -294,14 +267,14 @@ export default async function ListingPage({
 
           {attributeEntries.length > 0 ? (
             <div className="listing-detail-group mt-7 p-5">
-              <p className="eyebrow">{sw ? "Maelezo ya mali" : "Listing details"}</p>
+              <p className="eyebrow"><UiText text={sw ? "Maelezo ya mali" : "Listing details"} /></p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {attributeEntries.map(({ key, label, value }) => (
                   <div
                     key={key}
                     className="rounded-[16px] border border-brand-border bg-card px-4 py-3 text-sm text-muted"
                   >
-                    <span className="font-bold text-brand-ink">{label}</span>:{" "}
+                    <span className="font-bold text-brand-ink"><UiText text={label} /></span>:{" "}
                     {displayValue(value)}
                   </div>
                 ))}
@@ -311,18 +284,22 @@ export default async function ListingPage({
         </section>
 
         <aside className="listing-detail-sidebar space-y-5 lg:sticky lg:top-24 lg:self-start">
-          <AgentContactCard
-            listingId={id}
-            agentSummary={listing.agent_summary as never}
-          />
-          <ListingChatCard listingId={id} />
-          <GuestRequestForm
-            listingId={id}
-            listingTitle={listing.title}
-            categorySlug={listing.asset_categories?.slug}
-            availableServices={services}
-            bookingMode={bookingCapability.effective_mode}
-          />
+          <UiNav aria-label={sw ? "Hatua za listing" : "Listing actions"} className="surface-card rounded-[20px] p-5 sm:p-6">
+            <h2 className="font-heading text-xl font-semibold"><UiText text={sw ? "Hatua inayofuata" : "Next steps"} /></h2>
+            <p className="mt-2 text-sm text-muted"><UiText text={sw ? "Chagua huduma ili kuendelea kwenye ukurasa wake." : "Choose a service to continue on its own page."} /></p>
+            <div className="mt-5 grid gap-3">
+              {[
+                { path: "contact", title: sw ? "Lipa na fungua namba" : "Pay and unlock number", description: sw ? "Angalia ada na upate mawasiliano ya wakala." : "Review the fee and access the agent's contact number." },
+                { path: "chat", title: sw ? "Mazungumzo ya faragha" : "Private chat", description: sw ? "Fungua mazungumzo na wakala wa mali hii." : "Open a private conversation with this listing's agent." },
+                { path: "book", title: sw ? "Weka nafasi" : "Book this listing", description: sw ? "Angalia chaguo na utume ombi lako." : "Review booking options and send your request." },
+              ].map((action) => (
+                <Link key={action.path} href={`/listing/${id}/${action.path}`} className="group rounded-2xl border border-brand-border p-4 transition-colors hover:bg-brand-green-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-navy">
+                  <span className="flex items-center justify-between gap-3 font-semibold text-brand-ink">{action.title}<span aria-hidden="true">&rarr;</span></span>
+                  <span className="mt-1 block text-sm text-muted">{action.description}</span>
+                </Link>
+              ))}
+            </div>
+          </UiNav>
           <PromotionStrip promotions={promotions as never} />
           <GoogleAdSlot
             slot="detail"
@@ -333,10 +310,8 @@ export default async function ListingPage({
       </div>
       {similar.length > 0 ? (
         <section className="mt-10">
-          <p className="eyebrow">Similar listings</p>
-          <h2 className="mt-2 font-heading text-3xl font-semibold">
-            You may also consider
-          </h2>
+          <p className="eyebrow"><UiText text={"Similar listings"} /></p>
+          <h2 className="mt-2 font-heading text-3xl font-semibold"><UiText text={"You may also consider"} /></h2>
           <div className="mt-6 grid gap-5 md:grid-cols-3">
             {similar.map((item: { listing_id: string }) => (
               <PublicListingCard

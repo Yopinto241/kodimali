@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/data/customer_public_repository.dart';
@@ -149,11 +150,13 @@ class _EventLocationPickerState extends State<EventLocationPicker> {
     if (loading && regions.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (error != null) return Center(child: Text(error!));
+    if (error != null) return Center(child: LocalizedUiText(error!));
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.swahili ? 'Chagua eneo la tukio' : 'Choose event location',
+          widget.swahili
+              ? mobileUi(context, 'Chagua eneo la tukio')
+              : mobileUi(context, 'Choose event location'),
         ),
       ),
       body: ListView(
@@ -161,8 +164,14 @@ class _EventLocationPickerState extends State<EventLocationPicker> {
         children: <Widget>[
           Text(
             widget.swahili
-                ? 'Chagua mkoa, wilaya, kata na eneo kwa mpangilio.'
-                : 'Choose the region, district, ward and area in order.',
+                ? mobileUi(
+                    context,
+                    'Chagua mkoa, wilaya, kata na eneo kwa mpangilio.',
+                  )
+                : mobileUi(
+                    context,
+                    'Choose the region, district, ward and area in order.',
+                  ),
           ),
           const SizedBox(height: 20),
           _dropdown(
@@ -216,7 +225,9 @@ class _EventLocationPickerState extends State<EventLocationPicker> {
                   },
             icon: const Icon(Icons.check_rounded),
             label: Text(
-              widget.swahili ? 'Tumia eneo hili' : 'Use this location',
+              widget.swahili
+                  ? mobileUi(context, 'Tumia eneo hili')
+                  : mobileUi(context, 'Use this location'),
             ),
           ),
         ],

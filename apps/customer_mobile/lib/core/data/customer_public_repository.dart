@@ -105,49 +105,97 @@ class CustomerPublicRepository {
     }
   }
 
-  Future<JsonMap> fetchEventsMarketplace({String? locationId}) async {
+  Future<void> submitEventDraft(String planId, List<JsonMap> items) async {
+    await _client.rpc(
+      'submit_event_draft',
+      params: {'p_plan_id': planId, 'p_items': items},
+    );
+  }
+
+  Future<JsonMap> fetchEventsMarketplace({
+    String? locationId,
+    int offset = 0,
+    String? search,
+    DateTime? startsAt,
+    DateTime? endsAt,
+    num? minPrice,
+    num? maxPrice,
+    String? categoryId,
+    String? providerKind,
+    String sort = 'recommended',
+  }) async {
     final results = await Future.wait<dynamic>(<Future<dynamic>>[
       _client
           .from('event_types')
           .select('id,slug,name_sw,name_en,description_sw,description_en')
           .eq('is_approved', true)
+          .neq('slug', 'individual-booking')
           .order('display_order'),
       _client.rpc(
         'search_public_event_equipment',
         params: <String, dynamic>{
-          'p_search': null,
-          'p_category_id': null,
+          'p_search': search,
+          'p_category_id': categoryId,
           'p_location_id': locationId,
-          'p_start_at': null,
-          'p_end_at': null,
-          'p_min_price': null,
-          'p_max_price': null,
-          'p_sort': 'recommended',
-          'p_limit': 30,
-          'p_offset': 0,
+          'p_start_at': startsAt?.toUtc().toIso8601String(),
+          'p_end_at': endsAt?.toUtc().toIso8601String(),
+          'p_min_price': minPrice,
+          'p_max_price': maxPrice,
+          'p_sort': sort,
+          'p_limit': 31,
+          'p_offset': offset,
         },
       ),
       _client.rpc(
         'search_public_event_services',
         params: <String, dynamic>{
-          'p_search': null,
-          'p_provider_kind': null,
+          'p_search': search,
+          'p_provider_kind': providerKind,
           'p_location_id': locationId,
-          'p_start_at': null,
-          'p_end_at': null,
-          'p_min_price': null,
-          'p_max_price': null,
-          'p_sort': 'recommended',
-          'p_limit': 30,
-          'p_offset': 0,
+          'p_start_at': startsAt?.toUtc().toIso8601String(),
+          'p_end_at': endsAt?.toUtc().toIso8601String(),
+          'p_min_price': minPrice,
+          'p_max_price': maxPrice,
+          'p_sort': sort,
+          'p_limit': 31,
+          'p_offset': offset,
         },
       ),
+      _client
+          .from('event_equipment_categories')
+          .select('id,name_sw,name_en')
+          .eq('is_active', true)
+          .order('display_order'),
     ]);
     return <String, dynamic>{
+      'categories': (results[3] as List).cast<JsonMap>(),
+      'has_more':
+          (results[1] as List).length > 30 || (results[2] as List).length > 30,
       'types': (results[0] as List).cast<JsonMap>(),
-      'equipment': (results[1] as List).cast<JsonMap>(),
-      'services': (results[2] as List).cast<JsonMap>(),
+      'equipment': (results[1] as List).cast<JsonMap>().take(30).toList(),
+      'services': (results[2] as List).cast<JsonMap>().take(30).toList(),
     };
+  }
+
+  Future<String> eventMediaUrl(String path) async =>
+      await _signListingMediaPath(path) ?? '';
+
+  Future<List<JsonMap>> checkEventSelection({
+    required List<JsonMap> items,
+    required DateTime start,
+    required DateTime end,
+    String? locationId,
+  }) async {
+    final result = await _client.rpc(
+      'check_public_event_selection',
+      params: {
+        'p_items': items,
+        'p_start_at': start.toUtc().toIso8601String(),
+        'p_end_at': end.toUtc().toIso8601String(),
+        'p_location_id': locationId,
+      },
+    );
+    return (result as List).cast<JsonMap>();
   }
 
   Future<JsonMap> fetchIndividualEventDetail({
@@ -309,7 +357,6 @@ class CustomerPublicRepository {
               ? 0
               : (accepted.first['total_tzs'] as num?)?.round() ?? 0;
           final deposit = ((total * 25) + 50) ~/ 100;
-          final balance = total - deposit;
           final paid = intents.where(
             (intent) =>
                 intent['resource_id'].toString() == plan['id'].toString() &&
@@ -333,8 +380,19 @@ class CustomerPublicRepository {
             ...plan,
             'payment_summary': <String, dynamic>{
               'total': total,
-              'deposit_remaining': (deposit - paidDeposit).clamp(0, deposit),
-              'balance_remaining': (balance - paidBalance).clamp(0, balance),
+              'deposit_remaining': (deposit - paidDeposit - paidBalance).clamp(
+                0,
+                deposit,
+              ),
+              'balance_remaining':
+                  (total -
+                          paidDeposit -
+                          paidBalance -
+                          (deposit - paidDeposit - paidBalance).clamp(
+                            0,
+                            deposit,
+                          ))
+                      .clamp(0, total),
             },
           };
         })
@@ -506,6 +564,9 @@ class CustomerPublicRepository {
         rows.map(
           (JsonMap row) async => <String, dynamic>{
             ...row,
+            "has_whatsapp":
+                capabilities[row['listing_id']?.toString()]?['has_whatsapp'] ==
+                true,
             "booking_mode":
                 capabilities[row['listing_id']
                     ?.toString()]?['effective_mode'] ??
@@ -552,6 +613,7 @@ class CustomerPublicRepository {
     required String surface,
     String placement = "global",
     int limit = 3,
+    String? categorySlug,
     String? regionId,
     String? districtId,
     String? wardId,
@@ -559,6 +621,7 @@ class CustomerPublicRepository {
   }) async {
     final String cacheKey = [
       surface,
+      categorySlug ?? "",
       placement,
       limit,
       regionId ?? "",
@@ -573,6 +636,7 @@ class CustomerPublicRepository {
     try {
       final List<JsonMap> rows = await _fetchPromotionRows(
         surface: surface,
+        categorySlug: categorySlug,
         placement: placement,
         limit: limit,
         regionId: regionId,
@@ -610,40 +674,32 @@ class CustomerPublicRepository {
     required String surface,
     required String placement,
     required int limit,
+    String? categorySlug,
     required String? regionId,
     required String? districtId,
     required String? wardId,
     required String? areaId,
   }) async {
-    try {
-      return (await _client.rpc(
-        "get_active_platform_promotions",
-        params: <String, dynamic>{
-          "p_surface": surface,
-          "p_placement": placement,
-          "p_limit": limit,
-          "p_selected_region_id": regionId,
-          "p_selected_district_id": districtId,
-          "p_selected_ward_id": wardId,
-          "p_selected_area_id": areaId,
+    final rows = <JsonMap>[];
+    for (var offset = 0; ; offset += 100) {
+      final page = (await _client.rpc(
+        'get_public_sponsored_promotions',
+        params: {
+          'p_surface': surface,
+          'p_placement': placement,
+          'p_category_slug': categorySlug,
+          'p_selected_region_id': regionId,
+          'p_selected_district_id': districtId,
+          'p_selected_ward_id': wardId,
+          'p_selected_area_id': areaId,
+          'p_limit': 100,
+          'p_offset': offset,
         },
       )).cast<JsonMap>();
-    } on PostgrestException catch (error) {
-      if (!_isPromotionRpcCompatibilityError(error)) {
-        rethrow;
-      }
-      return (await _client.rpc(
-        "get_active_platform_promotions",
-        params: <String, dynamic>{
-          "p_placement": placement,
-          "p_limit": limit,
-          "p_selected_region_id": regionId,
-          "p_selected_district_id": districtId,
-          "p_selected_ward_id": wardId,
-          "p_selected_area_id": areaId,
-        },
-      )).cast<JsonMap>();
+      rows.addAll(page);
+      if (page.length < 100) break;
     }
+    return rows;
   }
 
   Future<List<JsonMap>> fetchPublicListings({
@@ -720,6 +776,9 @@ class CustomerPublicRepository {
         rows.map(
           (JsonMap row) async => <String, dynamic>{
             ...row,
+            "has_whatsapp":
+                capabilities[row['listing_id']?.toString()]?['has_whatsapp'] ==
+                true,
             "booking_mode":
                 capabilities[row['listing_id']
                     ?.toString()]?['effective_mode'] ??
@@ -961,12 +1020,6 @@ class CustomerPublicRepository {
     return Map<String, dynamic>.from(value);
   }
 
-  bool _isPromotionRpcCompatibilityError(PostgrestException error) {
-    return _isMissingRpcSignature(error) ||
-        error.code == "PGRST203" ||
-        error.message.contains("Could not choose the best candidate function");
-  }
-
   Future<JsonMap> fetchListingDetail(
     String listingId, {
     bool forceRefresh = false,
@@ -1170,7 +1223,7 @@ class CustomerPublicRepository {
         ...cached,
         "status": payload["paymentStatus"] ?? cached["status"],
         "message": payload["message"],
-        "phone_number": payload["phoneNumber"] ?? cached["phone_number"],
+        "phone_number": payload["phoneNumber"],
         "agent_display_name":
             payload["agentDisplayName"] ?? cached["agent_display_name"],
         "access_expires_at":

@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   description: "Secure online workspace for KODIMALI agents and administrators.",
 };
 
-export default function ManagePage() {
-  return <ManagePortal />;
+export default async function ManagePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const query = await searchParams;
+  return <ManagePortal preferredRole={query.workspace === 'agent' ? 'agent' : undefined} />;
 }

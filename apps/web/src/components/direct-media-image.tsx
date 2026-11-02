@@ -6,6 +6,7 @@ type DirectMediaImageProps = {
   className?: string;
   sizes?: string;
   priority?: boolean;
+  onError?: () => void;
 };
 
 export function DirectMediaImage({
@@ -14,6 +15,7 @@ export function DirectMediaImage({
   className,
   sizes,
   priority = false,
+  onError,
 }: DirectMediaImageProps) {
   return (
     <Image
@@ -26,6 +28,7 @@ export function DirectMediaImage({
       priority={priority}
       loading={priority ? "eager" : "lazy"}
       sizes={sizes}
+      onError={onError}
     />
   );
 }

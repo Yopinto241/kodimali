@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_design_system/flutter_design_system.dart';
 import 'package:go_router/go_router.dart';
@@ -40,7 +41,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     if (name.isEmpty || phone.isEmpty || username.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
+          content: LocalizedUiText(
             "Enter your name, phone number, and username before opening WhatsApp help.",
           ),
         ),
@@ -65,9 +66,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(userFacingError(error))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: LocalizedUiText(userFacingError(error))),
+      );
     } finally {
       if (mounted) {
         setState(() => _openingWhatsApp = false);
@@ -90,16 +91,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Password reset instructions have been sent."),
+          content: LocalizedUiText(
+            "Password reset instructions have been sent.",
+          ),
         ),
       );
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(userFacingError(error))));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: LocalizedUiText(userFacingError(error))),
+      );
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
@@ -160,12 +163,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              const KodimaliStatusBadge(
-                                label: "Password help",
+                              KodimaliStatusBadge(
+                                label: mobileUi(context, "Password help"),
                                 tone: KodimaliStatusTone.pending,
                               ),
                               const SizedBox(height: KodimaliSpacing.sm),
-                              Text(
+                              LocalizedUiText(
                                 "Umesahau nenosiri?",
                                 style: theme.textTheme.headlineSmall?.copyWith(
                                   color: Colors.white,
@@ -173,7 +176,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                 ),
                               ),
                               const SizedBox(height: KodimaliSpacing.xs),
-                              Text(
+                              LocalizedUiText(
                                 "Tuma reset link kwenye recovery email yako, au muombe admin msaada wa WhatsApp kama akaunti yako haina recovery email.",
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: Colors.white.withValues(alpha: 0.9),
@@ -189,14 +192,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
-                                Text(
+                                LocalizedUiText(
                                   "Tuma reset link",
                                   style: theme.textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
                                 const SizedBox(height: KodimaliSpacing.sm),
-                                Text(
+                                LocalizedUiText(
                                   "Weka username, simu, au email. Ikiwa akaunti ina recovery email, Supabase itatuma link ya kubadili nenosiri huko.",
                                   style: theme.textTheme.bodyMedium,
                                 ),
@@ -205,10 +208,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                   controller: _identifierController,
                                   keyboardType: TextInputType.emailAddress,
                                   textInputAction: TextInputAction.next,
-                                  decoration: const InputDecoration(
-                                    labelText: "Username, simu, au barua pepe",
-                                    helperText:
-                                        "Unaweza kuanza na username, phone, au email.",
+                                  decoration: InputDecoration(
+                                    labelText: mobileUi(
+                                      context,
+                                      "Username, simu, au barua pepe",
+                                    ),
+                                    helperText: mobileUi(
+                                      context,
+                                      "Unaweza kuanza na username, phone, au email.",
+                                    ),
                                   ),
                                   validator: (String? value) {
                                     if (value == null || value.trim().isEmpty) {
@@ -218,7 +226,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                   },
                                 ),
                                 const SizedBox(height: KodimaliSpacing.sm),
-                                Text(
+                                LocalizedUiText(
                                   "Kama akaunti iliundwa bila recovery email, reset ya email haitatumika. Ukiwa umeingia unaweza kutumia change password, au tumia msaada wa admin hapa chini.",
                                   style: theme.textTheme.bodySmall,
                                 ),
@@ -228,7 +236,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                   child: FilledButton(
                                     onPressed: _submitting ? null : _submit,
                                     child: Text(
-                                      _submitting ? "Inatuma..." : "Tuma link",
+                                      _submitting
+                                          ? mobileUi(context, "Inatuma...")
+                                          : mobileUi(context, "Tuma link"),
                                     ),
                                   ),
                                 ),
@@ -243,14 +253,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
-                                Text(
+                                LocalizedUiText(
                                   "Msaada wa admin kwa WhatsApp",
                                   style: theme.textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
                                 const SizedBox(height: KodimaliSpacing.sm),
-                                Text(
+                                LocalizedUiText(
                                   "Jaza taarifa hizi ili ujumbe wa WhatsApp uwe tayari na admin akusaidie haraka.",
                                   style: theme.textTheme.bodyMedium,
                                 ),
@@ -258,8 +268,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                 TextFormField(
                                   controller: _nameController,
                                   textInputAction: TextInputAction.next,
-                                  decoration: const InputDecoration(
-                                    labelText: "Jina lako",
+                                  decoration: InputDecoration(
+                                    labelText: mobileUi(context, "Jina lako"),
                                   ),
                                 ),
                                 const SizedBox(height: KodimaliSpacing.md),
@@ -267,16 +277,22 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                   controller: _phoneController,
                                   keyboardType: TextInputType.phone,
                                   textInputAction: TextInputAction.next,
-                                  decoration: const InputDecoration(
-                                    labelText: "Namba yako ya simu",
+                                  decoration: InputDecoration(
+                                    labelText: mobileUi(
+                                      context,
+                                      "Namba yako ya simu",
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: KodimaliSpacing.md),
                                 TextFormField(
                                   controller: _usernameController,
                                   textInputAction: TextInputAction.done,
-                                  decoration: const InputDecoration(
-                                    labelText: "Username yako",
+                                  decoration: InputDecoration(
+                                    labelText: mobileUi(
+                                      context,
+                                      "Username yako",
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: KodimaliSpacing.lg),
@@ -289,8 +305,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                     icon: const Icon(Icons.chat_outlined),
                                     label: Text(
                                       _openingWhatsApp
-                                          ? "Inafungua WhatsApp..."
-                                          : "Pata msaada wa admin kwa WhatsApp",
+                                          ? mobileUi(
+                                              context,
+                                              "Inafungua WhatsApp...",
+                                            )
+                                          : mobileUi(
+                                              context,
+                                              "Pata msaada wa admin kwa WhatsApp",
+                                            ),
                                     ),
                                   ),
                                 ),
@@ -303,7 +325,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           width: double.infinity,
                           child: TextButton(
                             onPressed: () => context.go("/login"),
-                            child: const Text("Back to login"),
+                            child: const LocalizedUiText("Back to login"),
                           ),
                         ),
                       ],

@@ -2,7 +2,7 @@ import { BackNavButton } from "@/components/back-nav-button";
 import { EventPlanBuilder } from "@/components/event-plan-builder";
 import { PageShell } from "@/components/page-shell";
 
-export const metadata = { title: "Panga Tukio | KODIMALI" };
+export const metadata = { title: "Panga Tukio" };
 
 export default function PlanEventPage() {
   return (

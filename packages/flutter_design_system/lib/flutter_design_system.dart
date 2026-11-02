@@ -1,3 +1,4 @@
+export 'kodimali_loading.dart';
 import 'package:flutter/material.dart';
 
 class KodimaliColors {
@@ -240,6 +241,38 @@ class KodimaliStatusBadge extends StatelessWidget {
 }
 
 class KodimaliTheme {
+  /// Shared mobile appearance for customer and management workspaces.
+  static ThemeData mobileLight() {
+    final base = light();
+    return base.copyWith(
+      splashFactory: InkSparkle.splashFactory,
+      splashColor: KodimaliColors.green.withValues(alpha: 0.22),
+      highlightColor: KodimaliColors.blueSurface.withValues(alpha: 0.10),
+      cardTheme: base.cardTheme.copyWith(
+        color: const Color(0xFFF7FAFD),
+        shadowColor: KodimaliColors.navy.withValues(alpha: 0.16),
+      ),
+      appBarTheme: base.appBarTheme.copyWith(
+        backgroundColor: KodimaliColors.navy,
+        foregroundColor: Colors.white,
+        titleTextStyle: base.textTheme.titleLarge?.copyWith(
+          color: Colors.white,
+        ),
+        toolbarTextStyle: base.textTheme.bodyMedium?.copyWith(
+          color: Colors.white,
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),
+        actionsIconTheme: const IconThemeData(color: Colors.white),
+      ),
+    );
+  }
+
+  static ThemeData mobileDark() => dark().copyWith(
+    splashFactory: InkSparkle.splashFactory,
+    splashColor: KodimaliColors.green.withValues(alpha: 0.20),
+    highlightColor: Colors.white.withValues(alpha: 0.06),
+  );
+
   static ThemeData light() {
     final ColorScheme scheme =
         ColorScheme.fromSeed(

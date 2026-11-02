@@ -1,4 +1,5 @@
 "use client";
+import { UiText } from "@/components/ui-text";
 
 import { useId } from "react";
 import Script from "next/script";
@@ -35,7 +36,7 @@ export function GoogleAdSlot({
         crossOrigin="anonymous"
       />
       <div className="surface-card rounded-[20px] p-5">
-        <p className="eyebrow">Ads by Google</p>
+        <p className="eyebrow"><UiText text={"Ads by Google"} /></p>
         <ins
           className="adsbygoogle"
           style={{ display: "block" }}

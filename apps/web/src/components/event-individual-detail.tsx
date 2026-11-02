@@ -1,25 +1,30 @@
 "use client";
+import { UiText } from "@/components/ui-text";
 
 import Image from "next/image";
+import { eventPrice, serviceLabel } from "@/lib/event-display";
 import Link from "next/link";
+import { useNavigate } from "@/components/navigation-progress";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useLanguage } from "@/components/language-provider";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
 
 type Row = Record<string, unknown>;
 
-export function EventIndividualDetail({ kind, id }: { kind: "equipment" | "service"; id: string }) {
+export function EventIndividualDetail({ kind, id, initialRow, initialImages = [] }: { kind: "equipment" | "service"; id: string; initialRow?: Row; initialImages?: string[] }) {
+  const navigate = useNavigate();
   const { language } = useLanguage();
   const sw = language === "sw";
   const supabase = getBrowserSupabase();
-  const [row, setRow] = useState<Row | null>(null);
-  const [images, setImages] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [row, setRow] = useState<Row | null>(initialRow ?? null);
+  const [images, setImages] = useState<string[]>(initialImages);
+  const [loading, setLoading] = useState(!initialRow);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const nextPath = `/events/${kind}/${id}`;
 
   useEffect(() => {
+    if (initialRow) return;
     let active = true;
     const query = kind === "equipment"
       ? supabase.from("event_equipment_items").select("id,name,description,specifications,public_location_label,total_quantity,price_amount_tzs,price_unit,setup_minutes,return_buffer_minutes,transport_configuration,cleaning_configuration,return_procedure,security_deposit_tzs,damage_rules,cancellation_policy,media_paths,event_equipment_categories(name_sw,name_en)").eq("id", id).maybeSingle()
@@ -40,7 +45,7 @@ export function EventIndividualDetail({ kind, id }: { kind: "equipment" | "servi
       if (active) { setImages(signed.filter(Boolean)); setLoading(false); }
     });
     return () => { active = false; };
-  }, [id, kind, supabase]);
+  }, [id, kind, supabase, initialRow]);
 
   const title = String(row?.name ?? row?.title ?? "");
   const provider = (row?.event_service_profiles as Row | null) ?? null;
@@ -52,54 +57,72 @@ export function EventIndividualDetail({ kind, id }: { kind: "equipment" | "servi
     [sw ? "Muda wa kurejesha" : "Return buffer", `${String(row?.return_buffer_minutes ?? 0)} min`],
   ] : [
     [sw ? "Mtoa huduma" : "Provider", String(provider?.display_name ?? "—")],
-    [sw ? "Aina ya huduma" : "Service type", String(provider?.provider_kind ?? "").replaceAll("_", " ")],
+    [sw ? "Aina ya huduma" : "Service type", serviceLabel(provider?.provider_kind,sw)],
     [sw ? "Uzoefu" : "Experience", `${String(provider?.experience_years ?? 0)} ${sw ? "miaka" : "years"}`],
     [sw ? "Muda" : "Duration", row?.duration_minutes ? `${String(row.duration_minutes)} min` : "—"],
   ], [category, kind, provider, row, sw]);
 
   async function requestBooking(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setBusy(true); setNotice("");
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    setBusy(true); setNotice("");
+    try {
     const { data: auth } = await supabase.auth.getUser();
-    if (!auth.user) { window.location.assign(`/login?next=${encodeURIComponent(nextPath)}`); return; }
-    const form = new FormData(event.currentTarget);
+    if (!auth.user) { navigate(`/login?next=${encodeURIComponent(nextPath)}`); return; }
     const start = new Date(String(form.get("start")));
     const end = new Date(String(form.get("end")));
+    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || start <= new Date() || end <= start) {
+      throw new Error(sw ? "Chagua muda wa baadaye na mwisho baada ya mwanzo." : "Choose a future start and an end after the start.");
+    }
     const { data, error } = await supabase.rpc("create_individual_event_booking", {
       p_kind: kind, p_equipment_id: kind === "equipment" ? id : null,
       p_offering_id: kind === "service" ? id : null, p_start_at: start.toISOString(),
       p_end_at: end.toISOString(), p_quantity: kind === "equipment" ? Number(form.get("quantity")) : null,
       p_message: String(form.get("message") ?? "") || null,
     } as never);
-    setBusy(false);
-    if (error) { setNotice(error.message); return; }
+    if (error) throw error;
     const booking = data as unknown as Row;
     setNotice(sw ? `Ombi limetumwa. Namba: ${String(booking.reference ?? "")}` : `Request sent. Reference: ${String(booking.reference ?? "")}`);
-    event.currentTarget.reset();
+    formElement.reset();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : String((error as Row)?.message ?? error));
+    } finally {
+      setBusy(false);
+    }
   }
 
-  if (loading) return <p className="py-16 text-center text-muted">{sw ? "Inapakia…" : "Loading…"}</p>;
-  if (!row) return <div className="surface-card p-8"><h1 className="font-heading text-3xl font-semibold">{sw ? "Haijapatikana" : "Not found"}</h1><Link className="btn btn-outline mt-5" href="/events">{sw ? "Rudi kwenye Events" : "Back to Events"}</Link></div>;
+  if (loading) return <p className="py-16 text-center text-muted"><UiText text={sw ? "Inapakia…" : "Loading…"} /></p>;
+  if (!row) return <div className="surface-card p-8"><h1 className="font-heading text-3xl font-semibold"><UiText text={sw ? "Haijapatikana" : "Not found"} /></h1><Link className="btn btn-outline mt-5" href="/events"><UiText text={sw ? "Rudi kwenye Events" : "Back to Events"} /></Link></div>;
 
-  return <div className="space-y-8 pb-16">
-    <Link href="/events#individual-marketplace" className="inline-flex font-semibold text-brand-teal">← {sw ? "Vifaa na huduma" : "Equipment and services"}</Link>
+  return <div className="events-ui space-y-6 pb-16">
+    <Link href="/events#individual-marketplace" className="inline-flex font-semibold text-brand-teal">← <UiText text={sw ? "Vifaa na huduma" : "Equipment and services"} /></Link>
     <section className="grid gap-8 lg:grid-cols-[1.15fr_.85fr]">
       <div>
         {images.length ? <div className="grid gap-3 sm:grid-cols-2">{images.map((src, index) => <div className={`relative overflow-hidden rounded-3xl bg-brand-card-soft ${index === 0 ? "aspect-[4/3] sm:col-span-2" : "aspect-square"}`} key={src}><Image src={src} alt={`${title} ${index + 1}`} fill priority={index === 0} sizes="(max-width: 1024px) 100vw, 60vw" className="object-cover transition duration-700 hover:scale-[1.03]" /></div>)}</div> : <div className="aspect-[4/3] rounded-3xl bg-[linear-gradient(145deg,#dfece5,#b9d8d0)]" />}
       </div>
       <div>
         <p className="eyebrow">{kind === "equipment" ? (sw ? "Kifaa kilichothibitishwa" : "Verified equipment") : (sw ? "Mtoa huduma aliyethibitishwa" : "Verified professional")}</p>
-        <h1 className="mt-3 font-heading text-4xl font-semibold">{title}</h1>
+        <h1 className="mt-3 font-heading text-2xl font-semibold sm:text-3xl">{title}</h1>
         <p className="mt-4 text-muted">{String(row.description ?? provider?.biography ?? "")}</p>
-        <p className="mt-5 text-2xl font-bold">{row.price_amount_tzs == null ? (sw ? "Omba quotation" : "Request a quote") : `TZS ${Number(row.price_amount_tzs).toLocaleString()}${kind === "equipment" ? ` · ${String(row.price_unit).replaceAll("_", " ")}` : ""}`}</p>
-        <div className="mt-6 grid grid-cols-2 gap-3">{details.map(([label, value]) => <div className="soft-panel p-4" key={label}><p className="text-xs font-bold uppercase text-muted">{label}</p><p className="mt-1 font-semibold">{value}</p></div>)}</div>
+        <p className="mt-5 text-2xl font-bold">{eventPrice(row,sw)}</p>
+        <div className="mt-6 grid grid-cols-2 gap-3">{details.map(([label, value]) => <div className="soft-panel p-4" key={label}><p className="text-xs font-bold uppercase text-muted"><UiText text={label} /></p><p className="mt-1 font-semibold">{value}</p></div>)}</div>
       </div>
     </section>
     <section className="grid gap-6 lg:grid-cols-[1fr_.8fr]">
-      <div className="surface-card p-6"><h2 className="font-heading text-2xl font-semibold">{sw ? "Masharti muhimu" : "Important details"}</h2><Info label={sw ? "Eneo" : "Location"} value={String(row.public_location_label ?? (sw ? "Eneo kamili hutolewa baada ya uthibitisho" : "Exact location is shared after approval"))} /><Info label={sw ? "Usafiri na maandalizi" : "Travel and setup"} value={formatValue(kind === "equipment" ? row.transport_configuration : row.travel_configuration)} /><Info label={sw ? "Vifaa vinavyojumuishwa" : "Included equipment"} value={String(row.included_equipment ?? "—")} /><Info label={sw ? "Dhamana" : "Security deposit"} value={row.security_deposit_tzs ? `TZS ${Number(row.security_deposit_tzs).toLocaleString()}` : "—"} /><Info label={sw ? "Uharibifu na urejeshaji" : "Damage and return"} value={String(row.damage_rules ?? row.return_procedure ?? "—")} /><Info label={sw ? "Kughairi" : "Cancellation"} value={String(row.cancellation_policy ?? "—")} /></div>
-      <form className="surface-card p-6" onSubmit={requestBooking}><h2 className="font-heading text-2xl font-semibold">{sw ? "Tuma ombi la booking" : "Request this booking"}</h2><p className="mt-2 text-sm text-muted">{sw ? "Mtoa huduma atakagua muda na kukutumia quotation. Malipo ya mtandaoni hayajawashwa." : "The provider will confirm availability and send a quote. Online collection is not enabled."}</p><label className="field-label mt-5 block">{sw ? "Mwanzo" : "Starts"}<input className="field-input mt-2" type="datetime-local" name="start" required /></label><label className="field-label mt-4 block">{sw ? "Mwisho" : "Ends"}<input className="field-input mt-2" type="datetime-local" name="end" required /></label>{kind === "equipment" ? <label className="field-label mt-4 block">{sw ? "Idadi" : "Quantity"}<input className="field-input mt-2" type="number" name="quantity" min="1" max={Number(row.total_quantity)} defaultValue="1" required /></label> : null}<label className="field-label mt-4 block">{sw ? "Maelezo ya ombi" : "Request notes"}<textarea className="field-input mt-2 min-h-28" name="message" /></label><button className="btn btn-success mt-5 w-full" disabled={busy}>{busy ? (sw ? "Inatuma…" : "Sending…") : (sw ? "Tuma ombi" : "Send request")}</button>{notice ? <p className="mt-4 rounded-2xl bg-brand-info-soft p-4 text-sm font-semibold" role="status">{notice}</p> : null}</form>
+      <div className="surface-card p-6"><h2 className="font-heading text-2xl font-semibold"><UiText text={sw ? "Masharti muhimu" : "Important details"} /></h2><Info label={sw ? "Eneo" : "Location"} value={String(row.public_location_label ?? (sw ? "Eneo kamili hutolewa baada ya uthibitisho" : "Exact location is shared after approval"))} /><Info label={sw ? "Usafiri na maandalizi" : "Travel and setup"} value={formatValue(kind === "equipment" ? row.transport_configuration : row.travel_configuration,sw)} /><Info label={sw ? "Vifaa vinavyojumuishwa" : "Included equipment"} value={String(row.included_equipment ?? "—")} /><Info label={sw ? "Dhamana" : "Security deposit"} value={row.security_deposit_tzs ? `TZS ${Number(row.security_deposit_tzs).toLocaleString()}` : "—"} /><Info label={sw ? "Uharibifu na urejeshaji" : "Damage and return"} value={String(row.damage_rules ?? row.return_procedure ?? "—")} /><Info label={sw ? "Kughairi" : "Cancellation"} value={String(row.cancellation_policy ?? "—")} /></div>
+      <form className="surface-card p-6" onSubmit={requestBooking}><h2 className="font-heading text-2xl font-semibold"><UiText text={sw ? "Tuma ombi la booking" : "Request this booking"} /></h2><p className="mt-2 text-sm text-muted"><UiText text={sw ? "Mtoa huduma atakagua muda na kukutumia quotation. Chaguo la malipo litaonyeshwa baada ya kukubali quotation na makubaliano." : "The provider will confirm availability and send a quote. Payment options are shown after you accept the quote and agreement."} /></p><label className="field-label mt-5 block"><UiText text={sw ? "Tarehe na saa ya kuanza" : "Start date and time"} /><input className="field-input mt-2" type="datetime-local" name="start" required /></label><label className="field-label mt-4 block"><UiText text={sw ? "Tarehe na saa ya kumaliza" : "End date and time"} /><input className="field-input mt-2" type="datetime-local" name="end" required /></label>{kind === "equipment" ? <label className="field-label mt-4 block"><UiText text={sw ? "Idadi" : "Quantity"} /><input className="field-input mt-2" type="number" name="quantity" min="1" max={Number(row.total_quantity)} defaultValue="1" required /></label> : null}<label className="field-label mt-4 block"><UiText text={sw ? "Maelezo ya ombi" : "Request notes"} /><textarea className="field-input mt-2 min-h-28" name="message" /></label><button className="btn btn-success mt-5 w-full" disabled={busy}>{busy ? (sw ? "Inatuma…" : "Sending…") : (sw ? "Tuma ombi" : "Send request")}</button>{notice ? <p className="mt-4 rounded-2xl bg-brand-info-soft p-4 text-sm font-semibold" role="status"><UiText text={notice} /></p> : null}</form>
     </section>
   </div>;
 }
 
-function Info({ label, value }: { label: string; value: string }) { return <div className="mt-5 border-t border-brand-border pt-4"><h3 className="font-semibold">{label}</h3><p className="mt-1 whitespace-pre-wrap text-sm text-muted">{value}</p></div>; }
-function formatValue(value: unknown) { if (!value) return "—"; if (typeof value === "string") return value; try { return JSON.stringify(value, null, 2); } catch { return "—"; } }
+function Info({ label, value }: { label: string; value: string }) { return <div className="mt-5 border-t border-brand-border pt-4"><h3 className="font-semibold"><UiText text={label} /></h3><p className="mt-1 whitespace-pre-wrap text-sm text-muted">{value}</p></div>; }
+function formatValue(value: unknown, sw: boolean): string {
+  if (!value) return sw ? "Itaelezwa kwenye quotation" : "Confirmed in your quotation";
+  if (typeof value === "string") return value;
+  if (typeof value !== "object") return typeof value === "boolean" ? (value ? (sw ? "Ndiyo" : "Yes") : (sw ? "Hapana" : "No")) : String(value);
+  const labels: Record<string,[string,string]> = { delivery_available:["Delivery available","Usafirishaji unapatikana"], available:["Available","Inapatikana"], included:["Included","Imejumuishwa"], fee_tzs:["Charge (TZS)","Gharama (TZS)"], price_tzs:["Price (TZS)","Bei (TZS)"], setup_included:["Setup included","Maandalizi yamejumuishwa"], notes:["Notes","Maelezo"], radius_km:["Service distance (km)","Umbali wa huduma (km)"] };
+  if (Array.isArray(value)) return value.map(item=>formatValue(item,sw)).join("; ");
+  const readable=Object.entries(value).filter(([key])=>key in labels).map(([key,item])=>`${labels[key][sw ? 1:0]}: ${formatValue(item,sw)}`);
+  return readable.join("\n") || (sw ? "Gharama na utaratibu vitathibitishwa kwenye quotation." : "Charges and arrangements will be confirmed in your quotation.");
+}

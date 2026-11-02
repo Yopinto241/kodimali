@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import '../../../core/widgets/app_scope.dart';
 import '../../../core/widgets/manage_ui.dart';
@@ -47,18 +48,20 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialog) => AlertDialog(
-          title: const Text('Report an external deal'),
+          title: const LocalizedUiText('Report an external deal'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                const Text(
+                const LocalizedUiText(
                   'Use this only for a deal completed outside KODIMALI. It is not recorded as money collected by KODIMALI.',
                 ),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   initialValue: listingId,
-                  decoration: const InputDecoration(labelText: 'Listing'),
+                  decoration: InputDecoration(
+                    labelText: mobileUi(context, 'Listing'),
+                  ),
                   items: listings
                       .map(
                         (row) => DropdownMenuItem<String>(
@@ -73,14 +76,14 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
                 TextField(
                   controller: amount,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Declared value (TZS)',
+                  decoration: InputDecoration(
+                    labelText: mobileUi(context, 'Declared value (TZS)'),
                   ),
                 ),
                 const SizedBox(height: 12),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Transaction date'),
+                  title: const LocalizedUiText('Transaction date'),
                   subtitle: Text(
                     transactionDate.toIso8601String().split('T').first,
                   ),
@@ -100,7 +103,9 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
                   controller: notes,
                   minLines: 2,
                   maxLines: 4,
-                  decoration: const InputDecoration(labelText: 'Notes'),
+                  decoration: InputDecoration(
+                    labelText: mobileUi(context, 'Notes'),
+                  ),
                 ),
               ],
             ),
@@ -108,11 +113,11 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
+              child: const LocalizedUiText('Cancel'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Submit declaration'),
+              child: const LocalizedUiText('Submit declaration'),
             ),
           ],
         ),
@@ -147,23 +152,23 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
     return showDialog<String>(
       context: context,
       builder: (x) => AlertDialog(
-        title: const Text('Mobile-money payment'),
+        title: const LocalizedUiText('Mobile-money payment'),
         content: TextField(
           controller: c,
           keyboardType: TextInputType.phone,
-          decoration: const InputDecoration(
-            labelText: 'Payment phone number',
+          decoration: InputDecoration(
+            labelText: mobileUi(context, 'Payment phone number'),
             hintText: '2557...',
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(x),
-            child: const Text('Cancel'),
+            child: const LocalizedUiText('Cancel'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(x, c.text.trim()),
-            child: const Text('Send payment request'),
+            child: const LocalizedUiText('Send payment request'),
           ),
         ],
       ),
@@ -194,7 +199,7 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
+            content: LocalizedUiText(
               'The administrator has made subscriptions free. Your plan is active.',
             ),
           ),
@@ -218,7 +223,7 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
       context: context,
       builder: (x) => StatefulBuilder(
         builder: (x, set) => AlertDialog(
-          title: const Text('Promote a listing'),
+          title: const LocalizedUiText('Promote a listing'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -239,24 +244,33 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
                 items: const [
                   DropdownMenuItem(
                     value: 'featured',
-                    child: Text('Featured badge'),
+                    child: LocalizedUiText('Featured badge'),
                   ),
                   DropdownMenuItem(
                     value: 'search_top',
-                    child: Text('Top of search'),
+                    child: LocalizedUiText('Top of search'),
                   ),
-                  DropdownMenuItem(value: 'homepage', child: Text('Homepage')),
+                  DropdownMenuItem(
+                    value: 'homepage',
+                    child: LocalizedUiText('Homepage'),
+                  ),
                 ],
                 onChanged: (v) => set(() => placement = v!),
               ),
               DropdownButtonFormField<int>(
                 initialValue: days,
                 items: const [
-                  DropdownMenuItem(value: 3, child: Text('3 days · 3,000 TZS')),
-                  DropdownMenuItem(value: 7, child: Text('7 days · 6,000 TZS')),
+                  DropdownMenuItem(
+                    value: 3,
+                    child: LocalizedUiText('3 days · 3,000 TZS'),
+                  ),
+                  DropdownMenuItem(
+                    value: 7,
+                    child: LocalizedUiText('7 days · 6,000 TZS'),
+                  ),
                   DropdownMenuItem(
                     value: 30,
-                    child: Text('30 days · 20,000 TZS'),
+                    child: LocalizedUiText('30 days · 20,000 TZS'),
                   ),
                 ],
                 onChanged: (v) => set(() => days = v!),
@@ -266,11 +280,11 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(x, false),
-              child: const Text('Cancel'),
+              child: const LocalizedUiText('Cancel'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(x, true),
-              child: const Text('Continue'),
+              child: const LocalizedUiText('Continue'),
             ),
           ],
         ),
@@ -310,7 +324,7 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
+            content: LocalizedUiText(
               'The administrator has made featured campaigns free. Campaign activated.',
             ),
           ),
@@ -330,46 +344,63 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialog) => AlertDialog(
           title: Text(
-            'Lead · ${booking['customer_name'] ?? booking['request_reference'] ?? 'Customer'}',
+            mobileUiFormat(context, "Lead · {0}", [
+              booking['customer_name'] ??
+                  booking['request_reference'] ??
+                  'Customer',
+            ]),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               DropdownButtonFormField<String>(
                 initialValue: stage,
-                decoration: const InputDecoration(labelText: 'Pipeline stage'),
+                decoration: InputDecoration(
+                  labelText: mobileUi(context, 'Pipeline stage'),
+                ),
                 items: const <DropdownMenuItem<String>>[
-                  DropdownMenuItem(value: 'new', child: Text('New lead')),
+                  DropdownMenuItem(
+                    value: 'new',
+                    child: LocalizedUiText('New lead'),
+                  ),
                   DropdownMenuItem(
                     value: 'contacted',
-                    child: Text('Contacted'),
+                    child: LocalizedUiText('Contacted'),
                   ),
                   DropdownMenuItem(
                     value: 'viewing_scheduled',
-                    child: Text('Viewing scheduled'),
+                    child: LocalizedUiText('Viewing scheduled'),
                   ),
                   DropdownMenuItem(
                     value: 'negotiating',
-                    child: Text('Negotiating'),
+                    child: LocalizedUiText('Negotiating'),
                   ),
                   DropdownMenuItem(
                     value: 'completed',
-                    child: Text('Completed'),
+                    child: LocalizedUiText('Completed'),
                   ),
-                  DropdownMenuItem(value: 'lost', child: Text('Lost')),
+                  DropdownMenuItem(
+                    value: 'lost',
+                    child: LocalizedUiText('Lost'),
+                  ),
                 ],
                 onChanged: (v) => setDialog(() => stage = v!),
               ),
               TextField(
                 controller: note,
                 maxLines: 2,
-                decoration: const InputDecoration(labelText: 'Customer note'),
+                decoration: InputDecoration(
+                  labelText: mobileUi(context, 'Customer note'),
+                ),
               ),
               TextField(
                 controller: value,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Expected transaction value (TZS)',
+                decoration: InputDecoration(
+                  labelText: mobileUi(
+                    context,
+                    'Expected transaction value (TZS)',
+                  ),
                 ),
               ),
             ],
@@ -377,7 +408,7 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel'),
+              child: const LocalizedUiText('Cancel'),
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
@@ -393,13 +424,15 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
               icon: const Icon(Icons.event_outlined),
               label: Text(
                 followUpAt == null
-                    ? 'Set follow-up date'
-                    : 'Follow up: ${followUpAt!.toIso8601String().split('T').first}',
+                    ? mobileUi(context, 'Set follow-up date')
+                    : mobileUiFormat(context, "Follow up: {0}", [
+                        followUpAt!.toIso8601String().split('T').first,
+                      ]),
               ),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Save lead'),
+              child: const LocalizedUiText('Save lead'),
             ),
           ],
         ),
@@ -437,19 +470,25 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
         onRefresh: _refresh,
         children: [
           ManageHeroCard(
-            title: 'Business center',
-            subtitle:
-                'Grow your sales with plans, featured listings, CRM follow-ups, wallet and receipts.',
+            title: mobileUi(context, 'Business center'),
+            subtitle: mobileUi(
+              context,
+              'Grow your sales with plans, featured listings, CRM follow-ups, wallet and receipts.',
+            ),
             bottom: Text(
-              'Current plan: ${current['name'] ?? 'Free'}',
+              mobileUiFormat(context, "Current plan: {0}", [
+                current['name'] ?? 'Free',
+              ]),
               style: const TextStyle(color: Colors.white),
             ),
           ),
           const SizedBox(height: 16),
           ManagePanel(
-            title: 'Subscription packages',
-            subtitle:
-                'Paid plans activate for 30 days after ClickPesa confirms payment.',
+            title: mobileUi(context, 'Subscription packages'),
+            subtitle: mobileUi(
+              context,
+              'Paid plans activate for 30 days after ClickPesa confirms payment.',
+            ),
             child: Column(
               children: plans
                   .map(
@@ -460,18 +499,28 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
                             : Icons.workspace_premium_outlined,
                       ),
                       title: Text(
-                        '${p['name']} · ${_money(p['monthly_price_tzs'])}/month',
+                        mobileUiFormat(context, "{0} · {1}/month", [
+                          p['name'],
+                          _money(p['monthly_price_tzs']),
+                        ]),
                       ),
                       subtitle: Text(
-                        'Listings: ${p['listing_limit'] ?? 'Unlimited'} · Publication fee: ${_money(p['publication_fee_tzs'])}',
+                        mobileUiFormat(
+                          context,
+                          "Listings: {0} · Publication fee: {1}",
+                          [
+                            p['listing_limit'] ?? 'Unlimited',
+                            _money(p['publication_fee_tzs']),
+                          ],
+                        ),
                       ),
                       trailing: p['id'] == current['plan_id']
-                          ? const Chip(label: Text('Current'))
+                          ? const Chip(label: LocalizedUiText('Current'))
                           : FilledButton(
                               onPressed: (p['monthly_price_tzs'] as num) == 0
                                   ? null
                                   : () => _buyPlan(p),
-                              child: const Text('Choose'),
+                              child: const LocalizedUiText('Choose'),
                             ),
                     ),
                   )
@@ -480,16 +529,18 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
           ),
           const SizedBox(height: 16),
           ManagePanel(
-            title: 'Featured listings',
-            subtitle:
-                'Target homepage or search placement for 3, 7 or 30 days.',
+            title: mobileUi(context, 'Featured listings'),
+            subtitle: mobileUi(
+              context,
+              'Target homepage or search placement for 3, 7 or 30 days.',
+            ),
             action: FilledButton.icon(
               onPressed: () => _boost(listings),
               icon: const Icon(Icons.rocket_launch_outlined),
-              label: const Text('Promote'),
+              label: const LocalizedUiText('Promote'),
             ),
             child: boosts.isEmpty
-                ? const Text('No promotion campaigns yet.')
+                ? const LocalizedUiText('No promotion campaigns yet.')
                 : Column(
                     children: boosts
                         .map(
@@ -499,7 +550,11 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
                                   .toString(),
                             ),
                             subtitle: Text(
-                              '${b['placement']} · ${b['duration_days']} days · ${_money(b['amount_tzs'])}',
+                              mobileUiFormat(context, "{0} · {1} days · {2}", [
+                                b['placement'],
+                                b['duration_days'],
+                                _money(b['amount_tzs']),
+                              ]),
                             ),
                             trailing: Chip(label: Text(b['status'].toString())),
                           ),
@@ -509,13 +564,15 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
           ),
           const SizedBox(height: 16),
           ManagePanel(
-            title: 'Sales pipeline',
-            subtitle:
-                'New → Contacted → Viewing → Negotiating → Completed/Lost',
+            title: mobileUi(context, 'Sales pipeline'),
+            subtitle: mobileUi(
+              context,
+              'New → Contacted → Viewing → Negotiating → Completed/Lost',
+            ),
             child: Column(
               children: <Widget>[
                 if (leads.isEmpty)
-                  const Text(
+                  const LocalizedUiText(
                     'Choose any customer request below to organize it as a lead.',
                   ),
                 ...bookings
@@ -540,11 +597,11 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
           ),
           const SizedBox(height: 16),
           ManagePanel(
-            title: 'Wallet and receipts',
+            title: mobileUi(context, 'Wallet and receipts'),
             subtitle:
                 'Available balance: ${_money(((dash['wallet'] as Map?)?['available_balance_tzs']))} · Promotional credits: ${_money(((dash['wallet'] as Map?)?['promotional_credits_tzs']))}',
             child: receipts.isEmpty
-                ? const Text(
+                ? const LocalizedUiText(
                     'Receipts appear automatically after successful payments.',
                   )
                 : Column(
@@ -567,9 +624,11 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
           if (walletTransactions.isNotEmpty) ...<Widget>[
             const SizedBox(height: 16),
             ManagePanel(
-              title: 'Wallet activity',
-              subtitle:
-                  'Wallet balances are administrative credits and adjustments, not customer rental payments.',
+              title: mobileUi(context, 'Wallet activity'),
+              subtitle: mobileUi(
+                context,
+                'Wallet balances are administrative credits and adjustments, not customer rental payments.',
+              ),
               child: Column(
                 children: walletTransactions
                     .map(
@@ -593,18 +652,20 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
           ],
           const SizedBox(height: 16),
           ManagePanel(
-            title: 'Deals completed outside KODIMALI',
-            subtitle:
-                'Declare an authorized deal for verification. The value remains separate from KODIMALI collections.',
+            title: mobileUi(context, 'Deals completed outside KODIMALI'),
+            subtitle: mobileUi(
+              context,
+              'Declare an authorized deal for verification. The value remains separate from KODIMALI collections.',
+            ),
             action: FilledButton.icon(
               onPressed: listings.isEmpty
                   ? null
                   : () => _declareExternalDeal(listings),
               icon: const Icon(Icons.add_business_outlined),
-              label: const Text('Report deal'),
+              label: const LocalizedUiText('Report deal'),
             ),
             child: externalDeals.isEmpty
-                ? const Text('No external deals declared.')
+                ? const LocalizedUiText('No external deals declared.')
                 : Column(
                     children: externalDeals
                         .map(
@@ -614,7 +675,10 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
                               '${_money(deal['claimed_value_minor'])} · ${deal['status']}',
                             ),
                             subtitle: Text(
-                              '${deal['transaction_date']} · Listing ${deal['listing_id'] ?? '-'}',
+                              mobileUiFormat(context, "{0} · Listing {1}", [
+                                deal['transaction_date'],
+                                deal['listing_id'] ?? '-',
+                              ]),
                             ),
                           ),
                         )
@@ -657,14 +721,18 @@ class _PaymentStatusDialogState extends State<_PaymentStatusDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Confirm on your phone'),
+    title: const LocalizedUiText('Confirm on your phone'),
     content: Text(
-      'Payment status: $status\nAfter approving the mobile-money prompt, tap Check status.',
+      mobileUiFormat(
+        context,
+        "Payment status: {0}\nAfter approving the mobile-money prompt, tap Check status.",
+        [status],
+      ),
     ),
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Close'),
+        child: const LocalizedUiText('Close'),
       ),
       FilledButton.icon(
         onPressed: busy ? null : check,
@@ -674,7 +742,7 @@ class _PaymentStatusDialogState extends State<_PaymentStatusDialog> {
                 child: CircularProgressIndicator(),
               )
             : const Icon(Icons.refresh),
-        label: const Text('Check status'),
+        label: const LocalizedUiText('Check status'),
       ),
     ],
   );

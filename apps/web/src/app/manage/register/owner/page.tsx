@@ -1,3 +1,4 @@
+import { UiText } from "@/components/ui-text";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -18,7 +19,7 @@ export default async function OwnerRegistrationPage({ searchParams }: { searchPa
         eyebrow="Owner registration"
         title="Open an owner account"
         description="Create your login first, then submit your ownership or management details for verification. Approval is required before the owner workspace is activated."
-        actions={<Link href="/manage" className="btn btn-outline">Already registered? Sign in</Link>}
+        actions={<Link href="/manage" className="btn btn-outline"><UiText text={"Already registered? Sign in"} /></Link>}
       />
       <CustomerAccountPortal initialMode="register" destination={destination} accountKind="owner" />
     </PageShell>

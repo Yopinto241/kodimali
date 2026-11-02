@@ -1,6 +1,8 @@
 "use client";
+import { UiSpan } from "@/components/ui-text";
 
 import Link from "next/link";
+import { useNavigate } from "@/components/navigation-progress";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 
@@ -9,6 +11,7 @@ import { useLanguage } from "@/components/language-provider";
 
 export function AuthActions({ mobile = false }: { mobile?: boolean }) {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const supabase = getBrowserSupabase();
   const [user, setUser] = useState<User | null | undefined>(undefined);
 
@@ -28,7 +31,7 @@ export function AuthActions({ mobile = false }: { mobile?: boolean }) {
 
   const layout = mobile ? "contents" : "hidden items-center gap-2 sm:flex";
   if (user === undefined) {
-    return <span className={mobile ? "h-10 w-24 shrink-0 rounded-full bg-brand-card-soft" : "hidden h-10 w-24 rounded-full bg-brand-card-soft sm:block"} aria-label={t("auth.loading")} />;
+    return <UiSpan className={mobile ? "h-10 w-24 shrink-0 rounded-full bg-brand-card-soft" : "hidden h-10 w-24 rounded-full bg-brand-card-soft sm:block"} aria-label={t("auth.loading")} />;
   }
   if (!user) {
     return (
@@ -44,7 +47,7 @@ export function AuthActions({ mobile = false }: { mobile?: boolean }) {
       <button
         className="nav-control shrink-0 px-4"
         type="button"
-        onClick={() => void supabase.auth.signOut().then(() => window.location.assign("/"))}
+        onClick={() => void supabase.auth.signOut().then(() => navigate("/"))}
       >
         {t("auth.logout")}
       </button>

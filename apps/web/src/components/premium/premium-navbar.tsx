@@ -1,4 +1,5 @@
 "use client";
+import { UiButton, UiLink, UiNav } from "@/components/ui-text";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -45,8 +46,8 @@ export function PremiumNavbar({ categories }: { categories: Category[] }) {
   }, []);
 
   useEffect(() => {
-    setMenuOpen(false);
-    setCategoriesOpen(false);
+    const frame = requestAnimationFrame(() => { setMenuOpen(false); setCategoriesOpen(false); });
+    return () => cancelAnimationFrame(frame);
   }, [pathname]);
 
   useEffect(() => {
@@ -86,12 +87,12 @@ export function PremiumNavbar({ categories }: { categories: Category[] }) {
   return (
     <header className={`premium-nav ${scrolled ? "is-scrolled" : ""}`}>
       <div className="app-shell flex h-16 items-center justify-between gap-3">
-        <Link href="/" className="flex min-w-0 items-center gap-2.5" aria-label="KODIMALI mwanzo">
+        <UiLink href="/" className="flex min-w-0 items-center gap-2.5" aria-label="KODIMALI mwanzo">
           <span className="flex h-9 w-9 flex-none items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm"><Image src="/icon.png" alt="" width={32} height={32} priority /></span>
           <span className="truncate font-heading text-base font-extrabold tracking-[0.15em] text-brand-navy sm:text-lg">KODIMALI</span>
-        </Link>
+        </UiLink>
 
-        <nav className="hidden items-center gap-1 lg:flex" aria-label="Urambazaji mkuu">
+        <UiNav className="hidden items-center gap-1 lg:flex" aria-label="Urambazaji mkuu">
           {links.map((item) => <Link className={`nav-link ${isActive(pathname, item.href) ? "is-active" : ""}`} href={item.href} key={item.href}>{t(item.label)}</Link>)}
           <div className="relative" ref={categoryMenuRef}>
             <button className={`nav-link inline-flex items-center gap-1.5 ${pathname.startsWith("/category/") ? "is-active" : ""}`} type="button" onClick={() => setCategoriesOpen((value) => !value)} aria-expanded={categoriesOpen} aria-controls="desktop-category-menu">
@@ -101,18 +102,18 @@ export function PremiumNavbar({ categories }: { categories: Category[] }) {
               {categories.map((category) => <Link className="nav-category-link" href={categoryHref(category)} key={category.id} onClick={() => setCategoriesOpen(false)}>{category.name}</Link>)}
             </div> : null}
           </div>
-        </nav>
+        </UiNav>
 
         <div className="hidden items-center gap-2 lg:flex"><LanguageSwitch /><AuthActions /></div>
-        <button className="nav-menu-toggle lg:hidden" onClick={() => setMenuOpen((value) => !value)} aria-expanded={menuOpen} aria-controls="mobile-menu" aria-label={menuOpen ? "Funga menyu" : "Fungua menyu"}><span aria-hidden>{menuOpen ? "×" : "☰"}</span></button>
+        <UiButton className="nav-menu-toggle lg:hidden" onClick={() => setMenuOpen((value) => !value)} aria-expanded={menuOpen} aria-controls="mobile-menu" aria-label={menuOpen ? "Funga menyu" : "Fungua menyu"}><span aria-hidden>{menuOpen ? "×" : "☰"}</span></UiButton>
       </div>
 
       {menuOpen ? <div id="mobile-menu" className="mobile-nav-layer lg:hidden" onPointerDown={(event) => { if (event.target === event.currentTarget) setMenuOpen(false); }}>
         <div className="mobile-nav-panel">
-          <nav className="grid grid-cols-2 gap-2" aria-label="Urambazaji wa simu">
+          <UiNav className="grid grid-cols-2 gap-2" aria-label="Urambazaji wa simu">
             {links.map((item) => <Link className={`mobile-nav-link ${isActive(pathname, item.href) ? "is-active" : ""}`} href={item.href} key={item.href} onClick={() => setMenuOpen(false)}>{t(item.label)}</Link>)}
             <Link className={`mobile-nav-link ${pathname.startsWith("/account") ? "is-active" : ""}`} href="/account" onClick={() => setMenuOpen(false)}>{t("nav.account")}</Link>
-          </nav>
+          </UiNav>
           <div className="mobile-nav-divider" />
           <p className="mobile-nav-label">{t("nav.categories")}</p>
           <div className="mobile-category-grid">

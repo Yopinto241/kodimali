@@ -1,3 +1,4 @@
+import '../utils/agent_registration_error.dart';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -32,14 +33,17 @@ class ManageRepository {
 
   User? get currentUser => _client.auth.currentUser;
 
-  Future<List<JsonMap>> fetchInformationSubmissions() async {
+  Future<List<JsonMap>> fetchInformationSubmissions({
+    int offset = 0,
+    int limit = 20,
+  }) async {
     return (await _client
             .from('rental_information_submissions')
             .select(
-              'id,reference,category,location_description,description,approximate_rent,available_from,information_source,status,eligibility_status,next_follow_up_at,submitted_at,assigned_agent_id,assigned_information_admin_id,possible_duplicate_of,linked_asset_id,linked_listing_id,marketing_started_at,target_completion_at,closed_at,outcome,outcome_notes,information_follow_ups(id,kind,summary,due_at,completed_at,created_at)',
+              'id,reference,category,location_description,description,owner_name,owner_phone,owner_contact_authorized,approximate_rent,available_from,information_source,status,eligibility_status,next_follow_up_at,submitted_at,assigned_agent_id,assigned_information_admin_id,possible_duplicate_of,linked_asset_id,linked_listing_id,marketing_started_at,target_completion_at,closed_at,outcome,outcome_notes,referral_agreements(id,reward_type,fixed_amount_tzs,percentage_rate,terms,terms_version,contributor_accepted_at,referral_rewards(id,reward_amount_tzs,status)),information_follow_ups(id,kind,summary,due_at,completed_at,created_at)',
             )
             .order('submitted_at', ascending: false)
-            .limit(200))
+            .range(offset, offset + limit - 1))
         .cast<JsonMap>();
   }
 
@@ -316,9 +320,9 @@ class ManageRepository {
       // while admin approval remains the final gate.
       await _client.auth.signOut();
     } on AuthException catch (error) {
-      throw StateError(_friendlyAuthError(error));
+      throw StateError(agentRegistrationError(error));
     } on PostgrestException catch (error) {
-      throw StateError(_friendlyAreaError(error));
+      throw StateError(agentRegistrationError(error));
     } on StateError {
       rethrow;
     } catch (_) {
@@ -990,7 +994,7 @@ class ManageRepository {
       _client
           .from("platform_promotions")
           .select(
-            "id, title, description, cta_label, target_url, placement, visibility_scope, start_at, end_at, display_order, is_active, created_at, target_region_id, target_district_id, target_ward_id, target_area_id, target_region:locations!platform_promotions_target_region_id_fkey(id, name, location_type), target_district:locations!platform_promotions_target_district_id_fkey(id, name, location_type), target_ward:locations!platform_promotions_target_ward_id_fkey(id, name, location_type), target_area:locations!platform_promotions_target_area_id_fkey(id, name, location_type), platform_promotion_media(id, media_type, media_path, thumbnail_path, display_order, is_primary)",
+            "id, title, description, cta_label, target_url, target_category_ids, placement, visibility_scope, start_at, end_at, display_order, is_active, created_at, target_region_id, target_district_id, target_ward_id, target_area_id, target_region:locations!platform_promotions_target_region_id_fkey(id, name, location_type), target_district:locations!platform_promotions_target_district_id_fkey(id, name, location_type), target_ward:locations!platform_promotions_target_ward_id_fkey(id, name, location_type), target_area:locations!platform_promotions_target_area_id_fkey(id, name, location_type), platform_promotion_media(id, media_type, media_path, thumbnail_path, display_order, is_primary)",
           )
           .order("display_order")
           .order("created_at", ascending: false),
@@ -1041,6 +1045,7 @@ class ManageRepository {
     required String? targetDistrictId,
     required String? targetWardId,
     required String? targetAreaId,
+    List<String> targetCategoryIds = const [],
     PlatformFile? mediaFile,
   }) async {
     final User user = _requireUser();
@@ -1125,6 +1130,7 @@ class ManageRepository {
       "is_active": isActive,
       "start_at": startAt?.toUtc().toIso8601String(),
       "end_at": endAt?.toUtc().toIso8601String(),
+      "target_category_ids": targetCategoryIds,
       "target_region_id": normalizedRegionId,
       "target_district_id": normalizedDistrictId,
       "target_ward_id": normalizedWardId,
@@ -1359,12 +1365,14 @@ class ManageRepository {
     double? minPrice,
     double? maxPrice,
     String sort = "newest",
+    int offset = 0,
+    int? limit,
   }) async {
     final JsonMap agent = await _currentAgent();
     dynamic query = _client
         .from("listings")
         .select(
-          "id, title, category_id, public_location_label, price_amount, price_period, status, availability_status, removed_from_market_at, removed_reason, created_at, asset_categories(id, name, slug)",
+          "id, title, category_id, public_location_label, price_amount, price_period, status, availability_status, removed_from_market_at, removed_reason, created_at, listing_media(storage_path,media_type,display_order), asset_categories(id, name, slug)",
         )
         .eq("agent_id", agent["id"] as String);
     if (search.isNotEmpty) {
@@ -1387,15 +1395,58 @@ class ManageRepository {
       "price_high" => query.order("price_amount", ascending: false),
       _ => query.order("created_at", ascending: false),
     };
+    query = query
+        .order("id")
+        .order("display_order", referencedTable: "listing_media")
+        .limit(1, referencedTable: "listing_media");
+    if (limit != null) {
+      query = query.range(offset, offset + limit.clamp(1, 100) - 1);
+    }
     final List<JsonMap> listings = await _decodeListRows(query);
-    return _withInquiryCounts(listings);
+    return limit == null
+        ? _withInquiryCounts(listings)
+        : _attachListingPreviews(await _withInquiryCounts(listings));
+  }
+
+  Future<Map<String, String>> signListingMediaPaths(
+    Iterable<String> paths,
+  ) async {
+    final values = paths.where((path) => path.isNotEmpty).toSet().toList();
+    if (values.isEmpty) return {};
+    try {
+      final urls = await _client.storage
+          .from('listing-media')
+          .createSignedUrlsResult(values, _signedMediaUrlSeconds);
+      return {
+        for (final item in urls)
+          if (item is SignedUrlSuccess) item.path: item.signedUrl,
+      };
+    } on StorageException {
+      return {};
+    }
+  }
+
+  Future<List<JsonMap>> _attachListingPreviews(List<JsonMap> rows) async {
+    final paths = rows
+        .expand((row) => (row['listing_media'] as List? ?? []).cast<JsonMap>())
+        .where((media) => media['media_type'] == 'image')
+        .map((media) => media['storage_path'].toString());
+    final urls = await signListingMediaPaths(paths);
+    for (final row in rows) {
+      final media = (row['listing_media'] as List? ?? [])
+          .cast<JsonMap>()
+          .where((media) => media['media_type'] == 'image')
+          .firstOrNull;
+      row['preview_url'] = media == null ? null : urls[media['storage_path']];
+    }
+    return rows;
   }
 
   Future<JsonMap> fetchListingDetail(String listingId) async {
     final JsonMap listing = await _client
         .from("listings")
         .select(
-          "id, owner_id, category_id, listing_attributes, title, description, public_location_label, price_amount, price_period, deposit_required_amount, listing_rules, availability_status, status, location_id, removed_from_market_at, removed_reason, created_at, asset_categories(id, name, slug, field_schema)",
+          "id, owner_id, category_id, listing_attributes, title, description, public_location_label, price_amount, price_period, deposit_required_amount, listing_rules, availability_status, status, location_id, removed_from_market_at, removed_reason, created_at, owners(full_name,phone_number,notes), asset_categories(id, name, slug, field_schema)",
         )
         .eq("id", listingId)
         .single();
@@ -1409,6 +1460,12 @@ class ManageRepository {
           .eq("listing_id", listingId)
           .order("display_order"),
     );
+    final urls = await signListingMediaPaths(
+      media.map((item) => item['storage_path'].toString()),
+    );
+    for (final item in media) {
+      item['preview_url'] = urls[item['storage_path']];
+    }
     final JsonMap? privateLocation = await _fetchPrivateLocation(listingId);
     return <String, dynamic>{
       ...listing,
@@ -1429,6 +1486,9 @@ class ManageRepository {
     required String rules,
     required String availabilityStatus,
     required JsonMap listingAttributes,
+    required String ownerName,
+    required String ownerPhone,
+    required String ownerNotes,
   }) async {
     final String normalizedListingId = _requiredInputId(
       listingId,
@@ -1446,6 +1506,11 @@ class ManageRepository {
       throw StateError('Deposit cannot be negative.');
     }
     final JsonMap updates = <String, dynamic>{
+      "private_owner": {
+        "name": ownerName.trim(),
+        "phone": ownerPhone.trim(),
+        "notes": ownerNotes.trim(),
+      },
       "title": normalizedTitle,
       "description": normalizedDescription,
       "price_amount": priceAmount,
@@ -1455,10 +1520,10 @@ class ManageRepository {
       "availability_status": availabilityStatus,
       "listing_attributes": listingAttributes,
     };
-    await _client
-        .from("listings")
-        .update(updates)
-        .eq("id", normalizedListingId);
+    await _client.rpc(
+      'manage_save_listing_with_owner',
+      params: {'p_listing_id': normalizedListingId, 'p_values': updates},
+    );
   }
 
   Future<void> updateListingStatus({
@@ -1668,9 +1733,9 @@ class ManageRepository {
 
     try {
       phase = 'saving owner details';
-      final String ownerId =
+      final String? ownerId =
           normalizedExistingOwnerId ??
-          await _createOwner(
+          await _createOptionalOwner(
             agentId: agentId,
             fullName: ownerName,
             phoneNumber: ownerPhone,
@@ -1892,9 +1957,9 @@ class ManageRepository {
     try {
       final String categoryId = await _categoryIdForLegacyCategory(category);
       phase = "saving owner details";
-      final String ownerId =
+      final String? ownerId =
           normalizedExistingOwnerId ??
-          await _createOwner(
+          await _createOptionalOwner(
             agentId: agentId,
             fullName: ownerName,
             phoneNumber: ownerPhone,
@@ -2100,7 +2165,7 @@ class ManageRepository {
   }
 
   Future<List<JsonMap>> fetchBookingStatusHistory(String bookingId) async {
-    return _decodeListRows(
+    return await _decodeListRows(
       _client
           .from("booking_status_history")
           .select("id, status, changed_by, reason, created_at")
@@ -2132,7 +2197,7 @@ class ManageRepository {
 
   Future<List<JsonMap>> fetchBookingMessages(String conversationId) async {
     try {
-      return _decodeListRows(
+      return await _decodeListRows(
         _client
             .from("booking_messages")
             .select(
@@ -2246,7 +2311,7 @@ class ManageRepository {
 
   Future<List<JsonMap>> fetchViewingAppointments(String bookingId) async {
     try {
-      return _decodeListRows(
+      return await _decodeListRows(
         _client
             .from("viewing_appointments")
             .select(
@@ -2371,7 +2436,7 @@ class ManageRepository {
 
   Future<List<JsonMap>> fetchBookingPaymentIntents(String bookingId) async {
     try {
-      return _decodeListRows(
+      return await _decodeListRows(
         _client
             .from("payment_intents")
             .select(
@@ -2391,7 +2456,7 @@ class ManageRepository {
     String bookingId,
   ) async {
     try {
-      return _decodeListRows(
+      return await _decodeListRows(
         _client
             .from("fulfillment_milestones")
             .select(
@@ -2408,7 +2473,7 @@ class ManageRepository {
 
   Future<List<JsonMap>> fetchBookingIncidents(String bookingId) async {
     try {
-      return _decodeListRows(
+      return await _decodeListRows(
         _client
             .from("booking_incidents")
             .select(
@@ -2425,11 +2490,11 @@ class ManageRepository {
 
   Future<List<JsonMap>> fetchBookingCancellations(String bookingId) async {
     try {
-      return _decodeListRows(
+      return await _decodeListRows(
         _client
             .from("booking_cancellation_cases")
             .select(
-              "id, party, reason, paid_minor, customer_refund_minor, provider_compensation_minor, platform_fee_minor, booking_status, refund_status, provider_compensation_status, inventory_release_status, commission_adjustment_status, referral_adjustment_status, settlement_status, resolution_notes, created_at, reviewed_at",
+              "id, party, reason, paid_minor, customer_refund_minor, provider_compensation_minor, platform_fee_minor, booking_status, refund_status, provider_compensation_status, inventory_release_status, commission_reversal_status, referral_adjustment_status, settlement_status, resolution_notes, created_at, reviewed_at",
             )
             .eq("booking_request_id", bookingId)
             .order("created_at", ascending: false),
@@ -2457,7 +2522,7 @@ class ManageRepository {
 
   Future<List<JsonMap>> fetchBookingProviderPayables(String bookingId) async {
     try {
-      return _decodeListRows(
+      return await _decodeListRows(
         _client
             .from("provider_payables")
             .select(
@@ -2812,16 +2877,32 @@ class ManageRepository {
   Future<List<JsonMap>> fetchAdminCustomerUsers({
     int limit = 100,
     int offset = 0,
+    String search = '',
+    String? confirmation,
   }) async {
-    return _decodeListRows(
-      _client.rpc(
-        "get_admin_customer_users",
-        params: <String, dynamic>{
-          "p_offset": offset,
-          "p_limit": limit.clamp(1, 100),
-        },
-      ),
-    );
+    try {
+      return await _decodeListRows(
+        _client.rpc(
+          "search_manage_customers",
+          params: <String, dynamic>{
+            "p_offset": offset,
+            "p_limit": limit.clamp(1, 100),
+            "p_search": search.trim().isEmpty ? null : search.trim(),
+            "p_confirmation": confirmation,
+          },
+        ),
+      );
+    } on PostgrestException catch (error) {
+      if (error.code == 'PGRST202') {
+        throw StateError(
+          'Customer directory update is required before this feature can load.',
+        );
+      }
+      if (error.code == '42501') {
+        throw StateError('Customer directory access required');
+      }
+      rethrow;
+    }
   }
 
   Future<JsonMap> fetchAdminAgents({
@@ -2923,6 +3004,48 @@ class ManageRepository {
       final List<JsonMap> paged = filtered.skip(offset).take(limit).toList();
       return <String, dynamic>{"items": paged, "total_count": filtered.length};
     }
+  }
+
+  Future<JsonMap> fetchMySupervisorContext() async {
+    final dynamic value = await _client.rpc('get_my_supervisor_context');
+    return Map<String, dynamic>.from(value as Map);
+  }
+
+  Future<List<JsonMap>> fetchSupervisorDirectory() =>
+      _decodeListRows(_client.rpc('get_supervisor_directory'));
+
+  Future<void> configureSupervisorTerritory(
+    String email,
+    String locationId,
+    bool active,
+  ) async {
+    await _client.rpc(
+      'configure_supervisor_territory',
+      params: {
+        'p_email': email.trim(),
+        'p_location_id': locationId,
+        'p_active': active,
+      },
+    );
+  }
+
+  Future<String?> fetchAgentSupervisor(String agentId) async {
+    final row = await _client
+        .from('agents')
+        .select('supervisor_id')
+        .eq('id', agentId)
+        .single();
+    return row['supervisor_id'] as String?;
+  }
+
+  Future<void> assignAgentSupervisor(
+    String agentId,
+    String? supervisorId,
+  ) async {
+    await _client.rpc(
+      'assign_agent_supervisor',
+      params: {'p_agent_id': agentId, 'p_supervisor_id': supervisorId},
+    );
   }
 
   Future<List<JsonMap>> fetchProfilesAvailableForAgentCreation() async {
@@ -3487,16 +3610,37 @@ class ManageRepository {
     }
   }
 
-  Future<List<JsonMap>> fetchListingsForModeration() async {
-    final List<JsonMap> listings = await _decodeListRows(
-      _client
-          .from("listings")
-          .select(
-            "id, title, category_id, public_location_label, status, publication_review_status, publication_requested, removed_from_market_at, removed_reason, created_at, agent_id, asset_categories(id, name, slug), agents(verification_status, account_status)",
-          )
-          .order("created_at", ascending: false),
+  Future<List<JsonMap>> fetchListingsForModeration({
+    String search = '',
+    String? status,
+    String? categoryId,
+    int offset = 0,
+    int limit = 20,
+  }) async {
+    dynamic query = _client
+        .from('listings')
+        .select(
+          'id,title,category_id,public_location_label,price_amount,price_period,status,availability_status,publication_review_status,publication_requested,removed_from_market_at,removed_reason,created_at,agent_id,listing_media(storage_path,media_type,display_order),asset_categories(id,name,slug),agents(verification_status,account_status)',
+        );
+    if (search.trim().isNotEmpty) {
+      query = query.ilike(
+        'title',
+        '%${search.trim().replaceAll(RegExp(r'[%_]'), '')}%',
+      );
+    }
+    if (status != null && status.isNotEmpty) query = query.eq('status', status);
+    if (categoryId != null && categoryId.isNotEmpty) {
+      query = query.eq('category_id', categoryId);
+    }
+    final listings = await _decodeListRows(
+      query
+          .order('created_at', ascending: false)
+          .order('id')
+          .order('display_order', referencedTable: 'listing_media')
+          .limit(1, referencedTable: 'listing_media')
+          .range(offset, offset + limit.clamp(1, 100) - 1),
     );
-    return _withInquiryCounts(listings);
+    return _attachListingPreviews(await _withInquiryCounts(listings));
   }
 
   Future<JsonMap> moderateListing({
@@ -3522,6 +3666,55 @@ class ManageRepository {
     return Map<String, dynamic>.from(result);
   }
 
+  Future<JsonMap> fetchLocationCountryForAdmin() async {
+    return await _client
+        .from('locations')
+        .select('id,parent_id,name,location_type,is_active')
+        .eq('location_type', 'country')
+        .ilike('name', 'Tanzania')
+        .single();
+  }
+
+  Future<List<JsonMap>> fetchLocationChildren({
+    String? parentId,
+    String search = '',
+    int offset = 0,
+    int limit = 20,
+  }) {
+    dynamic query = _client
+        .from('locations')
+        .select('id,parent_id,name,location_type,is_active');
+    query = parentId == null
+        ? query.isFilter('parent_id', null)
+        : query.eq('parent_id', parentId);
+    if (search.trim().isNotEmpty) {
+      query = query.ilike(
+        'name',
+        '%${search.trim().replaceAll(RegExp(r'[%_]'), '')}%',
+      );
+    }
+    return _decodeListRows(
+      query
+          .order('name')
+          .order('id')
+          .range(offset, offset + limit.clamp(1, 100) - 1),
+    );
+  }
+
+  Future<void> renameLocation({
+    required String id,
+    required String name,
+  }) async {
+    final normalized = name.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized.isEmpty) throw StateError('Location name is required.');
+    try {
+      await _client.from('locations').update({'name': normalized}).eq('id', id);
+    } on PostgrestException catch (error) {
+      _throwLocationWriteError(error);
+    }
+    _invalidateLocationCaches();
+  }
+
   Future<List<JsonMap>> fetchLocationsForAdmin() async {
     return _decodePagedRows(
       (int from, int to) => _client
@@ -3538,80 +3731,69 @@ class ManageRepository {
     required LocationType type,
     required String? parentId,
   }) async {
-    await _client.from("locations").insert(<String, dynamic>{
-      "name": name,
-      "location_type": type.storageValue,
-      "parent_id": parentId,
-    });
+    final normalized = name.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized.isEmpty) {
+      throw StateError('Location name is required.');
+    }
+    try {
+      await _client.from("locations").insert(<String, dynamic>{
+        "name": normalized,
+        "location_type": type.storageValue,
+        "parent_id": parentId,
+      });
+    } on PostgrestException catch (error) {
+      _throwLocationWriteError(error);
+    }
     _invalidateLocationCaches();
+  }
+
+  Never _throwLocationWriteError(PostgrestException error) {
+    if (error.code == '23505') {
+      throw StateError(
+        'A location with this name already exists under this parent.',
+      );
+    }
+    if (error.code == '42501') {
+      throw StateError('Location management access required');
+    }
+    if (error.code == 'P0001' || error.code == '23503') {
+      throw StateError(error.message);
+    }
+    throw error;
   }
 
   Future<void> deleteLocation(String locationId) async {
-    final String trimmedLocationId = locationId.trim();
-    if (trimmedLocationId.isEmpty) {
-      throw StateError("Location id is required.");
-    }
-
-    final int childCount = (await _decodeListRows(
-      _client.from("locations").select("id").eq("parent_id", trimmedLocationId),
-    )).length;
-    if (childCount > 0) {
-      throw StateError(
-        "This location still has child locations. Delete the child locations first.",
+    try {
+      await _client.rpc(
+        'manage_delete_unused_location',
+        params: {'p_location_id': locationId},
       );
+    } on PostgrestException catch (error) {
+      if (error.code == 'PGRST202') {
+        throw StateError(
+          'Location management update is required before this feature can load.',
+        );
+      }
+      if (error.code == '23503') {
+        throw StateError(
+          'This location is in use. Remove its references before deleting.',
+        );
+      }
+      if (error.code == '42501') {
+        throw StateError('Location management access required');
+      }
+      rethrow;
     }
-
-    final int listingCount = (await _decodeListRows(
-      _client
-          .from("listings")
-          .select("id")
-          .eq("location_id", trimmedLocationId),
-    )).length;
-    if (listingCount > 0) {
-      throw StateError(
-        "This location is already used by active or historical listings, so it cannot be deleted.",
-      );
-    }
-
-    final int agentCount = (await _decodeListRows(
-      _client.from("agents").select("id").eq("location_id", trimmedLocationId),
-    )).length;
-    if (agentCount > 0) {
-      throw StateError(
-        "This location is already linked to one or more agent profiles, so it cannot be deleted.",
-      );
-    }
-
-    final int ownerCount = (await _decodeListRows(
-      _client.from("owners").select("id").eq("location_id", trimmedLocationId),
-    )).length;
-    if (ownerCount > 0) {
-      throw StateError(
-        "This location is already linked to owner records, so it cannot be deleted.",
-      );
-    }
-
-    final int promotionCount = (await _decodeListRows(
-      _client
-          .from("platform_promotions")
-          .select("id")
-          .or(
-            "target_region_id.eq.$trimmedLocationId,target_district_id.eq.$trimmedLocationId,target_ward_id.eq.$trimmedLocationId,target_area_id.eq.$trimmedLocationId",
-          ),
-    )).length;
-    if (promotionCount > 0) {
-      throw StateError(
-        "This location is already targeted by platform promotions, so it cannot be deleted.",
-      );
-    }
-
-    await _client.from("locations").delete().eq("id", trimmedLocationId);
     _invalidateLocationCaches();
   }
 
-  Future<List<JsonMap>> fetchReports() async {
-    return <JsonMap>[];
-  }
+  Future<List<JsonMap>> fetchReports() => _decodeListRows(
+    _client
+        .from('reports')
+        .select()
+        .order('created_at', ascending: false)
+        .limit(200),
+  );
 
   Future<List<JsonMap>> _fetchBookings({
     required dynamic Function(dynamic query) queryBuilder,
@@ -3784,6 +3966,27 @@ class ManageRepository {
       default:
         return "application/octet-stream";
     }
+  }
+
+  Future<String?> _createOptionalOwner({
+    required String agentId,
+    required String fullName,
+    required String phoneNumber,
+    required String notes,
+    required String? locationId,
+  }) async {
+    if (fullName.trim().isEmpty &&
+        phoneNumber.trim().isEmpty &&
+        notes.trim().isEmpty) {
+      return null;
+    }
+    return _createOwner(
+      agentId: agentId,
+      fullName: fullName,
+      phoneNumber: phoneNumber,
+      notes: notes,
+      locationId: locationId,
+    );
   }
 
   Future<String> _createOwner({
@@ -4532,25 +4735,12 @@ class ManageRepository {
       );
 
   Future<Set<String>> fetchMyAdminPermissions() async {
-    final User user = _requireUser();
-    final List<JsonMap> rows = await _decodeListRows(
-      _client
-          .from('admin_role_assignments')
-          .select('admin_role_definitions(permissions)')
-          .eq('user_id', user.id),
-    );
-    final Set<String> permissions = <String>{};
-    for (final JsonMap row in rows) {
-      final dynamic definition = row['admin_role_definitions'];
-      if (definition is Map && definition['permissions'] is List) {
-        permissions.addAll(
-          (definition['permissions'] as List).map(
-            (dynamic value) => value.toString(),
-          ),
-        );
-      }
+    _requireUser();
+    final dynamic response = await _client.rpc('get_my_admin_permissions');
+    if (response is! List) {
+      throw StateError('Could not load administrative permissions.');
     }
-    return permissions;
+    return response.map((dynamic value) => value.toString()).toSet();
   }
 
   Future<List<JsonMap>> fetchMyWalletTransactions() async {

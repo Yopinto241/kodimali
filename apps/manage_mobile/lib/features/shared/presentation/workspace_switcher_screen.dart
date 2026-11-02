@@ -1,7 +1,9 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_models/shared_models.dart';
 import '../../../core/widgets/app_scope.dart';
+import '../../../core/router/workspace_location.dart';
 
 class WorkspaceSwitcherScreen extends StatelessWidget {
   const WorkspaceSwitcherScreen({super.key});
@@ -9,7 +11,7 @@ class WorkspaceSwitcherScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = AppScope.of(context).controller;
     return Scaffold(
-      appBar: AppBar(title: const Text('Choose workspace')),
+      appBar: AppBar(title: const LocalizedUiText('Choose workspace')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: controller.workspaceRoles
@@ -29,18 +31,19 @@ class WorkspaceSwitcherScreen extends StatelessWidget {
                     AppRole.owner => 'Owner',
                     _ => 'Customer',
                   }),
-                  subtitle: const Text(
+                  subtitle: const LocalizedUiText(
                     'Continue with this role using the same account.',
                   ),
                   trailing: const Icon(Icons.arrow_forward),
                   onTap: () {
                     controller.selectWorkspace(role);
-                    context.go(switch (role) {
-                      AppRole.admin => '/admin',
-                      AppRole.agent => '/agent',
-                      AppRole.owner => '/owner',
-                      _ => '/access-denied',
-                    });
+                    context.go(
+                      workspaceLocation(
+                        role,
+                        agentBlocked: controller.isAgentAccessBlocked,
+                        eventsAgent: controller.isEventsAgent,
+                      ),
+                    );
                   },
                 ),
               ),

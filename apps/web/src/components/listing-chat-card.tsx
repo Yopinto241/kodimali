@@ -1,7 +1,8 @@
 "use client";
+import { UiInput, UiText } from "@/components/ui-text";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "@/components/navigation-progress";
 import { FormEvent, useEffect, useState } from "react";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
 import { useLanguage } from "@/components/language-provider";
@@ -12,7 +13,7 @@ export function ListingChatCard({ listingId }: { listingId: string }) {
   const supabase = getBrowserSupabase();
   const { language } = useLanguage();
   const sw = language === "sw";
-  const router = useRouter();
+  const navigate = useNavigate();
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [phone, setPhone] = useState("");
   const [paymentId, setPaymentId] = useState<string | null>(null);
@@ -46,7 +47,7 @@ export function ListingChatCard({ listingId }: { listingId: string }) {
     if (error) throw error;
     const row = (Array.isArray(data) ? data[0] : data) as Row | null;
     if (!row?.id) throw new Error("The chat could not be opened.");
-    router.push(`/account/chat/${String(row.id)}`);
+    navigate(`/account/chat/${String(row.id)}`);
   }
 
   async function start(event: FormEvent<HTMLFormElement>) {
@@ -109,32 +110,32 @@ export function ListingChatCard({ listingId }: { listingId: string }) {
           <svg className="size-6 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18.5 3.5 21l1-4A8 8 0 1 1 7 18.5Z" /><path d="M8 10h8M8 14h5" /></svg>
         </span>
         <div>
-          <p className="text-xs font-bold uppercase tracking-[.13em] text-white/70">{sw ? "Mazungumzo ya faragha" : "Private chat"}</p>
-          <h2 className="mt-0.5 text-xl font-bold">{sw ? "Zungumza na wakala" : "Chat with the agent"}</h2>
+          <p className="text-xs font-bold uppercase tracking-[.13em] text-white/70"><UiText text={sw ? "Mazungumzo ya faragha" : "Private chat"} /></p>
+          <h2 className="mt-0.5 text-xl font-bold"><UiText text={sw ? "Zungumza na wakala" : "Chat with the agent"} /></h2>
         </div>
       </div>
       <div className="p-5 sm:p-6">
       <p className="text-sm leading-6 text-[#3b4a54]">
-        {sw
+        <UiText text={sw
           ? "Namba yako hubaki siri. Lipa mara moja, kisha zungumza na wakala kwa siku 7."
-          : "Your number stays private. Pay once, then chat with the agent for 7 days."}
+          : "Your number stays private. Pay once, then chat with the agent for 7 days."} />
       </p>
       <p className="mt-3 rounded-xl bg-[#e7f7f1] px-3 py-2 text-sm text-[#075e54]" role="status">
-        {notice}
+        <UiText text={notice} />
       </p>
       {chatPrice !== null ? (
         <p className="mt-3 text-lg font-extrabold text-[#075e54]">
-          {sw
+          <UiText text={sw
             ? `Ada ya chat: TZS ${chatPrice.toLocaleString()}`
-            : `Chat fee: TZS ${chatPrice.toLocaleString()}`}
+            : `Chat fee: TZS ${chatPrice.toLocaleString()}`} />
         </p>
       ) : null}
       {signedIn === false ? (
         <Link
           className="btn btn-success mt-5"
-          href={`/login?next=/listing/${listingId}`}
+          href={`/login?next=/listing/${listingId}/chat`}
         >
-          {sw ? "Ingia ili ku-chat" : "Sign in to chat"}
+          <UiText text={sw ? "Ingia ili ku-chat" : "Sign in to chat"} />
         </Link>
       ) : signedIn ? (
         paymentId ? (
@@ -144,13 +145,11 @@ export function ListingChatCard({ listingId }: { listingId: string }) {
             disabled={busy}
             onClick={() => void check()}
           >
-            {busy ? "Checking..." : "Check payment and open chat"}
+            <UiText text={busy ? "Checking..." : "Check payment and open chat"} />
           </button>
         ) : (
           <form className="mt-5 grid gap-3" onSubmit={start}>
-            <label className="grid gap-2 text-sm font-semibold">
-              Mobile-money number
-              <input
+            <label className="grid gap-2 text-sm font-semibold"><UiText text={"Mobile-money number"} /><UiInput
                 className="field-input"
                 inputMode="tel"
                 placeholder="2557XXXXXXXX"
@@ -160,7 +159,7 @@ export function ListingChatCard({ listingId }: { listingId: string }) {
               />
             </label>
             <button className="btn border-0 bg-[#00a884] text-white hover:bg-[#008f72]" disabled={busy}>
-              {busy ? "Starting..." : "Continue to chat"}
+              <UiText text={busy ? "Starting..." : "Continue to chat"} />
             </button>
           </form>
         )

@@ -1,0 +1,84 @@
+[
+  [
+    "{0} available",
+    "{0} zimepatikana"
+  ],
+  [
+    "Search {0}",
+    "Tafuta {0}"
+  ],
+  [
+    "{0} results",
+    "Matokeo {0}"
+  ],
+  [
+    "Pay deposit — TZS {0}",
+    "Lipa amana — TZS {0}",
+    "Lipa deposit — TZS {0}"
+  ],
+  [
+    "Request sent. Reference: {0}",
+    "Ombi limetumwa. Namba: {0}"
+  ],
+  [
+    "Chat fee: TZS {0}",
+    "Ada ya mazungumzo: TZS {0}",
+    "Ada ya chat: TZS {0}"
+  ],
+  [
+    "View {0}",
+    "Angalia {0}"
+  ],
+  [
+    "{0} for this service? This affects every app and remains active after logout.",
+    "{0} kwa huduma hii? Hii inaathiri programu zote na inaendelea hata baada ya kutoka."
+  ],
+  [
+    "Change this record to {0}?",
+    "Badili kumbukumbu hii kuwa {0}?"
+  ],
+  [
+    "Permanently delete “{0}”? This removes its media and related activity and cannot be undone. Type DELETE to continue.",
+    "Futa kabisa “{0}”? Picha, video na shughuli zake zitaondolewa na haziwezi kurejeshwa. Andika DELETE kuendelea."
+  ],
+  [
+    "Delete {0}?",
+    "Futa {0}?"
+  ],
+  [
+    "Assign {0}? Administrative access changes immediately and will be audited.",
+    "Gawa jukumu la {0}? Ufikiaji wa usimamizi unabadilika mara moja na utarekodiwa kwa ukaguzi."
+  ],
+  [
+    "Remove {0}? Administrative access changes immediately and will be audited.",
+    "Ondoa jukumu la {0}? Ufikiaji wa usimamizi unabadilika mara moja na utarekodiwa kwa ukaguzi."
+  ],
+  [
+    "Listing changed to {0}.",
+    "Hali ya mali imebadilishwa kuwa {0}."
+  ],
+  [
+    "{0} assigned.",
+    "Jukumu la {0} limegawiwa."
+  ],
+  [
+    "{0} removed.",
+    "Jukumu la {0} limeondolewa."
+  ],
+  [
+    "Confirm TZS {0} on your phone.",
+    "Thibitisha TZS {0} kwenye simu yako."
+  ],
+  [
+    "Confirm the TZS {0} payment on your phone.",
+    "Thibitisha malipo ya TZS {0} kwenye simu yako."
+  ],
+  [
+    "Payment status: {0}.",
+    "Hali ya malipo: {0}."
+  ],
+  [
+    "{0} Check your connection and retry.",
+    "{0} Angalia mtandao wako na ujaribu tena."
+  ]
+]

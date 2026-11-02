@@ -1,11 +1,15 @@
 "use client";
+import { UiText } from "@/components/ui-text";
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
 
+import { OwnerAgentPanel } from "@/components/owner-agent-panel";
+
 type Row = Record<string, unknown>;
 type Tab =
+  | "agents"
   | "dashboard"
   | "assets"
   | "bookings"
@@ -17,6 +21,7 @@ type Tab =
 const tabs: Array<[Tab, string]> = [
   ["dashboard", "Dashboard"],
   ["assets", "My Assets"],
+  ["agents", "My Agents"],
   ["bookings", "Bookings"],
   ["tenants", "Tenants & Renters"],
   ["agreements", "Rental Agreements"],
@@ -276,10 +281,8 @@ export function OwnerPortal({
   if (!userId)
     return (
       <section className="surface-card p-8">
-        <p>{notice}</p>
-        <Link href="/login?next=/owner" className="btn btn-success mt-5">
-          Sign in
-        </Link>
+        <p><UiText text={notice} /></p>
+        <Link href="/login?next=/owner" className="btn btn-success mt-5"><UiText text={"Sign in"} /></Link>
       </section>
     );
   if (!owner || owner.verification_status !== "verified")
@@ -295,7 +298,7 @@ export function OwnerPortal({
   return (
     <div className="grid gap-6 lg:grid-cols-[250px_1fr]">
       <aside className="navy-panel h-fit p-5 lg:sticky lg:top-28">
-        <p className="eyebrow !text-brand-amber">Owner workspace</p>
+        <p className="eyebrow !text-brand-amber"><UiText text={"Owner workspace"} /></p>
         <h1 className="mt-2 font-heading text-2xl font-semibold text-white">
           {String(owner.display_name)}
         </h1>
@@ -306,20 +309,19 @@ export function OwnerPortal({
               className={`rounded-2xl px-4 py-3 text-left text-sm font-bold ${tab === id ? "bg-brand-amber text-brand-navy" : "text-white/75 hover:bg-white/10"}`}
               onClick={() => setTab(id)}
             >
-              {label}
+              <UiText text={label} />
             </button>
           ))}
         </div>
-        <Link className="btn btn-outline mt-5 w-full" href="/manage">
-          Switch workspace
-        </Link>
+        <Link className="btn btn-outline mt-5 w-full" href="/manage"><UiText text={"Switch workspace"} /></Link>
       </aside>
       <main>
         {notice ? (
           <p className="mb-4 rounded-2xl bg-brand-info-soft p-4" role="status">
-            {notice}
+            <UiText text={notice} />
           </p>
         ) : null}
+        {tab === "agents" ? <OwnerAgentPanel assets={data.assets ?? []} /> : null}
         {tab === "dashboard" ? <Dashboard data={data} /> : null}
         {tab === "assets" ? (
           <OwnerAssets rows={data.assets} busy={busy} claim={claimListing} />
@@ -380,63 +382,42 @@ function Application({
   )
     return (
       <section className="surface-card mx-auto max-w-2xl p-8">
-        <p className="eyebrow">Owner access</p>
-        <h1 className="mt-3 font-heading text-3xl font-semibold">
-          Application under review
-        </h1>
-        <p className="mt-4 text-muted">
-          Status: {String(application.status).replaceAll("_", " ")}. Your
-          private evidence is visible only to authorized reviewers.
-        </p>
+        <p className="eyebrow"><UiText text={"Owner access"} /></p>
+        <h1 className="mt-3 font-heading text-3xl font-semibold"><UiText text={"Application under review"} /></h1>
+        <p className="mt-4 text-muted"><UiText text={"Status:"} /><UiText text={String(application.status).replaceAll("_", " ")} /><UiText text={". Your private evidence is visible only to authorized reviewers."} /></p>
       </section>
     );
   return (
     <section className="surface-card mx-auto max-w-2xl p-8">
-      <p className="eyebrow">Owner and manager access</p>
-      <h1 className="mt-3 font-heading text-3xl font-semibold">
-        Apply for a business workspace
-      </h1>
-      <p className="mt-3 text-muted">
-        Hall owners choose “Hall or venue owner”. A manager operating a hall for
-        someone else chooses “Authorized manager” and describes their authority
-        for verification.
-      </p>
+      <p className="eyebrow"><UiText text={"Owner and manager access"} /></p>
+      <h1 className="mt-3 font-heading text-3xl font-semibold"><UiText text={"Apply for a business workspace"} /></h1>
+      <p className="mt-3 text-muted"><UiText text={"Hall owners choose “Hall or venue owner”. A manager operating a hall for someone else chooses “Authorized manager” and describes their authority for verification."} /></p>
       <form className="mt-6 grid gap-4" onSubmit={submit}>
-        <label className="field-label">
-          Owner or manager type
-          <select
+        <label className="field-label"><UiText text={"Owner or manager type"} /><select
             name="type"
             className="field-input mt-2"
             defaultValue={initialType}
           >
-            <option value="individual">Individual owner</option>
-            <option value="vehicle_owner">Vehicle owner</option>
-            <option value="venue_owner">Hall or venue owner</option>
-            <option value="equipment_owner">Equipment owner</option>
-            <option value="authorized_manager">Authorized manager</option>
+            <option value="individual"><UiText text={"Individual owner"} /></option>
+            <option value="vehicle_owner"><UiText text={"Vehicle owner"} /></option>
+            <option value="venue_owner"><UiText text={"Hall or venue owner"} /></option>
+            <option value="equipment_owner"><UiText text={"Equipment owner"} /></option>
+            <option value="authorized_manager"><UiText text={"Authorized manager"} /></option>
           </select>
         </label>
-        <label className="field-label">
-          Legal name
-          <input name="name" className="field-input mt-2" required />
+        <label className="field-label"><UiText text={"Legal name"} /><input name="name" className="field-input mt-2" required />
         </label>
-        <label className="field-label">
-          Phone number
-          <input name="phone" className="field-input mt-2" required />
+        <label className="field-label"><UiText text={"Phone number"} /><input name="phone" className="field-input mt-2" required />
         </label>
-        <label className="field-label">
-          Describe your ownership or management authority
-          <textarea
+        <label className="field-label"><UiText text={"Describe your ownership or management authority"} /><textarea
             name="authority"
             className="field-input mt-2 min-h-28"
             required
           />
         </label>
-        <button className="btn btn-success" disabled={busy}>
-          Submit for verification
-        </button>
+        <button className="btn btn-success" disabled={busy}><UiText text={"Submit for verification"} /></button>
       </form>
-      {notice ? <p className="mt-4 text-sm text-muted">{notice}</p> : null}
+      {notice ? <p className="mt-4 text-sm text-muted"><UiText text={notice} /></p> : null}
     </section>
   );
 }
@@ -450,19 +431,14 @@ function Dashboard({ data }: { data: Record<string, Row[]> }) {
   return (
     <>
       <section className="owner-hero rounded-[28px] p-8 text-white">
-        <p className="eyebrow !text-brand-amber">Overview</p>
-        <h2 className="mt-3 font-heading text-4xl font-semibold">
-          Your rental business
-        </h2>
-        <p className="mt-3 max-w-xl text-white/70">
-          Verified assets, booking decisions and financial records in one secure
-          workspace.
-        </p>
+        <p className="eyebrow !text-brand-amber"><UiText text={"Overview"} /></p>
+        <h2 className="mt-3 font-heading text-4xl font-semibold"><UiText text={"Your rental business"} /></h2>
+        <p className="mt-3 max-w-xl text-white/70"><UiText text={"Verified assets, booking decisions and financial records in one secure workspace."} /></p>
       </section>
       <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map(([label, value]) => (
           <article className="surface-card p-5" key={String(label)}>
-            <p className="text-sm text-muted">{label}</p>
+            <p className="text-sm text-muted"><UiText text={label} /></p>
             <p className="mt-2 font-heading text-3xl font-semibold">
               {value ?? 0}
             </p>
@@ -475,7 +451,7 @@ function Dashboard({ data }: { data: Record<string, Row[]> }) {
 function Rows({ title, rows = [] }: { title: string; rows?: Row[] }) {
   return (
     <section className="surface-card p-6">
-      <h2 className="font-heading text-2xl font-semibold">{title}</h2>
+      <h2 className="font-heading text-2xl font-semibold"><UiText text={title} /></h2>
       <div className="mt-5 grid gap-3">
         {rows.length ? (
           rows.map((row) => (
@@ -490,14 +466,14 @@ function Rows({ title, rows = [] }: { title: string; rows?: Row[] }) {
                 )}
               </p>
               <p className="mt-1 text-sm text-muted">
-                {String(
+                <UiText text={String(
                   row.status ?? row.verification_status ?? "recorded",
-                ).replaceAll("_", " ")}
+                ).replaceAll("_", " ")} />
               </p>
             </article>
           ))
         ) : (
-          <p className="text-muted">Nothing found.</p>
+          <p className="text-muted"><UiText text={"Nothing found."} /></p>
         )}
       </div>
     </section>
@@ -515,27 +491,17 @@ function OwnerAssets({
   return (
     <div className="grid gap-6">
       <section className="surface-card p-6">
-        <h2 className="font-heading text-2xl font-semibold">Connect an item</h2>
-        <p className="mt-2 text-sm text-muted">
-          Paste its KODIMALI listing link or listing ID. Your identity,
-          authority and the physical item must all be verified before it can
-          accept bookings.
-        </p>
+        <h2 className="font-heading text-2xl font-semibold"><UiText text={"Connect an item"} /></h2>
+        <p className="mt-2 text-sm text-muted"><UiText text={"Paste its KODIMALI listing link or listing ID. Your identity, authority and the physical item must all be verified before it can accept bookings."} /></p>
         <form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={claim}>
-          <label className="field-label sm:col-span-2">
-            Listing link or ID
-            <input name="listing" className="field-input mt-2" required />
+          <label className="field-label sm:col-span-2"><UiText text={"Listing link or ID"} /><input name="listing" className="field-input mt-2" required />
           </label>
-          <label className="field-label">
-            Your authority
-            <select name="authority" className="field-input mt-2">
-              <option value="owner">Owner</option>
-              <option value="authorized_manager">Authorized manager</option>
+          <label className="field-label"><UiText text={"Your authority"} /><select name="authority" className="field-input mt-2">
+              <option value="owner"><UiText text={"Owner"} /></option>
+              <option value="authorized_manager"><UiText text={"Authorized manager"} /></option>
             </select>
           </label>
-          <button className="btn btn-success self-end" disabled={busy}>
-            Submit for verification
-          </button>
+          <button className="btn btn-success self-end" disabled={busy}><UiText text={"Submit for verification"} /></button>
         </form>
       </section>
       <Rows title="My asset claims" rows={rows} />
@@ -553,7 +519,7 @@ function Bookings({
 }) {
   return (
     <section className="surface-card p-6">
-      <h2 className="font-heading text-2xl font-semibold">Booking requests</h2>
+      <h2 className="font-heading text-2xl font-semibold"><UiText text={"Booking requests"} /></h2>
       <div className="mt-5 grid gap-4">
         {rows.length ? (
           rows.map((row) => (
@@ -564,9 +530,8 @@ function Bookings({
                 {new Date(String(row.requested_start_at)).toLocaleString()} –{" "}
                 {new Date(String(row.requested_end_at)).toLocaleString()}
               </p>
-              <p className="mt-2 text-sm font-semibold">
-                Owner approval:{" "}
-                {String(row.owner_approval_status).replaceAll("_", " ")}
+              <p className="mt-2 text-sm font-semibold"><UiText text={"Owner approval:"} />{" "}
+                <UiText text={String(row.owner_approval_status).replaceAll("_", " ")} />
               </p>
               {row.owner_approval_status === "pending" ? (
                 <div className="mt-4 flex gap-2">
@@ -574,22 +539,18 @@ function Bookings({
                     className="btn btn-success"
                     disabled={busy}
                     onClick={() => void respond(String(row.id), true)}
-                  >
-                    Approve
-                  </button>
+                  ><UiText text={"Approve"} /></button>
                   <button
                     className="btn btn-outline"
                     disabled={busy}
                     onClick={() => void respond(String(row.id), false)}
-                  >
-                    Decline
-                  </button>
+                  ><UiText text={"Decline"} /></button>
                 </div>
               ) : null}
             </article>
           ))
         ) : (
-          <p className="text-muted">Nothing found.</p>
+          <p className="text-muted"><UiText text={"Nothing found."} /></p>
         )}
       </div>
     </section>
@@ -612,15 +573,11 @@ function Tenants({
   return (
     <div className="grid gap-6">
       <section className="surface-card p-6">
-        <h2 className="font-heading text-2xl font-semibold">Invite a tenant</h2>
-        <p className="mt-2 text-sm text-muted">
-          The tenant must accept with their own KODIMALI account.
-        </p>
+        <h2 className="font-heading text-2xl font-semibold"><UiText text={"Invite a tenant"} /></h2>
+        <p className="mt-2 text-sm text-muted"><UiText text={"The tenant must accept with their own KODIMALI account."} /></p>
         <form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={invite}>
-          <label className="field-label sm:col-span-2">
-            Verified asset
-            <select className="field-input mt-2" name="assetId" required>
-              <option value="">Choose asset</option>
+          <label className="field-label sm:col-span-2"><UiText text={"Verified asset"} /><select className="field-input mt-2" name="assetId" required>
+              <option value=""><UiText text={"Choose asset"} /></option>
               {assets
                 .filter((row) => row.status === "verified")
                 .map((row) => (
@@ -632,34 +589,22 @@ function Tenants({
                 ))}
             </select>
           </label>
-          <label className="field-label">
-            Email
-            <input className="field-input mt-2" name="email" type="email" />
+          <label className="field-label"><UiText text={"Email"} /><input className="field-input mt-2" name="email" type="email" />
           </label>
-          <label className="field-label">
-            Phone
-            <input className="field-input mt-2" name="phone" />
+          <label className="field-label"><UiText text={"Phone"} /><input className="field-input mt-2" name="phone" />
           </label>
-          <button className="btn btn-success sm:col-span-2" disabled={busy}>
-            Create secure invitation
-          </button>
+          <button className="btn btn-success sm:col-span-2" disabled={busy}><UiText text={"Create secure invitation"} /></button>
         </form>
       </section>
       <section className="surface-card p-6">
-        <h2 className="font-heading text-2xl font-semibold">
-          Create rental agreement
-        </h2>
-        <p className="mt-2 text-sm text-muted">
-          Available after the renter accepts an invitation.
-        </p>
+        <h2 className="font-heading text-2xl font-semibold"><UiText text={"Create rental agreement"} /></h2>
+        <p className="mt-2 text-sm text-muted"><UiText text={"Available after the renter accepts an invitation."} /></p>
         <form
           className="mt-5 grid gap-4 sm:grid-cols-2"
           onSubmit={createAgreement}
         >
-          <label className="field-label sm:col-span-2">
-            Accepted invitation
-            <select className="field-input mt-2" name="invitationId" required>
-              <option value="">Choose renter</option>
+          <label className="field-label sm:col-span-2"><UiText text={"Accepted invitation"} /><select className="field-input mt-2" name="invitationId" required>
+              <option value=""><UiText text={"Choose renter"} /></option>
               {accepted.map((row) => (
                 <option key={String(row.id)} value={String(row.id)}>
                   {String(row.email ?? row.phone_number ?? row.id)}
@@ -667,22 +612,16 @@ function Tenants({
               ))}
             </select>
           </label>
-          <label className="field-label">
-            Start date
-            <input
+          <label className="field-label"><UiText text={"Start date"} /><input
               className="field-input mt-2"
               name="startsOn"
               type="date"
               required
             />
           </label>
-          <label className="field-label">
-            End date (optional)
-            <input className="field-input mt-2" name="endsOn" type="date" />
+          <label className="field-label"><UiText text={"End date (optional)"} /><input className="field-input mt-2" name="endsOn" type="date" />
           </label>
-          <label className="field-label">
-            Rent amount (TZS)
-            <input
+          <label className="field-label"><UiText text={"Rent amount (TZS)"} /><input
               className="field-input mt-2"
               name="rent"
               type="number"
@@ -690,18 +629,14 @@ function Tenants({
               required
             />
           </label>
-          <label className="field-label">
-            Rent period
-            <select className="field-input mt-2" name="period">
-              <option value="month">Monthly</option>
-              <option value="week">Weekly</option>
-              <option value="day">Daily</option>
-              <option value="year">Yearly</option>
+          <label className="field-label"><UiText text={"Rent period"} /><select className="field-input mt-2" name="period">
+              <option value="month"><UiText text={"Monthly"} /></option>
+              <option value="week"><UiText text={"Weekly"} /></option>
+              <option value="day"><UiText text={"Daily"} /></option>
+              <option value="year"><UiText text={"Yearly"} /></option>
             </select>
           </label>
-          <label className="field-label sm:col-span-2">
-            Agreement terms
-            <textarea
+          <label className="field-label sm:col-span-2"><UiText text={"Agreement terms"} /><textarea
               className="field-input mt-2 min-h-28"
               name="terms"
               required
@@ -710,9 +645,7 @@ function Tenants({
           <button
             className="btn btn-success sm:col-span-2"
             disabled={busy || accepted.length === 0}
-          >
-            Send agreement to renter
-          </button>
+          ><UiText text={"Send agreement to renter"} /></button>
         </form>
       </section>
       <Rows title="Tenant invitations" rows={rows} />
@@ -742,44 +675,34 @@ function Policies({
   return (
     <div className="grid gap-6">
       <section className="surface-card p-6">
-        <h2 className="font-heading text-2xl font-semibold">
-          Owner booking agreement
-        </h2>
+        <h2 className="font-heading text-2xl font-semibold"><UiText text={"Owner booking agreement"} /></h2>
         {active ? (
           <>
             <h3 className="mt-4 font-semibold">
-              {String(active.title)} · Version {String(active.version)}
+              {String(active.title)}<UiText text={" · Version "} />{String(active.version)}
             </h3>
             <p className="mt-3 whitespace-pre-line text-sm text-muted">
               {String(active.body)}
             </p>
             {accepted ? (
-              <p className="mt-4 font-semibold text-brand-green">
-                Accepted and recorded
-              </p>
+              <p className="mt-4 font-semibold text-brand-green"><UiText text={"Accepted and recorded"} /></p>
             ) : (
               <button
                 className="btn btn-success mt-5"
                 disabled={busy}
                 onClick={() => void accept(String(active.id))}
-              >
-                Accept agreement
-              </button>
+              ><UiText text={"Accept agreement"} /></button>
             )}
           </>
         ) : (
-          <p className="mt-4 text-muted">No active agreement version.</p>
+          <p className="mt-4 text-muted"><UiText text={"No active agreement version."} /></p>
         )}
       </section>
       <section className="surface-card p-6">
-        <h2 className="font-heading text-2xl font-semibold">
-          Create booking policy
-        </h2>
+        <h2 className="font-heading text-2xl font-semibold"><UiText text={"Create booking policy"} /></h2>
         <form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={save}>
-          <label className="field-label sm:col-span-2">
-            Asset
-            <select name="assetId" className="field-input mt-2" required>
-              <option value="">Choose verified asset</option>
+          <label className="field-label sm:col-span-2"><UiText text={"Asset"} /><select name="assetId" className="field-input mt-2" required>
+              <option value=""><UiText text={"Choose verified asset"} /></option>
               {assets
                 .filter((row) => row.status === "verified")
                 .map((row) => (
@@ -791,9 +714,7 @@ function Policies({
                 ))}
             </select>
           </label>
-          <label className="field-label">
-            Policy version
-            <input
+          <label className="field-label"><UiText text={"Policy version"} /><input
               className="field-input mt-2"
               name="version"
               type="number"
@@ -802,20 +723,14 @@ function Policies({
               required
             />
           </label>
-          <label className="field-label">
-            Approval
-            <select className="field-input mt-2" name="approvalMode">
-              <option value="manual">Manual approval</option>
-              <option value="automatic">Automatic after conditions</option>
+          <label className="field-label"><UiText text={"Approval"} /><select className="field-input mt-2" name="approvalMode">
+              <option value="manual"><UiText text={"Manual approval"} /></option>
+              <option value="automatic"><UiText text={"Automatic after conditions"} /></option>
             </select>
           </label>
-          <label className="field-label">
-            Title
-            <input className="field-input mt-2" name="title" required />
+          <label className="field-label"><UiText text={"Title"} /><input className="field-input mt-2" name="title" required />
           </label>
-          <label className="field-label">
-            Minimum notice hours
-            <input
+          <label className="field-label"><UiText text={"Minimum notice hours"} /><input
               className="field-input mt-2"
               name="noticeHours"
               type="number"
@@ -823,25 +738,19 @@ function Policies({
               defaultValue="2"
             />
           </label>
-          <label className="field-label sm:col-span-2">
-            Booking conditions
-            <textarea
+          <label className="field-label sm:col-span-2"><UiText text={"Booking conditions"} /><textarea
               className="field-input mt-2 min-h-28"
               name="body"
               required
             />
           </label>
-          <label className="field-label sm:col-span-2">
-            Cancellation and refund rule
-            <textarea
+          <label className="field-label sm:col-span-2"><UiText text={"Cancellation and refund rule"} /><textarea
               className="field-input mt-2 min-h-24"
               name="cancellation"
               required
             />
           </label>
-          <button className="btn btn-success sm:col-span-2" disabled={busy}>
-            Save policy
-          </button>
+          <button className="btn btn-success sm:col-span-2" disabled={busy}><UiText text={"Save policy"} /></button>
         </form>
       </section>
       <Rows title="Asset booking policies" rows={policies} />

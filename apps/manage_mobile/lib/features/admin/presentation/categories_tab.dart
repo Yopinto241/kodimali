@@ -1,3 +1,4 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/widgets/app_scope.dart';
@@ -35,7 +36,9 @@ class _CategoriesTabState extends State<CategoriesTab> {
       AppScope.of(context).repository.fetchCategoriesForAdmin();
 
   Future<void> _refresh() async {
-    setState(() => _future = _load());
+    setState(() {
+      _future = _load();
+    });
     await _future;
   }
 
@@ -93,7 +96,11 @@ class _CategoriesTabState extends State<CategoriesTab> {
       builder: (BuildContext dialogContext) => StatefulBuilder(
         builder: (BuildContext context, StateSetter setDialogState) {
           return AlertDialog(
-            title: Text(editing ? 'Edit listing field' : 'Add listing field'),
+            title: Text(
+              editing
+                  ? mobileUi(context, 'Edit listing field')
+                  : mobileUi(context, 'Add listing field'),
+            ),
             content: SingleChildScrollView(
               child: SizedBox(
                 width: 440,
@@ -102,8 +109,8 @@ class _CategoriesTabState extends State<CategoriesTab> {
                   children: <Widget>[
                     TextField(
                       controller: labelController,
-                      decoration: const InputDecoration(
-                        labelText: 'Field label *',
+                      decoration: InputDecoration(
+                        labelText: mobileUi(context, 'Field label *'),
                       ),
                       onChanged: (String value) {
                         if (!editing && keyController.text.trim().isEmpty) {
@@ -116,24 +123,30 @@ class _CategoriesTabState extends State<CategoriesTab> {
                       controller: keyController,
                       readOnly: editing,
                       decoration: InputDecoration(
-                        labelText: 'Database key *',
+                        labelText: mobileUi(context, 'Database key *'),
                         helperText: editing
-                            ? 'Keys are locked to protect values on existing listings.'
-                            : 'Lowercase letters, numbers, and underscores only.',
+                            ? mobileUi(
+                                context,
+                                'Keys are locked to protect values on existing listings.',
+                              )
+                            : mobileUi(
+                                context,
+                                'Lowercase letters, numbers, and underscores only.',
+                              ),
                       ),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       initialValue: _fieldTypes.contains(type) ? type : 'text',
                       disabledHint: Text(type),
-                      decoration: const InputDecoration(
-                        labelText: 'Field type',
+                      decoration: InputDecoration(
+                        labelText: mobileUi(context, 'Field type'),
                       ),
                       items: _fieldTypes
                           .map(
                             (String value) => DropdownMenuItem<String>(
                               value: value,
-                              child: Text(value),
+                              child: LocalizedUiText(value),
                             ),
                           )
                           .toList(),
@@ -148,9 +161,12 @@ class _CategoriesTabState extends State<CategoriesTab> {
                         controller: optionsController,
                         minLines: 3,
                         maxLines: 6,
-                        decoration: const InputDecoration(
-                          labelText: 'Options *',
-                          helperText: 'Enter one option per line.',
+                        decoration: InputDecoration(
+                          labelText: mobileUi(context, 'Options *'),
+                          helperText: mobileUi(
+                            context,
+                            'Enter one option per line.',
+                          ),
                         ),
                       ),
                     ],
@@ -158,22 +174,22 @@ class _CategoriesTabState extends State<CategoriesTab> {
                     TextField(
                       controller: helpController,
                       maxLines: 2,
-                      decoration: const InputDecoration(
-                        labelText: 'Help text (optional)',
+                      decoration: InputDecoration(
+                        labelText: mobileUi(context, 'Help text (optional)'),
                       ),
                     ),
                     SwitchListTile(
                       value: required,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Required for new listings'),
+                      title: const LocalizedUiText('Required for new listings'),
                       onChanged: (bool value) =>
                           setDialogState(() => required = value),
                     ),
                     SwitchListTile(
                       value: active,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Show this field'),
-                      subtitle: const Text(
+                      title: const LocalizedUiText('Show this field'),
+                      subtitle: const LocalizedUiText(
                         'Turn this off to retire a field without deleting stored data.',
                       ),
                       onChanged: (bool value) =>
@@ -195,7 +211,7 @@ class _CategoriesTabState extends State<CategoriesTab> {
             actions: <Widget>[
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
+                child: const LocalizedUiText('Cancel'),
               ),
               FilledButton(
                 onPressed: () {
@@ -238,7 +254,7 @@ class _CategoriesTabState extends State<CategoriesTab> {
                     if (type == 'select') 'options': options,
                   });
                 },
-                child: const Text('Save field'),
+                child: const LocalizedUiText('Save field'),
               ),
             ],
           );
@@ -308,7 +324,11 @@ class _CategoriesTabState extends State<CategoriesTab> {
           }
 
           return AlertDialog(
-            title: Text(category == null ? 'New category' : 'Edit category'),
+            title: Text(
+              category == null
+                  ? mobileUi(context, 'New category')
+                  : mobileUi(context, 'Edit category'),
+            ),
             content: SingleChildScrollView(
               child: SizedBox(
                 width: 560,
@@ -317,25 +337,31 @@ class _CategoriesTabState extends State<CategoriesTab> {
                   children: <Widget>[
                     TextField(
                       controller: nameController,
-                      decoration: const InputDecoration(labelText: 'Name *'),
+                      decoration: InputDecoration(
+                        labelText: mobileUi(context, 'Name *'),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: slugController,
-                      decoration: const InputDecoration(labelText: 'Slug *'),
+                      decoration: InputDecoration(
+                        labelText: mobileUi(context, 'Slug *'),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: descriptionController,
                       maxLines: 2,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
+                      decoration: InputDecoration(
+                        labelText: mobileUi(context, 'Description'),
                       ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: iconKeyController,
-                      decoration: const InputDecoration(labelText: 'Icon key'),
+                      decoration: InputDecoration(
+                        labelText: mobileUi(context, 'Icon key'),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Row(
@@ -344,8 +370,8 @@ class _CategoriesTabState extends State<CategoriesTab> {
                           child: TextField(
                             controller: orderController,
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Display order',
+                            decoration: InputDecoration(
+                              labelText: mobileUi(context, 'Display order'),
                             ),
                           ),
                         ),
@@ -354,8 +380,8 @@ class _CategoriesTabState extends State<CategoriesTab> {
                           child: TextField(
                             controller: weightController,
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Home feed weight',
+                            decoration: InputDecoration(
+                              labelText: mobileUi(context, 'Home feed weight'),
                             ),
                           ),
                         ),
@@ -365,7 +391,7 @@ class _CategoriesTabState extends State<CategoriesTab> {
                     Row(
                       children: <Widget>[
                         Expanded(
-                          child: Text(
+                          child: LocalizedUiText(
                             'Listing fields',
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
@@ -373,7 +399,7 @@ class _CategoriesTabState extends State<CategoriesTab> {
                         FilledButton.tonalIcon(
                           onPressed: () => editField(),
                           icon: const Icon(Icons.add),
-                          label: const Text('Add field'),
+                          label: const LocalizedUiText('Add field'),
                         ),
                       ],
                     ),
@@ -381,7 +407,9 @@ class _CategoriesTabState extends State<CategoriesTab> {
                     if (fields.isEmpty)
                       const Align(
                         alignment: Alignment.centerLeft,
-                        child: Text('No extra listing fields configured.'),
+                        child: LocalizedUiText(
+                          'No extra listing fields configured.',
+                        ),
                       )
                     else
                       ...fields.asMap().entries.map((
@@ -397,11 +425,11 @@ class _CategoriesTabState extends State<CategoriesTab> {
                             ),
                             title: Text(field['label'].toString()),
                             subtitle: Text(
-                              '${field['key']} · ${field['type']}${field['required'] == true ? ' · required' : ''}',
+                              '${field['key']} · ${field['type']}${field['required'] == true ? mobileUi(context, ' · required') : ''}',
                             ),
                             trailing: IconButton(
                               icon: const Icon(Icons.edit_outlined),
-                              tooltip: 'Edit field',
+                              tooltip: mobileUi(context, 'Edit field'),
                               onPressed: () => editField(entry.key),
                             ),
                             onTap: () => editField(entry.key),
@@ -412,7 +440,7 @@ class _CategoriesTabState extends State<CategoriesTab> {
                     SwitchListTile(
                       value: isActive,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Category active'),
+                      title: const LocalizedUiText('Category active'),
                       onChanged: (bool value) =>
                           setDialogState(() => isActive = value),
                     ),
@@ -430,7 +458,7 @@ class _CategoriesTabState extends State<CategoriesTab> {
             actions: <Widget>[
               TextButton(
                 onPressed: saving ? null : () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
+                child: const LocalizedUiText('Cancel'),
               ),
               FilledButton(
                 onPressed: saving
@@ -479,7 +507,11 @@ class _CategoriesTabState extends State<CategoriesTab> {
                           });
                         }
                       },
-                child: Text(saving ? 'Saving...' : 'Save category'),
+                child: Text(
+                  saving
+                      ? mobileUi(context, 'Saving...')
+                      : mobileUi(context, 'Save category'),
+                ),
               ),
             ],
           );
@@ -511,9 +543,11 @@ class _CategoriesTabState extends State<CategoriesTab> {
           onRefresh: _refresh,
           children: <Widget>[
             ManageHeroCard(
-              title: 'Categories & listing fields',
-              subtitle:
-                  'Add and edit reusable listing fields without changing the app code or adding database columns.',
+              title: mobileUi(context, 'Categories & listing fields'),
+              subtitle: mobileUi(
+                context,
+                'Add and edit reusable listing fields without changing the app code or adding database columns.',
+              ),
               bottom: ManageMetaWrap(
                 items: <String>[
                   '${categories.length} categories',
@@ -523,18 +557,23 @@ class _CategoriesTabState extends State<CategoriesTab> {
             ),
             const SizedBox(height: 18),
             ManagePanel(
-              title: 'Manage categories',
-              subtitle:
-                  'Open a category to manage the fields agents complete for every listing.',
+              title: mobileUi(context, 'Manage categories'),
+              subtitle: mobileUi(
+                context,
+                'Open a category to manage the fields agents complete for every listing.',
+              ),
               action: FilledButton.icon(
                 onPressed: _openEditor,
                 icon: const Icon(Icons.add),
-                label: const Text('Add category'),
+                label: const LocalizedUiText('Add category'),
               ),
               child: categories.isEmpty
-                  ? const KodimaliEmptyState(
-                      title: 'Hakuna categories',
-                      message: 'Admin anaweza kuongeza categories mpya hapa.',
+                  ? KodimaliEmptyState(
+                      title: mobileUi(context, 'Hakuna categories'),
+                      message: mobileUi(
+                        context,
+                        'Admin anaweza kuongeza categories mpya hapa.',
+                      ),
                     )
                   : Column(
                       children: categories.map((Map<String, dynamic> category) {
@@ -571,8 +610,8 @@ class _CategoriesTabState extends State<CategoriesTab> {
                                         Chip(
                                           label: Text(
                                             category['is_active'] == true
-                                                ? 'active'
-                                                : 'inactive',
+                                                ? mobileUi(context, 'active')
+                                                : mobileUi(context, 'inactive'),
                                           ),
                                         ),
                                       ],

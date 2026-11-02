@@ -1,7 +1,9 @@
+import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'supervisor_management_screen.dart';
 import '../../../core/utils/user_facing_error.dart';
 import '../../../core/widgets/agent_location_fields.dart';
 import '../../../core/widgets/app_scope.dart';
@@ -10,7 +12,14 @@ import '../../../core/widgets/kodimali_status_chip.dart';
 import '../../../core/widgets/manage_ui.dart';
 
 class AgentVerificationTab extends StatefulWidget {
-  const AgentVerificationTab({super.key});
+  const AgentVerificationTab({
+    super.key,
+    this.canAssignSupervisors = false,
+    this.scopedSupervisor = false,
+  });
+
+  final bool canAssignSupervisors;
+  final bool scopedSupervisor;
 
   @override
   State<AgentVerificationTab> createState() => _AgentVerificationTabState();
@@ -21,6 +30,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
   static const double _menuMaxHeight = 360;
 
   bool _initialized = false;
+  Map<String, dynamic>? _supervisorScope;
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
   List<Map<String, dynamic>> _agents = <Map<String, dynamic>>[];
@@ -67,6 +77,12 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
       }
     });
     try {
+      if (widget.scopedSupervisor) {
+        _supervisorScope = await AppScope.of(
+          context,
+        ).repository.fetchMySupervisorContext();
+        if (!mounted) return;
+      }
       final Map<String, dynamic> payload = await AppScope.of(context).repository
           .fetchAdminAgents(
             searchText: _searchText,
@@ -242,7 +258,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
     if (profiles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
+          content: LocalizedUiText(
             "No free user profiles are available to convert into agents.",
           ),
         ),
@@ -252,7 +268,9 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
     if (categories.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Create at least one active category first."),
+          content: LocalizedUiText(
+            "Create at least one active category first.",
+          ),
         ),
       );
       return;
@@ -284,7 +302,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                 void Function(void Function()) setModalState,
               ) {
                 return AlertDialog(
-                  title: const Text("Add agent"),
+                  title: const LocalizedUiText("Add agent"),
                   content: SingleChildScrollView(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -293,8 +311,8 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                           isExpanded: true,
                           menuMaxHeight: _menuMaxHeight,
                           initialValue: selectedProfileId,
-                          decoration: const InputDecoration(
-                            labelText: "Existing user",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(context, "Existing user"),
                           ),
                           items: profiles.map((Map<String, dynamic> profile) {
                             final String fullName =
@@ -339,16 +357,16 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                         const SizedBox(height: 16),
                         TextField(
                           controller: displayNameController,
-                          decoration: const InputDecoration(
-                            labelText: "Agent name",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(context, "Agent name"),
                           ),
                         ),
                         const SizedBox(height: 16),
                         TextField(
                           controller: phoneController,
                           keyboardType: TextInputType.phone,
-                          decoration: const InputDecoration(
-                            labelText: "Mobile number",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(context, "Mobile number"),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -360,8 +378,8 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                         const SizedBox(height: 16),
                         TextField(
                           controller: nidaController,
-                          decoration: const InputDecoration(
-                            labelText: "NIDA number",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(context, "NIDA number"),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -369,8 +387,8 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                           isExpanded: true,
                           menuMaxHeight: _menuMaxHeight,
                           initialValue: selectedPrimaryCategoryId,
-                          decoration: const InputDecoration(
-                            labelText: "Base category",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(context, "Base category"),
                           ),
                           items: categories.map((
                             Map<String, dynamic> category,
@@ -389,8 +407,8 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                         const SizedBox(height: 16),
                         TextField(
                           controller: businessNameController,
-                          decoration: const InputDecoration(
-                            labelText: "Business name",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(context, "Business name"),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -398,12 +416,15 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                           controller: businessDescriptionController,
                           minLines: 2,
                           maxLines: 4,
-                          decoration: const InputDecoration(
-                            labelText: "Business description",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(
+                              context,
+                              "Business description",
+                            ),
                           ),
                         ),
                         const SizedBox(height: 12),
-                        const Text(
+                        const LocalizedUiText(
                           "New agents start inactive. Their base category becomes the default category they can work in while active.",
                         ),
                       ],
@@ -414,7 +435,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                       onPressed: submitting
                           ? null
                           : () => Navigator.of(context).pop(false),
-                      child: const Text("Cancel"),
+                      child: const LocalizedUiText("Cancel"),
                     ),
                     FilledButton(
                       onPressed: submitting
@@ -465,14 +486,20 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text(userFacingError(error)),
+                                      content: LocalizedUiText(
+                                        userFacingError(error),
+                                      ),
                                     ),
                                   );
                                 }
                                 setModalState(() => submitting = false);
                               }
                             },
-                      child: Text(submitting ? "Saving..." : "Create agent"),
+                      child: Text(
+                        submitting
+                            ? mobileUi(context, "Saving...")
+                            : mobileUi(context, "Create agent"),
+                      ),
                     ),
                   ],
                 );
@@ -502,7 +529,9 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
     if (categories.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Create at least one active category first."),
+          content: LocalizedUiText(
+            "Create at least one active category first.",
+          ),
         ),
       );
       return;
@@ -597,23 +626,23 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                 void Function(void Function()) setModalState,
               ) {
                 return AlertDialog(
-                  title: const Text("Create agent account"),
+                  title: const LocalizedUiText("Create agent account"),
                   content: SingleChildScrollView(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
                         TextField(
                           controller: fullNameController,
-                          decoration: const InputDecoration(
-                            labelText: "Full name",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(context, "Full name"),
                           ),
                         ),
                         const SizedBox(height: 16),
                         TextField(
                           controller: phoneController,
                           keyboardType: TextInputType.phone,
-                          decoration: const InputDecoration(
-                            labelText: "Mobile number",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(context, "Mobile number"),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -622,10 +651,12 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                           onChanged: (String value) {
                             scheduleUsernameCheck(value, setModalState);
                           },
-                          decoration: const InputDecoration(
-                            labelText: "Username",
-                            helperText:
-                                "3-32 lowercase letters, numbers, or underscores.",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(context, "Username"),
+                            helperText: mobileUi(
+                              context,
+                              "3-32 lowercase letters, numbers, or underscores.",
+                            ),
                           ),
                         ),
                         if (usernameStatusText != null) ...<Widget>[
@@ -679,31 +710,31 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                         const SizedBox(height: 16),
                         TextField(
                           controller: nidaController,
-                          decoration: const InputDecoration(
-                            labelText: "NIDA number",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(context, "NIDA number"),
                           ),
                         ),
                         const SizedBox(height: 16),
                         TextField(
                           controller: passwordController,
                           obscureText: true,
-                          decoration: const InputDecoration(
-                            labelText: "Password",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(context, "Password"),
                           ),
                         ),
                         const SizedBox(height: 16),
                         TextField(
                           controller: confirmPasswordController,
                           obscureText: true,
-                          decoration: const InputDecoration(
-                            labelText: "Re-enter password",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(context, "Re-enter password"),
                           ),
                         ),
                         const SizedBox(height: 16),
                         TextField(
                           controller: businessNameController,
-                          decoration: const InputDecoration(
-                            labelText: "Business name",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(context, "Business name"),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -711,8 +742,8 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                           isExpanded: true,
                           menuMaxHeight: _menuMaxHeight,
                           initialValue: selectedPrimaryCategoryId,
-                          decoration: const InputDecoration(
-                            labelText: "Base category",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(context, "Base category"),
                           ),
                           items: categories.map((
                             Map<String, dynamic> category,
@@ -733,12 +764,15 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                           controller: businessDescriptionController,
                           minLines: 2,
                           maxLines: 4,
-                          decoration: const InputDecoration(
-                            labelText: "Business description",
+                          decoration: InputDecoration(
+                            labelText: mobileUi(
+                              context,
+                              "Business description",
+                            ),
                           ),
                         ),
                         const SizedBox(height: 12),
-                        const Text(
+                        const LocalizedUiText(
                           "The system generates the internal account email automatically. The new account starts inactive until admin activation.",
                         ),
                       ],
@@ -749,7 +783,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                       onPressed: submitting
                           ? null
                           : () => Navigator.of(context).pop(false),
-                      child: const Text("Cancel"),
+                      child: const LocalizedUiText("Cancel"),
                     ),
                     FilledButton(
                       onPressed: submitting
@@ -759,7 +793,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                                   confirmPasswordController.text) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text(
+                                    content: LocalizedUiText(
                                       "Passwords do not match yet.",
                                     ),
                                   ),
@@ -821,7 +855,9 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text(userFacingError(error)),
+                                      content: LocalizedUiText(
+                                        userFacingError(error),
+                                      ),
                                     ),
                                   );
                                 }
@@ -829,7 +865,9 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                               }
                             },
                       child: Text(
-                        submitting ? "Creating..." : "Create account",
+                        submitting
+                            ? mobileUi(context, "Creating...")
+                            : mobileUi(context, "Create account"),
                       ),
                     ),
                   ],
@@ -890,7 +928,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                 void Function(void Function()) setModalState,
               ) {
                 return AlertDialog(
-                  title: const Text("Agent categories"),
+                  title: const LocalizedUiText("Agent categories"),
                   content: SizedBox(
                     width: 480,
                     child: SingleChildScrollView(
@@ -898,7 +936,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          const Text(
+                          const LocalizedUiText(
                             "Assign the categories this agent can post in. Keep one base category selected while the agent is active.",
                           ),
                           const SizedBox(height: 16),
@@ -944,7 +982,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                                       Align(
                                         alignment: Alignment.centerLeft,
                                         child: ChoiceChip(
-                                          label: const Text(
+                                          label: const LocalizedUiText(
                                             "Use as base category",
                                           ),
                                           selected:
@@ -973,7 +1011,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                       onPressed: submitting
                           ? null
                           : () => Navigator.of(context).pop(false),
-                      child: const Text("Cancel"),
+                      child: const LocalizedUiText("Cancel"),
                     ),
                     FilledButton(
                       onPressed: submitting
@@ -997,14 +1035,20 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text(userFacingError(error)),
+                                      content: LocalizedUiText(
+                                        userFacingError(error),
+                                      ),
                                     ),
                                   );
                                 }
                                 setModalState(() => submitting = false);
                               }
                             },
-                      child: Text(submitting ? "Saving..." : "Save categories"),
+                      child: Text(
+                        submitting
+                            ? mobileUi(context, "Saving...")
+                            : mobileUi(context, "Save categories"),
+                      ),
                     ),
                   ],
                 );
@@ -1035,7 +1079,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
               const SizedBox(height: 12),
               FilledButton(
                 onPressed: () => unawaited(_loadAgents(reset: true)),
-                child: const Text("Retry"),
+                child: const LocalizedUiText("Retry"),
               ),
             ],
           ),
@@ -1051,10 +1095,28 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
     return ManagePageScrollView(
       onRefresh: _refresh,
       children: <Widget>[
+        if (widget.scopedSupervisor)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                LocalizedUiText(
+                  _supervisorScope?["active"] == true
+                      ? "Your assigned territory"
+                      : "Ask Super Admin to activate your supervisor territory before adding agents.",
+                ),
+                if (_supervisorScope?["active"] == true)
+                  Text(_supervisorScope?["location_name"].toString() ?? ''),
+              ],
+            ),
+          ),
         ManageHeroCard(
-          title: "Agent management",
-          subtitle:
-              "Search agents quickly, review their account health, and keep verification separate from activation.",
+          title: mobileUi(context, "Agent management"),
+          subtitle: mobileUi(
+            context,
+            "Search agents quickly, review their account health, and keep verification separate from activation.",
+          ),
           bottom: ManageMetaWrap(
             items: <String>[
               "$_totalCount matching agent${_totalCount == 1 ? "" : "s"}",
@@ -1067,22 +1129,22 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
         ManageMetricGrid(
           children: <Widget>[
             ManageMetricCard(
-              label: "Matching agents",
+              label: mobileUi(context, "Matching agents"),
               value: _totalCount.toString(),
               icon: Icons.groups_rounded,
             ),
             ManageMetricCard(
-              label: "Active on screen",
+              label: mobileUi(context, "Active on screen"),
               value: activeCount.toString(),
               icon: Icons.verified_user_outlined,
             ),
             ManageMetricCard(
-              label: "Pending badge",
+              label: mobileUi(context, "Pending badge"),
               value: pendingVerificationCount.toString(),
               icon: Icons.pending_actions_outlined,
             ),
             ManageMetricCard(
-              label: "Suspended on screen",
+              label: mobileUi(context, "Suspended on screen"),
               value: suspendedCount.toString(),
               icon: Icons.block_outlined,
             ),
@@ -1090,9 +1152,11 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
         ),
         const SizedBox(height: 18),
         ManagePanel(
-          title: "Search and filters",
-          subtitle:
-              "Search by public name, username, phone number, NIDA, business, email, or location.",
+          title: mobileUi(context, "Search and filters"),
+          subtitle: mobileUi(
+            context,
+            "Search by public name, username, phone number, NIDA, business, email, or location.",
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
@@ -1103,8 +1167,11 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                   _handleSearchChanged(value);
                 },
                 decoration: InputDecoration(
-                  labelText: "Search agents",
-                  hintText: "Name, username, phone, NIDA, business, location",
+                  labelText: mobileUi(context, "Search agents"),
+                  hintText: mobileUi(
+                    context,
+                    "Name, username, phone, NIDA, business, location",
+                  ),
                   prefixIcon: const Icon(Icons.search_rounded),
                   suffixIcon: _searchController.text.isEmpty
                       ? null
@@ -1116,25 +1183,25 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
               ),
               const SizedBox(height: 16),
               _FilterSection(
-                label: "Account status",
+                label: mobileUi(context, "Account status"),
                 children: <Widget>[
                   _FilterChip(
-                    label: "All",
+                    label: mobileUi(context, "All"),
                     selected: _accountStatusFilter == null,
                     onSelected: () => _setAccountStatusFilter(null),
                   ),
                   _FilterChip(
-                    label: "Active",
+                    label: mobileUi(context, "Active"),
                     selected: _accountStatusFilter == "active",
                     onSelected: () => _setAccountStatusFilter("active"),
                   ),
                   _FilterChip(
-                    label: "Inactive",
+                    label: mobileUi(context, "Inactive"),
                     selected: _accountStatusFilter == "inactive",
                     onSelected: () => _setAccountStatusFilter("inactive"),
                   ),
                   _FilterChip(
-                    label: "Suspended",
+                    label: mobileUi(context, "Suspended"),
                     selected: _accountStatusFilter == "suspended",
                     onSelected: () => _setAccountStatusFilter("suspended"),
                   ),
@@ -1142,25 +1209,25 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
               ),
               const SizedBox(height: 12),
               _FilterSection(
-                label: "Badge status",
+                label: mobileUi(context, "Badge status"),
                 children: <Widget>[
                   _FilterChip(
-                    label: "All",
+                    label: mobileUi(context, "All"),
                     selected: _verificationStatusFilter == null,
                     onSelected: () => _setVerificationStatusFilter(null),
                   ),
                   _FilterChip(
-                    label: "Approved",
+                    label: mobileUi(context, "Approved"),
                     selected: _verificationStatusFilter == "approved",
                     onSelected: () => _setVerificationStatusFilter("approved"),
                   ),
                   _FilterChip(
-                    label: "Pending",
+                    label: mobileUi(context, "Pending"),
                     selected: _verificationStatusFilter == "pending",
                     onSelected: () => _setVerificationStatusFilter("pending"),
                   ),
                   _FilterChip(
-                    label: "Rejected",
+                    label: mobileUi(context, "Rejected"),
                     selected: _verificationStatusFilter == "rejected",
                     onSelected: () => _setVerificationStatusFilter("rejected"),
                   ),
@@ -1171,21 +1238,38 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                 spacing: 12,
                 runSpacing: 12,
                 children: <Widget>[
-                  FilledButton.icon(
-                    onPressed: _openAddAgentDialog,
-                    icon: const Icon(Icons.person_add_alt_1_outlined),
-                    label: const Text("Add agent"),
-                  ),
+                  if (!widget.scopedSupervisor)
+                    FilledButton.icon(
+                      onPressed: _openAddAgentDialog,
+                      icon: const Icon(Icons.person_add_alt_1_outlined),
+                      label: const LocalizedUiText("Add agent"),
+                    ),
                   OutlinedButton.icon(
-                    onPressed: _openCreateAgentAccountDialog,
+                    onPressed:
+                        widget.scopedSupervisor &&
+                            _supervisorScope?["active"] != true
+                        ? null
+                        : _openCreateAgentAccountDialog,
                     icon: const Icon(Icons.manage_accounts_outlined),
-                    label: const Text("Create account"),
+                    label: const LocalizedUiText("Create account"),
                   ),
+                  if (widget.canAssignSupervisors)
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const SupervisorManagementScreen(),
+                        ),
+                      ),
+                      icon: const Icon(Icons.supervisor_account_outlined),
+                      label: const LocalizedUiText(
+                        "Supervisors and territories",
+                      ),
+                    ),
                   if (_hasFiltersApplied)
                     OutlinedButton.icon(
                       onPressed: _clearFilters,
                       icon: const Icon(Icons.filter_alt_off_outlined),
-                      label: const Text("Clear filters"),
+                      label: const LocalizedUiText("Clear filters"),
                     ),
                 ],
               ),
@@ -1265,6 +1349,11 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
+                    if (widget.canAssignSupervisors)
+                      AgentSupervisorAssignment(
+                        agentId: agent["id"].toString(),
+                        onSaved: _refresh,
+                      ),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
@@ -1301,7 +1390,15 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                                     highlight: verificationStatus == "approved",
                                   ),
                                   if (verifiedAt != "-")
-                                    Chip(label: Text("Verified $verifiedAt")),
+                                    Chip(
+                                      label: Text(
+                                        mobileUiFormat(
+                                          context,
+                                          "Verified {0}",
+                                          [verifiedAt],
+                                        ),
+                                      ),
+                                    ),
                                 ],
                               ),
                             ],
@@ -1316,47 +1413,47 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                       children: <Widget>[
                         _AgentInfoLine(
                           icon: Icons.alternate_email_rounded,
-                          label: "Username",
+                          label: mobileUi(context, "Username"),
                           value: username,
                         ),
                         _AgentInfoLine(
                           icon: Icons.phone_outlined,
-                          label: "Phone",
+                          label: mobileUi(context, "Phone"),
                           value: phone,
                         ),
                         _AgentInfoLine(
                           icon: Icons.email_outlined,
-                          label: "Account email",
+                          label: mobileUi(context, "Account email"),
                           value: accountEmail,
                         ),
                         _AgentInfoLine(
                           icon: Icons.mark_email_read_outlined,
-                          label: "Email status",
+                          label: mobileUi(context, "Email status"),
                           value: emailStatus,
                         ),
                         _AgentInfoLine(
                           icon: Icons.badge_outlined,
-                          label: "Login profile",
+                          label: mobileUi(context, "Login profile"),
                           value: profileName,
                         ),
                         _AgentInfoLine(
                           icon: Icons.language_outlined,
-                          label: "Language",
+                          label: mobileUi(context, "Language"),
                           value: preferredLanguage,
                         ),
                         _AgentInfoLine(
                           icon: Icons.place_outlined,
-                          label: "Location",
+                          label: mobileUi(context, "Location"),
                           value: location,
                         ),
                         _AgentInfoLine(
                           icon: Icons.perm_identity_outlined,
-                          label: "NIDA",
+                          label: mobileUi(context, "NIDA"),
                           value: nida,
                         ),
                         _AgentInfoLine(
                           icon: Icons.event_available_outlined,
-                          label: "Created",
+                          label: mobileUi(context, "Created"),
                           value: createdAt,
                         ),
                       ],
@@ -1364,19 +1461,23 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                     if (businessDescription.trim().isNotEmpty) ...<Widget>[
                       const SizedBox(height: 12),
                       _AgentDetailBlock(
-                        title: "Business details",
+                        title: mobileUi(context, "Business details"),
                         child: Text(businessDescription),
                       ),
                     ],
                     const SizedBox(height: 12),
                     _AgentDetailBlock(
-                      title: "Assigned categories",
+                      title: mobileUi(context, "Assigned categories"),
                       child: Wrap(
                         spacing: 8,
                         runSpacing: 8,
                         children: assignedCategories.isEmpty
                             ? const <Widget>[
-                                Chip(label: Text("No category assigned")),
+                                Chip(
+                                  label: LocalizedUiText(
+                                    "No category assigned",
+                                  ),
+                                ),
                               ]
                             : assignedCategories.map((
                                 Map<String, dynamic> category,
@@ -1391,9 +1492,9 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                     ),
                     const SizedBox(height: 12),
                     _AgentDetailBlock(
-                      title: "Documents",
+                      title: mobileUi(context, "Documents"),
                       child: documents.isEmpty
-                          ? const Text("No documents uploaded yet.")
+                          ? const LocalizedUiText("No documents uploaded yet.")
                           : Wrap(
                               spacing: 8,
                               runSpacing: 8,
@@ -1413,7 +1514,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                             .isNotEmpty) ...<Widget>[
                       const SizedBox(height: 12),
                       _AgentDetailBlock(
-                        title: "Status note",
+                        title: mobileUi(context, "Status note"),
                         child: Text(agent["deactivation_reason"] as String),
                       ),
                     ],
@@ -1427,7 +1528,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                               ? null
                               : () =>
                                     _setStatus(agent["id"] as String, "active"),
-                          child: const Text("Activate"),
+                          child: const LocalizedUiText("Activate"),
                         ),
                         OutlinedButton(
                           onPressed: verified
@@ -1438,7 +1539,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                                   verificationStatus: "approved",
                                   note: "Verified by admin",
                                 ),
-                          child: const Text("Verify badge"),
+                          child: const LocalizedUiText("Verify badge"),
                         ),
                         OutlinedButton(
                           onPressed: verificationStatus == "pending"
@@ -1449,11 +1550,11 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                                   verificationStatus: "pending",
                                   note: "Verification reset by admin",
                                 ),
-                          child: const Text("Mark pending"),
+                          child: const LocalizedUiText("Mark pending"),
                         ),
                         OutlinedButton(
                           onPressed: () => _openCategoryAssignmentDialog(agent),
-                          child: const Text("Categories"),
+                          child: const LocalizedUiText("Categories"),
                         ),
                         OutlinedButton(
                           onPressed: accountStatus == "inactive"
@@ -1463,7 +1564,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                                   "inactive",
                                   note: "Offline activation pending",
                                 ),
-                          child: const Text("Deactivate"),
+                          child: const LocalizedUiText("Deactivate"),
                         ),
                         OutlinedButton(
                           onPressed: verificationStatus == "rejected"
@@ -1474,7 +1575,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                                   verificationStatus: "rejected",
                                   note: "Verification rejected by admin",
                                 ),
-                          child: const Text("Reject badge"),
+                          child: const LocalizedUiText("Reject badge"),
                         ),
                         OutlinedButton(
                           onPressed: accountStatus == "suspended"
@@ -1484,7 +1585,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                                   "suspended",
                                   note: "Suspended by admin",
                                 ),
-                          child: const Text("Suspend"),
+                          child: const LocalizedUiText("Suspend"),
                         ),
                       ],
                     ),
@@ -1502,7 +1603,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
             child: OutlinedButton.icon(
               onPressed: () => unawaited(_loadAgents(reset: false)),
               icon: const Icon(Icons.expand_more_rounded),
-              label: const Text("Load more agents"),
+              label: const LocalizedUiText("Load more agents"),
             ),
           ),
         ],
@@ -1640,7 +1741,10 @@ class _AgentCardAvatar extends StatelessWidget {
           ? null
           : NetworkImage(imageUrl!),
       child: imageUrl == null || imageUrl!.isEmpty
-          ? Text((fallbackText.isEmpty ? "A" : fallbackText[0]).toUpperCase())
+          ? Text(
+              (fallbackText.isEmpty ? mobileUi(context, "A") : fallbackText[0])
+                  .toUpperCase(),
+            )
           : null,
     );
 

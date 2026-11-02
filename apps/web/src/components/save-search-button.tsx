@@ -1,4 +1,5 @@
 "use client";
+import { UiText } from "@/components/ui-text";
 
 import { useMemo, useState } from "react";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
@@ -53,17 +54,17 @@ export function SaveSearchButton({
         disabled={busy}
         onClick={() => void save()}
       >
-        {busy
+        <UiText text={busy
           ? sw
             ? "Inahifadhi..."
             : "Saving..."
           : sw
             ? "Hifadhi utafutaji"
-            : "Save this search"}
+            : "Save this search"} />
       </button>
       {message ? (
         <p className="mt-2 text-xs text-muted" role="status">
-          {message}
+          <UiText text={message} />
         </p>
       ) : null}
     </div>

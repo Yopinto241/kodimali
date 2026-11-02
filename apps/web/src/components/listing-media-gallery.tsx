@@ -1,4 +1,5 @@
 "use client";
+import { UiText } from "@/components/ui-text";
 
 import { useMemo, useRef, useState } from "react";
 
@@ -75,7 +76,7 @@ export function ListingMediaGallery({
     <>
       <div>
         <div className="flex items-center justify-between gap-3">
-          <p className="eyebrow">Media</p>
+          <p className="eyebrow"><UiText text={"Media"} /></p>
           <p className="text-sm font-semibold text-muted">
             {selectedIndex + 1} / {visibleMedia.length}
           </p>
@@ -125,9 +126,7 @@ export function ListingMediaGallery({
                 type="button"
                 onClick={() => setFullscreenOpen(false)}
                 className="rounded-full bg-white/12 px-4 py-2 text-sm font-semibold text-white"
-              >
-                Close
-              </button>
+              ><UiText text={"Close"} /></button>
             </div>
             <div className="flex flex-1 items-center justify-center">
               <DirectMediaImage
