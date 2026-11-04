@@ -114,7 +114,9 @@ class _LocationsTabState extends State<LocationsTab> {
       ),
     );
     if (value == null || !mounted) return;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+    });
     try {
       if (row == null) {
         await _repository.addLocation(
@@ -131,7 +133,11 @@ class _LocationsTabState extends State<LocationsTab> {
     } catch (error) {
       if (mounted) _showError(error);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+        });
+      }
     }
   }
 
@@ -165,14 +171,20 @@ class _LocationsTabState extends State<LocationsTab> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+    });
     try {
       await _repository.deleteLocation(row['id'].toString());
       if (mounted) await _refresh();
     } catch (error) {
       if (mounted) _showError(error);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+        });
+      }
     }
   }
 

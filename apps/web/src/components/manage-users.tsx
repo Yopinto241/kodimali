@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { NavigationIndicator } from "@/components/navigation-progress";
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -24,7 +25,7 @@ export function ManageUsers({ recordId }: { recordId?: string }) {
       setLoading(true); setError('');
       const result = await db.rpc('search_manage_customers', { p_search: search || null, p_confirmation: confirmation || null, p_offset: recordId ? 0 : page * 20, p_limit: recordId ? 1 : 20, p_id: recordId ?? null } as never);
       if (cancelled) return;
-      if (result.error) setError(result.error.code === 'PGRST202' ? 'Customer directory update is required before this feature can load.' : result.error.message);
+      if (result.error) setError(result.error.code === 'PGRST202' ? 'Customer directory update is required before this feature can load.' : safeUserMessage(result.error));
       else setRows((result.data ?? []) as Customer[]);
       setLoading(false);
     }

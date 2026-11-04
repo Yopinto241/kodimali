@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { getBrowserSupabase } from "@/lib/supabase-browser";
@@ -13,7 +14,7 @@ export function SupervisorTeams({ enabled, children }: { enabled: boolean; child
   const [error, setError] = useState("");
   const refresh = useCallback(async () => {
     const result = await getBrowserSupabase().rpc("get_supervisor_directory");
-    if (result.error) setError(result.error.message);
+    if (result.error) setError(safeUserMessage(result.error));
     else { setRows((result.data ?? []) as Supervisor[]); setError(""); }
   }, []);
   useEffect(() => { if (enabled) queueMicrotask(() => void refresh()); }, [enabled, refresh]);
@@ -81,7 +82,7 @@ export function SupervisorTerritories() {
   async function save(address: string, locationId: string, active: boolean) {
     setBusy(true); setNotice("");
     const result = await getBrowserSupabase().rpc("configure_supervisor_territory", { p_email: address, p_location_id: locationId, p_active: active } as never);
-    setNotice(result.error?.message ?? "Supervisor territory saved.");
+    setNotice((result.error?.message ? safeUserMessage(result.error?.message) : null) ?? "Supervisor territory saved.");
     setBusy(false); await directory.refresh();
   }
   return <section className="soft-panel mb-5 p-4"><button type="button" className="cursor-pointer text-left font-semibold" aria-expanded={expanded} aria-controls="supervisor-territory-panel" onClick={() => setExpanded(!expanded)}><UiText text="Supervisors and territories" /></button>
@@ -112,7 +113,7 @@ export function AgentTeamAssignment({ agentId, supervisorId, onSaved }: { agentI
     if (!window.confirm(translateUiPrompt("Transfer this agent? The previous supervisor will lose access immediately."))) return;
     setBusy(true); setNotice("");
     const result = await getBrowserSupabase().rpc("assign_agent_supervisor", { p_agent_id: agentId, p_supervisor_id: selected || null } as never);
-    setBusy(false); setNotice(result.error?.message ?? "Agent team saved.");
+    setBusy(false); setNotice((result.error?.message ? safeUserMessage(result.error?.message) : null) ?? "Agent team saved.");
     if (!result.error) { onSaved(); await refresh(); }
   }
   return <div className="mt-3 grid gap-2"><label className="field-label"><UiText text="Assigned supervisor" /><select className="field-input" value={selected} onChange={(event) => setSelected(event.target.value)} disabled={busy}>

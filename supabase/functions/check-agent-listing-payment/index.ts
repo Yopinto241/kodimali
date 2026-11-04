@@ -1,3 +1,4 @@
+import { applyPaymentEvent } from "../_shared/payment-integrity.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   fetchClickPesaToken,
@@ -56,14 +57,7 @@ Deno.serve(async (request) => {
         const result = await checkSonicPesaOrder(
           String(payment.provider_payment_id),
         );
-        await service.from("agent_listing_payments").update({
-          payment_status: result.status,
-          paid_at: result.status === "paid" ? new Date().toISOString() : null,
-          provider_payment_reference: result.transactionId,
-          provider_channel: result.channel,
-          provider_response: result.payload,
-        }).eq("id", payment.id);
-        payment.payment_status = result.status;
+        payment.payment_status = (await applyPaymentEvent(service, "agent_listing_payments", payment.id, "sonicpesa", result.status, result.payload)).status;
       } else {
         const config = readClickPesaConfig({
           clientIdEnv: "CLICKPESA_COLLECTION_CLIENT_ID",
@@ -77,12 +71,7 @@ Deno.serve(async (request) => {
           payment.order_reference,
         );
         if (row) {
-          const status = mapClickPesaStatus(row?.status);
-          await service.from("agent_listing_payments").update({
-            payment_status: status,
-            paid_at: status === "paid" ? new Date().toISOString() : null,
-          }).eq("id", payment.id);
-          payment.payment_status = status;
+          payment.payment_status = (await applyPaymentEvent(service, "agent_listing_payments", payment.id, "clickpesa", mapClickPesaStatus(row?.status), row)).status;
         }
       }
     }

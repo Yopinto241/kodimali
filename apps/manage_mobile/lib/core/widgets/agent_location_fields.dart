@@ -189,7 +189,9 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
 
   void _handleManualAreaChanged() {
     if (_manualAreaController.text.trim().isNotEmpty && _savedAreaId != null) {
-      setState(() => _savedAreaId = null);
+      setState(() {
+        _savedAreaId = null;
+      });
     }
     _emit();
   }
@@ -392,7 +394,9 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
             if (!mounted || value == null) {
               return;
             }
-            setState(() => _regionId = value);
+            setState(() {
+              _regionId = value;
+            });
             _loadDistricts(value);
           },
         ),
@@ -410,7 +414,9 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
             if (!mounted || value == null) {
               return;
             }
-            setState(() => _districtId = value);
+            setState(() {
+              _districtId = value;
+            });
             _loadWards(value);
           },
         ),
@@ -428,7 +434,9 @@ class _AgentLocationFieldsState extends State<AgentLocationFields> {
             if (!mounted || value == null) {
               return;
             }
-            setState(() => _wardId = value);
+            setState(() {
+              _wardId = value;
+            });
             _loadAreas(value);
           },
         ),

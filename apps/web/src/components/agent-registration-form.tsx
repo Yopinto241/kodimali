@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { UiText } from "@/components/ui-text";
 
 import Link from "next/link";
@@ -54,7 +55,7 @@ export function AgentRegistrationForm({ categories, initialCategoryId = "", staf
         if (error) {
           const response = (error as { context?: Response }).context;
           const payload = response ? await response.clone().json().catch(() => null) : null;
-          throw new Error(payload?.error ?? error.message);
+          throw new Error(payload?.error ?? safeUserMessage(error));
         }
         setComplete(true); setNotice("Agent account created. Review and activate the agent when verification is complete.");
         onCreated?.();

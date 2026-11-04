@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { UiInput, UiText } from "@/components/ui-text";
 
 import Link from "next/link";
@@ -558,7 +559,7 @@ function relation(value: unknown): DataRow | null {
 }
 
 function readError(error: unknown) {
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error) return safeUserMessage(error);
   if (error && typeof error === "object" && "message" in error) {
     return String(
       (error as { message?: unknown }).message ??

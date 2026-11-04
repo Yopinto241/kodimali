@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import '../../../core/widgets/app_scope.dart';
@@ -34,7 +35,9 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _load());
+    setState(() {
+      _future = _load();
+    });
     await _future;
   }
 
@@ -140,7 +143,7 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     }
   }
@@ -210,7 +213,7 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('$e')));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, e))));
       }
     }
   }
@@ -454,7 +457,7 @@ class _AgentBusinessCenterScreenState extends State<AgentBusinessCenterScreen> {
     future: _future,
     builder: (context, s) {
       if (!s.hasData) return const Center(child: CircularProgressIndicator());
-      if (s.hasError) return Center(child: Text('${s.error}'));
+      if (s.hasError) return Center(child: Text(userMessage(context, s.error)));
       final d = s.data!;
       final dash = (d[0] as Map).cast<String, dynamic>(),
           plans = (d[1] as List).cast<Map<String, dynamic>>(),
@@ -707,15 +710,23 @@ class _PaymentStatusDialogState extends State<_PaymentStatusDialog> {
   bool busy = false;
   String status = 'pending';
   Future<void> check() async {
-    setState(() => busy = true);
+    setState(() {
+      busy = true;
+    });
     try {
       final d = await widget.repository.checkCommercialPayment(
         widget.paymentId,
       );
-      setState(() => status = d['paymentStatus'].toString());
+      setState(() {
+        status = d['paymentStatus'].toString();
+      });
       if (status == 'paid' && mounted) Navigator.pop(context);
     } finally {
-      if (mounted) setState(() => busy = false);
+      if (mounted) {
+        setState(() {
+          busy = false;
+        });
+      }
     }
   }
 

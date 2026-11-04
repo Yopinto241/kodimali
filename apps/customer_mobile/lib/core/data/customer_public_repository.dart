@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -1463,7 +1464,7 @@ class CustomerPublicRepository {
   }
 
   StateError _friendlyError(Object error, {required String fallbackMessage}) {
-    final String message = _stripErrorPrefix(error.toString());
+    final String message = safeUserMessage(error);
     final String normalized = message.toLowerCase();
     if (error is StateError && !_looksLikeTechnicalNoise(message)) {
       return StateError(message);
@@ -1515,7 +1516,7 @@ class CustomerPublicRepository {
     if (data is Map) {
       final Object? error = data["error"] ?? data["message"];
       if (error != null) {
-        final String message = _stripErrorPrefix(error.toString());
+        final String message = safeUserMessage(error);
         if (message.isNotEmpty) {
           return message;
         }

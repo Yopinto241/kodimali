@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_design_system/flutter_design_system.dart';
@@ -63,7 +64,7 @@ class _AgentDashboardTabState extends State<AgentDashboardTab> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return Center(child: Text(snapshot.error.toString()));
+          return Center(child: Text(userMessage(context, snapshot.error)));
         }
         final Map<String, int> counts = snapshot.data ?? <String, int>{};
         if (counts.isEmpty) {

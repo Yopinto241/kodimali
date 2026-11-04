@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -59,7 +60,9 @@ class _EventRecoveryControlsState extends State<EventRecoveryControls> {
           .cast<Map<String, dynamic>>();
 
   Future<void> _act(String function, Map<String, dynamic> params) async {
-    setState(() => busy = true);
+    setState(() {
+      busy = true;
+    });
     try {
       await Supabase.instance.client.rpc(function, params: params);
       if (!mounted) return;
@@ -72,10 +75,14 @@ class _EventRecoveryControlsState extends State<EventRecoveryControls> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, e))));
       }
     } finally {
-      if (mounted) setState(() => busy = false);
+      if (mounted) {
+        setState(() {
+          busy = false;
+        });
+      }
     }
   }
 
@@ -90,7 +97,9 @@ class _EventRecoveryControlsState extends State<EventRecoveryControls> {
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return TextButton(
-                onPressed: () => setState(() => future = _load()),
+                onPressed: () => setState(() {
+                  future = _load();
+                }),
                 child: Text(
                   sw
                       ? mobileUi(
@@ -191,7 +200,9 @@ class _EventRecoveryControlsState extends State<EventRecoveryControls> {
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return TextButton(
-                onPressed: () => setState(() => reviews = _loadReviews()),
+                onPressed: () => setState(() {
+                  reviews = _loadReviews();
+                }),
                 child: Text(
                   sw
                       ? mobileUi(context, 'Jaribu kupakia suluhu tena')

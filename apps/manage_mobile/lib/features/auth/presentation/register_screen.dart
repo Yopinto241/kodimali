@@ -210,7 +210,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
       return;
     }
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+    });
     try {
       final String locationId = await dependencies.repository
           .resolveWardAreaLocation(
@@ -253,7 +255,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
     } finally {
       if (mounted) {
-        setState(() => _submitting = false);
+        setState(() {
+          _submitting = false;
+        });
       }
     }
   }
@@ -685,9 +689,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           if (!mounted || value == null) {
                                             return;
                                           }
-                                          setState(
-                                            () => _selectedCategoryId = value,
-                                          );
+                                          setState(() {
+                                            _selectedCategoryId = value;
+                                          });
                                         },
                                   borderRadius: BorderRadius.circular(16),
                                   child: InputDecorator(

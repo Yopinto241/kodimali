@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { UiText } from "@/components/ui-text";
 
 import { useCallback, useEffect, useState } from "react";
@@ -24,7 +25,7 @@ export function EventRecoveryControls({ planId, status, onChange }: { planId: st
     if (reviews.error) throw reviews.error;
     setCancellations(reviews.data ?? []);
   }, [planId, supabase]);
-  useEffect(() => { const task = window.setTimeout(() => { void load().catch((error) => setMessage(String(error.message ?? error))); }, 0); return () => window.clearTimeout(task); }, [load]);
+  useEffect(() => { const task = window.setTimeout(() => { void load().catch((error) => setMessage(safeUserMessage(error))); }, 0); return () => window.clearTimeout(task); }, [load]);
 
   async function act(name: string, params: Record<string, unknown>) {
     setBusy(true); setMessage("");
@@ -33,7 +34,7 @@ export function EventRecoveryControls({ planId, status, onChange }: { planId: st
       if (error) throw error;
       await Promise.all([load(), onChange()]);
       setMessage(sw ? "Mabadiliko yamehifadhiwa. Malipo au marejesho yanahitaji uhakiki." : "Saved. Any payment or refund requires review.");
-    } catch (error) { setMessage(String((error as { message?: string }).message ?? error)); }
+    } catch (error) { setMessage(safeUserMessage(error)); }
     finally { setBusy(false); }
   }
 

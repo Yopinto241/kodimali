@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { UiInput, UiText } from "@/components/ui-text";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -37,8 +38,8 @@ function storageKey(listingId: string) {
 }
 
 function readableError(error: unknown) {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
+  if (error instanceof Error && safeUserMessage(error).trim().length > 0) {
+    return safeUserMessage(error);
   }
   return "Something went wrong. Please try again.";
 }

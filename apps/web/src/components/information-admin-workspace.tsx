@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { translateUiPrompt } from "@/lib/ui-translation";
 import { UiInput, UiSelect, UiText } from "@/components/ui-text";
 
@@ -9,7 +10,7 @@ type Row = Record<string, unknown>;
 const stages = ["submitted", "triage", "duplicate_review", "contacting_owner", "field_verification", "verified", "publication_review", "published", "ineligible", "closed"];
 const rows = (value: unknown): Row[] => Array.isArray(value) ? value as Row[] : [];
 const relation = (value: unknown): Row => (Array.isArray(value) ? value[0] : value) as Row ?? {};
-const errorMessage = (error: unknown) => error instanceof Error ? error.message : String((error as Row)?.message ?? "Could not complete this request.");
+const errorMessage = (error: unknown) => safeUserMessage(error);
 
 export function InformationAdminWorkspace() {
   const db = useMemo(() => getBrowserSupabase(), []);

@@ -1,3 +1,6 @@
+import 'package:flutter_core/push_payload.dart';
+import 'core/router/notification_destination.dart';
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 
@@ -29,20 +32,35 @@ Future<void> main() async {
     FlutterError.reportError(
       FlutterErrorDetails(exception: error, stack: stackTrace),
     );
-    runApp(_StartupErrorApp(message: error.toString()));
+    runApp(_StartupErrorApp(message: safeUserMessage(error)));
   }
 }
 
 Future<void> _runBackgroundStartup(AppDependencies dependencies) async {
   try {
     await dependencies.controller.initialize();
-    await PushNotificationService.instance.initialize();
-    PushNotificationService.instance.notificationTaps.listen((data) {
-      final String route = data["route"]?.toString() ?? "";
-      if (route.startsWith("chat/")) {
-        dependencies.router.go("/listing-chat/${route.substring(5)}");
+    Map<String, dynamic>? pending;
+    Future<void> open(Map<String, dynamic> data) async {
+      pending = data;
+      if (!dependencies.controller.isSignedIn) return;
+      await dependencies.controller.refreshProfile();
+      final next = pending;
+      if (next == null || !dependencies.controller.isSignedIn) return;
+      pending = null;
+      if (!pushBelongsToUser(
+        next,
+        Supabase.instance.client.auth.currentUser?.id,
+      )) {
+        return;
       }
+      dependencies.router.go(notificationDestination(next));
+    }
+
+    PushNotificationService.instance.notificationTaps.listen(open);
+    Supabase.instance.client.auth.onAuthStateChange.listen((state) {
+      if (state.session != null && pending != null) unawaited(open(pending!));
     });
+    await PushNotificationService.instance.initialize();
   } catch (error, stackTrace) {
     FlutterError.reportError(
       FlutterErrorDetails(exception: error, stack: stackTrace),

@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { UiInput, UiText } from "@/components/ui-text";
 
 import Link from "next/link";
@@ -170,7 +171,5 @@ export function ListingChatCard({ listingId }: { listingId: string }) {
 }
 
 function readError(error: unknown) {
-  return error instanceof Error
-    ? error.message
-    : "The chat could not be opened.";
+  return safeUserMessage(error);
 }

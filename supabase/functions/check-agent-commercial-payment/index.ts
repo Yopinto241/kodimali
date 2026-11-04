@@ -1,3 +1,4 @@
+import { applyPaymentEvent } from "../_shared/payment-integrity.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { json } from "../_shared/clickpesa.ts";
 import {
@@ -35,14 +36,7 @@ Deno.serve(async (request) => {
       const result = await checkSonicPesaOrder(
         String(payment.provider_payment_id),
       );
-      status = result.status;
-      await db.from("agent_commercial_payments").update({
-        payment_status: status,
-        paid_at: status === "paid" ? new Date().toISOString() : null,
-        provider_payment_reference: result.transactionId,
-        provider_channel: result.channel,
-        provider_response: result.payload,
-      }).eq("id", id);
+      status = (await applyPaymentEvent(db, "agent_commercial_payments", id, "sonicpesa", result.status, result.payload)).status;
     }
     return json({
       success: true,

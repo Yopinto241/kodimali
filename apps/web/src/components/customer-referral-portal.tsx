@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { UiInput, UiText, UiTextarea } from "@/components/ui-text";
 
 import Link from "next/link";
@@ -211,7 +212,7 @@ export function CustomerReferralPortal({ historyOnly = false }: { historyOnly?: 
 function categoryLabel(value: string) { return categories.find(([key]) => key === value)?.[1] ?? value.replaceAll("_", " "); }
 function statusLabel(value: string) { return ({ submitted: "Imepokelewa", triage: "Inakaguliwa", duplicate_review: "Ukaguzi wa nakala", contacting_owner: "Tunawasiliana na mmiliki", field_verification: "Uhakiki wa eneo", verified: "Imethibitishwa", publication_review: "Inasubiri kuchapishwa", published: "Imechapishwa", ineligible: "Haijakidhi vigezo", closed: "Imefungwa" } as Record<string, string>)[value] ?? value; }
 function eligibilityLabel(value: string) { return ({ pending: "Inasubiri uhakiki", eligible: "Inastahili", ineligible: "Haistahili", paid: "Imelipwa" } as Record<string, string>)[value] ?? value; }
-function readError(error: unknown) { return error instanceof Error ? error.message : String((error as Record<string, unknown>)?.message ?? "Ombi halikuweza kukamilika."); }
+function readError(error: unknown) { return safeUserMessage(error); }
 
 function ReferralTerms({ agreement, busy, accept, sw }: { agreement?: Record<string, unknown> | null; busy: boolean; accept: (agreement: Record<string, unknown>) => Promise<void>; sw: boolean }) {
   if (!agreement) return <p className="mt-3 text-sm text-muted"><UiText text={sw ? "Masharti na kiasi cha zawadi vitaonekana baada ya uhakiki." : "Reward terms and amounts will appear after review."} /></p>;

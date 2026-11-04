@@ -1,0 +1,97 @@
+ID,Domain,Feature,Customer app,Manage app,Website,Evidence,Assessment,Findings,Next acceptance check
+FT-001,Discovery,Guest browsing and newest home feed,Yes,?,Yes,Customer widgets; web build; newest-feed SQL; live HTTP,Checked with limits,F01,Install customer release; suspended-agent visibility
+FT-002,Discovery,Dynamic category navigation and fields,Yes,Yes,Yes,Category widgets; browser catalog; registration fixtures,Checked with limits,,Create and disable category with dedicated admin
+FT-003,Discovery,Text search and category search,Yes,Yes,Yes,Web tests; browser catalog/management; RPC scan,Checked with limits,,Realistic large inventory and multilingual search
+FT-004,Discovery,Region district ward area hierarchy,Yes,Yes,Yes,Location SQL; mobile widgets; browser hierarchy,Checked with limits,,Physical-device location permission scenarios
+FT-005,Discovery,GPS and manual location switching,Yes,Agent area,Yes,Ward SQL; browser GPS fixtures; source review,Checked with limits,,Denied/stale GPS; actual Arusha coordinates
+FT-006,Discovery,Minimum maximum price and reversed ranges,Yes,?,Yes,Web tests; filter/browser fixtures; mobile source,Checked with limits,,Customer device form validation
+FT-007,Discovery,Sort pagination and clear filters,Yes,Yes,Yes,Browser catalog/management; home-feed SQL,Checked with limits,,Large offset and changing inventory
+FT-008,Discovery,Listing detail and private location boundary,Yes,Yes,Yes,Live SQL definition; table policies; build,Defect,F01,Direct role access and protected address tests
+FT-009,Discovery,Photo gallery and video playback,Yes,Yes,Yes,Widget/source; media validator tests; browser JPEG upload,Partially checked,F15,Native codecs low bandwidth large/corrupt media
+FT-010,Discovery,Share links and app opening,Yes,?,Yes,Manifest review; live association HTTP,Defect,F14,Release certificate association and physical-device links
+FT-011,Discovery,Public agent profile and WhatsApp,Yes,Profile,Yes,WhatsApp tests; SQL; RPC scan,Checked with limits,,Real phone formats and contact charging modes
+FT-012,Authentication,Customer signup login and validation,Yes,?,Yes,Customer widgets; registration-fetch tests; auth probe,Defect,F10,Confirmation email and stalled/resumed session
+FT-013,Authentication,Agent signup typed operating area,?,Yes,Yes,Registration SQL and bilingual browser fixture,Checked with limits,,Real email delivery and pending verification
+FT-014,Authentication,Owner signup and application submission,?,Yes,Yes,Source and RPC contracts; owner language fixture,Reviewed,,Dedicated owner create reject resubmit approve
+FT-015,Authentication,Workspace selection and role routing,?,Yes,Yes,46 Manage tests; web access tests; denied-link browser,Defect in backend scope,F01,Every role direct API and multi-role switch
+FT-016,Authentication,Password recovery and password change,Yes,Yes,Yes,Source and native manifest review,Partially checked,F14,Email cold/warm links and successful reset on both apps
+FT-017,Authentication,Profile and language preferences,Yes,Yes,Yes,Mobile widgets; bilingual browser sessions,Checked with limits,,Account profile mutation and cross-device sync
+FT-018,Authentication,Logout and account switching,Yes,Yes,Yes,Push/cache source and server delivery review,Defect,F07;F11,Old push token and cached interests absent for next user
+FT-019,Authentication,Account deletion request and completion,Yes,?,Yes,Source and deployed RPC review; live public page,Reviewed,F18,Submit cancel process deletion and verify retained audit data
+FT-020,Customer tools,Saved listings and synchronization,Yes,?,Yes,Activity/cache source; UI/browser checks,Defect,F11,Guest merge distinct from previous signed-in account
+FT-021,Customer tools,Recently viewed history,Yes,?,Source-dependent,Customer store and UI source,Reviewed,F11,History clearing retention and shared device
+FT-022,Customer tools,Compare listings,Yes,?,Yes,Repository/source; live route and browser storage recovery,Partially checked,,Selection persistence inactive listing handling
+FT-023,Customer tools,Saved searches,Yes,?,Yes,Growth source; browser save control,Partially checked,F08,Save edit delete and cross-device query restoration
+FT-024,Customer tools,Price alerts,Yes,?,Yes,Growth repository and notify_price_drop SQL review,Reviewed,,Real price drop produces one permitted alert
+FT-025,Customer tools,Guest inquiry creation and assignment,Yes,Inbox,Yes,Source/backend contracts; existing integration fixtures,Reviewed,,Dedicated guest inquiry correct agent duplicate handling
+FT-026,Customer tools,Guest request claim and account linking,Yes,?,Yes,Claim RPC contract and account source,Reviewed,,Wrong phone reference and duplicate-claim negative tests
+FT-027,Customer tools,Request list details and status history,Yes,Yes,Yes,Booking audit tests; UI source; SQL deletion checks,Defect,F01;F08;F18,Real customer agent owner isolation across history
+FT-028,Customer tools,Booking conversation messages and receipts,Yes,Yes,Yes,Conversation source; booking audit SQL,Partially checked,F01;F07,Participants only realtime reconnect unread counts
+FT-029,Customer tools,Paid listing chat purchase and renewal,Yes,Yes,Yes,Handler/source; deployed grant SQL; local entitlement probe,Defect,F02;F13,One charge grants one duration; valid-session payment smoke
+FT-030,Customer tools,Listing chat access daily limit and expiry,Yes,Yes,Yes,Chat widget probes; backend function review,Defect,F02;F08;F09;F17,Clock drift offline recovery limit/reset and revoked access
+FT-031,Customer tools,Viewing appointment proposal and response,Yes,Yes,Partial,Repository and RPC/source review,Reviewed,,Schedule accept reject reschedule timezone and conflict
+FT-032,Customer tools,Verified reviews and moderation,Yes,Yes,Partial,Review source and backend guard review,Reviewed,,Only eligible completed booking can review once
+FT-033,Customer tools,Information referral submission and terms,Yes,Review,Yes,Owner/information SQL inspected; source and RPC contracts,Reviewed,,Create follow-up evidence consent and duplicate submission
+FT-034,Customer tools,Referral reward status and receipts,Yes,Finance,Yes,Reward source and role checks inspected,Reviewed,F01,Qualified reward approval payout record and visibility
+FT-035,Bookings,Availability and public booking capability,Yes,Yes,Yes,SQL ward/WhatsApp; deployed availability source,Deployment drift,F13,Anonymous endpoint before and after deployment
+FT-036,Bookings,Instant hold inventory reservation and expiry,Yes,Yes,Yes,Backend source; event concurrency applies only to events,Reviewed,,Concurrent asset holds and automatic expiry under full schema
+FT-037,Bookings,Agreed price snapshot and customer acceptance,Yes,Yes,Yes,Repository/web source; backend RPC contracts,Reviewed,,Superseded terms cannot be paid or accepted
+FT-038,Bookings,Deposit balance and payment status,Yes,Yes,Yes,Payment source; webhook probes; live flags,Defect,F04;F05;F13,Provider sandbox lifecycle and one balanced journal
+FT-039,Bookings,Customer/agent cancellation and refunds,Yes,Yes,Yes,Source; focused booking SQL; event behavioral suite,Partially checked,F01;F04,Booking cancellation policy bands actual refund execution
+FT-040,Bookings,Incidents emergency escalation and dispute,Yes,Yes,Partial,Booking workspace source; permission policies,Reviewed,F01,Report incident suspend settlement resolve with audit
+FT-041,Bookings,Fulfillment milestone confirmation,Yes,Yes,Partial,Repository and backend contracts,Reviewed,,Provider/customer confirmations dispute and completion
+FT-042,Bookings,Replacement asset approval,Yes,Yes,Partial,Repository and backend contract review,Reviewed,,Availability price change customer consent and rejected option
+FT-043,Bookings,Listing deletion preserves request history,Yes,Yes,Yes,Listing deletion and legacy audit SQL passed,Checked with limits,,Production-shaped booking graph and signed storage cleanup
+FT-044,Agent operations,Pending suspended inactive access,?,Yes,Yes,Role routing tests; handler guard review,Partially checked,F01,Existing session after suspension and reinstatement
+FT-045,Agent operations,Dashboard counts and own inventory,?,Yes,Yes,Management browser fixtures and RPC review,Checked with limits,F01,Own agent counts versus admin/supervisor restrictions
+FT-046,Agent operations,Create listing optional private owner,?,Yes,Yes,Media/content tests; five-mode web fixture,Checked with limits,F01,Mobile create in release build and private owner visibility
+FT-047,Agent operations,Image compression cover and upload retry,?,Yes,Images,Validator tests; five-mode browser diagnostic repeat,Checked with limits,,Native permissions resumable failed upload and large images
+FT-048,Agent operations,Video compression duration and size,?,Yes,No upload parity,Manage validator tests and compressor source,Partially checked,F15,Real Android/iOS codec duration corrupt media
+FT-049,Agent operations,Publication free paid and admin approval,?,Yes,Yes,Fee SQL; eight payment tests; five browser modes,Checked with limits,F04;F05,Actual provider publication payment and duplicate callback
+FT-050,Agent operations,Edit availability remove and resubmit listing,?,Yes,Yes,Source; policy review; deletion SQL,Partially checked,F01,Own/unrelated listing write tests and moderation audit
+FT-051,Agent operations,Assigned booking response and follow-up,?,Yes,Yes,Workspace source; broad legacy handler review,Defect,F01;F06,Permission and allowed transition tests with real roles
+FT-052,Agent operations,Lead pipeline stages and notes,?,Yes,Yes,Business repository and table-policy review,Reviewed,,Create edit archive lead only for assigned agent
+FT-053,Agent operations,Subscriptions plan capacity and renewal,?,Yes,Yes,Fee/capacity SQL; business source; live switch disabled,Partially checked,F13,Sandbox renewal expired plan capacity and disabled checkout
+FT-054,Agent operations,Boosts featured campaigns and expiry,?,Yes,Yes,Business source; sponsored-category SQL,Partially checked,F04;F05;F13,Pay activate expire cancel and campaign reach
+FT-055,Agent operations,Receipts wallet and commercial payments,?,Yes,Partial,Source and live finance policies reviewed,Reviewed,F01;F04;F05,Wallet adjustment authorization idempotency and receipts
+FT-056,Owner operations,Application verification and rejection,?,Yes,Yes,Source/RPC review; management owner fixture,Reviewed,F01,Pending owner denied verified owner permitted
+FT-057,Owner operations,Canonical asset claim and authority proof,?,Yes,Yes,Deployed claim RPC review; UI source,Reviewed,F01,Conflicting claim evidence and rejected applicant isolation
+FT-058,Owner operations,Agent recommendations and delegation,?,Yes,Yes,Owner/recommendation sources; scoped SQL tests,Partially checked,F01,Accepted recommendation must not itself grant asset rights
+FT-059,Owner operations,Booking policies and required agreement,?,Yes,Yes,Owner policy source and backend contracts,Reviewed,,Update policy accepted snapshot and booking-mode enforcement
+FT-060,Owner operations,Booking approval and inventory access,?,Yes,Yes,Owner queries and installed RLS reviewed,Reviewed,F01,Only verified claim owner may approve related request
+FT-061,Owner operations,Tenant invitations and acceptance,Yes,Yes,Yes,Tenancy repository and owner sources,Reviewed,F08,Expired duplicate invitation and wrong signed-in user
+FT-062,Owner operations,Rental agreements statements move-out,Yes,Yes,Yes,Tenancy/owner sources and RPC contracts,Reviewed,F08;F18,Create accept read statement notice and settlement tests
+FT-063,Events,Public equipment/service catalogs and filters,Yes,Provider,Yes,Event SQL and 320/390/1440 browser fixture,Checked with limits,,Native category search pagination availability selection
+FT-064,Events,Standalone equipment/service booking,Yes,Yes,Yes,Individual event SQL behavior; public source,Checked with limits,,End-to-end dedicated customer/provider booking
+FT-065,Events,Planner draft quantities budget and location,Yes,Yes,Yes,Event browser fixture; atomic draft SQL,Checked with limits,F08,Device draft persistence account switch and restored quote
+FT-066,Events,Availability stock and competing reservations,Yes,Yes,Yes,Event SQL concurrency checks passed,Checked with limits,,Provider capacity real calendar and daylight/timezone boundaries
+FT-067,Events,Provider catalog add edit and admin approval,?,Yes,No operations UI,Event approval SQL tests and provider source,Parity gap,F16,Dedicated provider create edit reject approve and unavailable
+FT-068,Events,Quote revisions expiry and acceptance,Yes,Yes,Yes customer,Event behavioral SQL tests passed,Checked with limits,F16,Physical-device/customer coordinator acceptance journey
+FT-069,Events,Versioned agreements and repricing,Yes,Yes,Yes customer,Event terms/repricing SQL tests passed,Checked with limits,F16,Agreement display accepted revision and payment after change
+FT-070,Events,Deposit balance and offline arrangement,Yes,Yes,Yes customer,Event SQL scenarios; webhook probes; live flags,Defect,F04;F05;F13,Provider sandbox both payments and explicit offline receipt
+FT-071,Events,Substitution rejection consent and credit,Yes,Yes,Yes customer,Event recovery/concurrency SQL passed,Checked with limits,F16,Coordinator replacement provider confirms customer revised terms
+FT-072,Events,Cancellation settlement refund review,Yes,Yes,Yes customer,Event SQL double-refund and credit checks passed,Checked with limits,F04;F05,Provider payout/refund evidence; no fabricated transfer claims
+FT-073,Events,Emergency escalation provider completion,Customer status,Yes,Limited,Event coordinator/provider source,Reviewed,F16,Emergency reassignment no-response and completion role tests
+FT-074,Administration,Permission-based navigation and assignment,?,Yes,Yes,Access tests; six-width browser; local policy probe,Backend defect,F01,Direct API role matrix not only hidden navigation
+FT-075,Administration,Agent create verify activate deactivate,?,Yes,Yes,Four handler tests; management fixtures; scoped SQL,Checked with limits,F01;F13,Valid session operation and immediate public eligibility change
+FT-076,Administration,Supervisor territories exclusive team and own agent,?,Yes,Yes,Supervisor SQL handler widgets and browser fixtures,Checked with limits,,Inactive territory no cross-team access and multi-role session
+FT-077,Administration,Customer directory search and paging,?,Yes,Yes,Directory SQL and six-width browser fixtures,Checked with limits,F01,Direct API denies staff without users.view
+FT-078,Administration,Category schema active state and ordering,?,Yes,Yes,Source and browser; live contracts,Reviewed,F01,Create edit deactivate and dependent listing behavior
+FT-079,Administration,Location add rename uniqueness and hierarchy,?,Yes,Yes,Location SQL widgets/browser; hierarchy regression,Checked with limits,F01,Concurrent normalized duplicates and referenced-node deletion
+FT-080,Administration,Moderation reports listing approval and removal,?,Yes,Yes,Listing deletion SQL; handler and policy review,Partially checked,F01,Granular moderation role and immutable audit trail
+FT-081,Administration,Advertising media scope sponsored categories,Display,Yes,Yes,Sponsored-layout tests; category SQL; ads source,Partially checked,F01,Campaign publication signed media expiry click-event deduplication
+FT-082,Administration,Information review follow-ups conversion,Submit,Yes,Yes,Source and RPC contract review,Reviewed,F01,Staff permission and full submission-to-published-listing journey
+FT-083,Administration,Referral reward approval payout recording,Status,Yes,Yes finance,Reward functions and finance UI source,Reviewed,F01,Independent review repeated reference and payout evidence
+FT-084,Administration,Analytics risk flags and refunds queues,?,Yes,Yes,Source permission checks; RLS inspection,Reviewed,F01,Analyst cannot mutate finance or read unrelated PII
+FT-085,Administration,Ledger reconciliation provider settlement,?,Yes,Partial,Financial source/contract; event accounting SQL,Partially checked,F04;F05,Full pgTAP and sandbox journal/refund/settlement lifecycle
+FT-086,Administration,Feature flags global fees and settings,?,Yes,Yes,Read-only live flag snapshot; broad-policy finding,Defect,F01,Only approved role may change monetary/rollout settings
+FT-087,Cross-cutting,English Swahili theme and text scaling,Yes,Yes,Yes,Mobile widgets; translation tests; browser language,Checked with limits,F18,All new error/payment copy device font scaling screen reader
+FT-088,Cross-cutting,Loading retry timeout and offline cache,Yes,Yes,Yes,Filter/navigation/storage fixtures; mobile probes,Defect,F08;F09;F10;F11,Offline start reconnect stale cache and cancelled request
+FT-089,Cross-cutting,Push registration delivery preferences and worker,Yes,Yes,No OS push,Deployed worker match; source; HTTP fixture,Defect,F03;F06;F07,Real device background/terminated delivery logout and opt-out
+FT-090,Cross-cutting,Notification navigation and unread state,Yes,Yes,Yes in-app,Tap source; broadcast initialization review,Defect,F12,Cold/warm app all payload types and unauthorized target
+FT-091,Cross-cutting,Public/private storage media validation,Yes,Yes,Yes,Private bucket metadata; media tests; policy review,Partially checked,F01,Cross-user storage paths signed URLs deletion and malicious files
+FT-092,Cross-cutting,SEO canonical sitemap robots and metadata,?,?,Yes,SEO unit/SQL; production build; live HTTP,Checked with limits,,Full crawler including actual detail URLs and pagination
+FT-093,Cross-cutting,Responsive accessibility keyboard and motion,Yes,Yes,Yes,Selected narrow/font widget fixtures; browser overflow/motion,Partially checked,,Screen reader keyboard focus complete contrast audit
+FT-094,Cross-cutting,Function deployment and RPC compatibility,Yes,Yes,Yes,Live metadata; 214 literal RPC call sites,Deployment drift,F13,Valid JWT and every dynamic call/response/schema join
+FT-095,Cross-cutting,Release signing store distribution and native links,Yes,Yes,Download,Gradle/manifest/source; live association 404,Defect,F14;F15,Signed release install both OS store approvals
+FT-096,Cross-cutting,Health monitoring logs backup and scaling,Backend,Backend,Yes,Live health 200; operations source,Partially checked,,Restore drill external alerting stress/load and provider outage

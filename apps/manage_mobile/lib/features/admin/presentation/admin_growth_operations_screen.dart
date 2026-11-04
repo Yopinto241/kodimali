@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -106,7 +107,9 @@ class _AdminGrowthOperationsScreenState
   }
 
   Future<void> refresh() async {
-    setState(() => future = load());
+    setState(() {
+      future = load();
+    });
     await future;
   }
 
@@ -135,7 +138,7 @@ class _AdminGrowthOperationsScreenState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     }
   }
@@ -242,7 +245,7 @@ class _AdminGrowthOperationsScreenState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     }
   }
@@ -452,7 +455,9 @@ class _AdminGrowthOperationsScreenState
               ),
               const SizedBox(height: 12),
               FilledButton(
-                onPressed: () => setState(() => future = load()),
+                onPressed: () => setState(() {
+                  future = load();
+                }),
                 child: const LocalizedUiText('Retry'),
               ),
             ],
@@ -964,7 +969,9 @@ class _AdminGrowthOperationsScreenState
                 ),
               ),
               FilledButton(
-                onPressed: () => setState(() => future = load()),
+                onPressed: () => setState(() {
+                  future = load();
+                }),
                 child: const LocalizedUiText('Apply'),
               ),
               TextButton(

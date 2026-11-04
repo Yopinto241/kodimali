@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_design_system/flutter_design_system.dart';
@@ -104,7 +105,7 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
           return KodimaliLoading(label: mobileUi(context, 'Loading...'));
         }
         if (snapshot.hasError) {
-          return Center(child: Text(snapshot.error.toString()));
+          return Center(child: Text(userMessage(context, snapshot.error)));
         }
         final List<Map<String, dynamic>> listings =
             snapshot.data ?? <Map<String, dynamic>>[];
@@ -196,8 +197,9 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                         child: LocalizedUiText("Highest price"),
                       ),
                     ],
-                    onChanged: (String? value) =>
-                        setState(() => _sort = value ?? "newest"),
+                    onChanged: (String? value) => setState(() {
+                      _sort = value ?? "newest";
+                    }),
                   ),
                   const SizedBox(height: 12),
                   LayoutBuilder(
@@ -228,7 +230,9 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                                   ),
                                 ],
                                 onChanged: (String? value) {
-                                  setState(() => _selectedCategoryId = value);
+                                  setState(() {
+                                    _selectedCategoryId = value;
+                                  });
                                 },
                               );
                           final Widget statusField =
@@ -258,7 +262,9 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                                   ),
                                 ],
                                 onChanged: (String? value) {
-                                  setState(() => _selectedStatus = value);
+                                  setState(() {
+                                    _selectedStatus = value;
+                                  });
                                 },
                               );
 

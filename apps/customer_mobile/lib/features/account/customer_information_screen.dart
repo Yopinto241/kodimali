@@ -1,6 +1,6 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/data/customer_account_repository.dart';
 
 Map<String, dynamic> _relation(dynamic value) {
@@ -11,11 +11,7 @@ Map<String, dynamic> _relation(dynamic value) {
 List<Map<String, dynamic>> _rows(dynamic value) => value is List
     ? value.whereType<Map>().map((row) => row.cast<String, dynamic>()).toList()
     : [];
-String _error(Object error) => error is StateError
-    ? error.message.toString()
-    : error is PostgrestException
-    ? error.message
-    : 'Haikuweza kukamilika. Angalia mtandao na ujaribu tena.';
+String _error(Object error) => safeUserMessage(error);
 
 class CustomerInformationScreen extends StatefulWidget {
   const CustomerInformationScreen({super.key, required this.repository});
@@ -38,7 +34,9 @@ class _CustomerInformationScreenState extends State<CustomerInformationScreen> {
   Future<List<CustomerJson>> _load() =>
       widget.repository.fetchMyRentalInformation(offset: _page * 20);
   Future<void> _reload() async {
-    setState(() => _future = _load());
+    setState(() {
+      _future = _load();
+    });
     await _future;
   }
 
@@ -75,7 +73,9 @@ class _CustomerInformationScreenState extends State<CustomerInformationScreen> {
       ),
     );
     if (yes != true || !mounted) return;
-    setState(() => _accepting.add(id));
+    setState(() {
+      _accepting.add(id);
+    });
     try {
       await widget.repository.acceptInformationReferralTerms(
         id,
@@ -89,7 +89,11 @@ class _CustomerInformationScreenState extends State<CustomerInformationScreen> {
         ).showSnackBar(SnackBar(content: LocalizedUiText(_error(error))));
       }
     } finally {
-      if (mounted) setState(() => _accepting.remove(id));
+      if (mounted) {
+        setState(() {
+          _accepting.remove(id);
+        });
+      }
     }
   }
 
@@ -289,10 +293,9 @@ class _InformationFormState extends State<_InformationForm> {
     if ((_ownerName.text.trim().isNotEmpty ||
             _ownerPhone.text.trim().isNotEmpty) &&
         !_authorized) {
-      setState(
-        () =>
-            _message = 'Thibitisha ruhusa ya kushiriki mawasiliano ya mmiliki.',
-      );
+      setState(() {
+        _message = 'Thibitisha ruhusa ya kushiriki mawasiliano ya mmiliki.';
+      });
       return;
     }
     setState(() {
@@ -320,9 +323,17 @@ class _InformationFormState extends State<_InformationForm> {
       );
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
-      if (mounted) setState(() => _message = _error(error));
+      if (mounted) {
+        setState(() {
+          _message = _error(error);
+        });
+      }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+        });
+      }
     }
   }
 
@@ -366,7 +377,9 @@ class _InformationFormState extends State<_InformationForm> {
                           .toList(),
                   onChanged: _busy
                       ? null
-                      : (value) => setState(() => _category = value!),
+                      : (value) => setState(() {
+                          _category = value!;
+                        }),
                 ),
                 DropdownButtonFormField<String>(
                   initialValue: _source,
@@ -390,7 +403,9 @@ class _InformationFormState extends State<_InformationForm> {
                           .toList(),
                   onChanged: _busy
                       ? null
-                      : (value) => setState(() => _source = value!),
+                      : (value) => setState(() {
+                          _source = value!;
+                        }),
                 ),
                 TextFormField(
                   controller: _location,
@@ -460,7 +475,9 @@ class _InformationFormState extends State<_InformationForm> {
                           .toList(),
                   onChanged: _busy
                       ? null
-                      : (value) => setState(() => _period = value!),
+                      : (value) => setState(() {
+                          _period = value!;
+                        }),
                 ),
                 TextButton.icon(
                   icon: const Icon(Icons.calendar_month),
@@ -485,7 +502,9 @@ class _InformationFormState extends State<_InformationForm> {
                             ),
                           );
                           if (selected != null && mounted) {
-                            setState(() => _available = selected);
+                            setState(() {
+                              _available = selected;
+                            });
                           }
                         },
                 ),
@@ -507,7 +526,9 @@ class _InformationFormState extends State<_InformationForm> {
                   value: _authorized,
                   onChanged: _busy
                       ? null
-                      : (value) => setState(() => _authorized = value ?? false),
+                      : (value) => setState(() {
+                          _authorized = value ?? false;
+                        }),
                   title: const LocalizedUiText(
                     'Nina ruhusa ya kushiriki mawasiliano haya kwa uhakiki.',
                   ),

@@ -1,4 +1,4 @@
-export const manageSections = ['dashboard', 'information', 'business', 'admin-access', 'users', 'listings', 'add-listing', 'requests', 'categories', 'agents', 'owners', 'locations', 'reports', 'promotions', 'notifications', 'profile'] as const;
+export const manageSections = ['events-provider', 'events-coordinator', 'dashboard', 'information', 'business', 'admin-access', 'users', 'listings', 'add-listing', 'requests', 'categories', 'agents', 'owners', 'locations', 'reports', 'promotions', 'notifications', 'profile'] as const;
 export type ManageSection = typeof manageSections[number];
 
 export function manageHref(section: ManageSection, role?: 'admin' | 'agent') {

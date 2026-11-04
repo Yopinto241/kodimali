@@ -542,7 +542,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
       if (!mounted) {
         return;
       }
-      setState(() => _mediaFile = file);
+      setState(() {
+        _mediaFile = file;
+      });
     } catch (error) {
       _showMediaError(error);
     }
@@ -559,7 +561,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
       }
       final PlatformFile? platformFile = await _platformFileFromXFile(file);
       if (platformFile != null && mounted) {
-        setState(() => _mediaFile = platformFile);
+        setState(() {
+          _mediaFile = platformFile;
+        });
       }
     } catch (error) {
       _showMediaError(error);
@@ -587,7 +591,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
             file,
             onProgress: (double progress) {
               if (mounted) {
-                setState(() => _videoCompressionProgress = progress);
+                setState(() {
+                  _videoCompressionProgress = progress;
+                });
               }
             },
           );
@@ -595,7 +601,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
         result.video,
       );
       if (platformFile != null && mounted) {
-        setState(() => _mediaFile = platformFile);
+        setState(() {
+          _mediaFile = platformFile;
+        });
         final double originalMb = result.originalBytes / (1024 * 1024);
         final double compressedMb = result.compressedBytes / (1024 * 1024);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -706,7 +714,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
     }
 
     final bool creating = _editingPromotionId == null;
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+    });
     try {
       await AppScope.of(context).repository.savePromotion(
         promotionId: _editingPromotionId,
@@ -762,7 +772,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
       }
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        setState(() {
+          _saving = false;
+        });
       }
     }
   }
@@ -793,7 +805,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
     if (confirmed != true || !mounted) {
       return;
     }
-    setState(() => _deletingPromotionIds.add(promotionId));
+    setState(() {
+      _deletingPromotionIds.add(promotionId);
+    });
     try {
       await AppScope.of(context).repository.deletePromotion(promotionId);
       if (!mounted) {
@@ -823,7 +837,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
       }
     } finally {
       if (mounted) {
-        setState(() => _deletingPromotionIds.remove(promotionId));
+        setState(() {
+          _deletingPromotionIds.remove(promotionId);
+        });
       }
     }
   }
@@ -1066,7 +1082,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
                 ],
                 onChanged: (String? value) {
                   if (value != null) {
-                    setState(() => _placement = value);
+                    setState(() {
+                      _placement = value;
+                    });
                   }
                 },
               ),
@@ -1106,7 +1124,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
                 ],
                 onChanged: (String? value) {
                   if (value != null) {
-                    setState(() => _visibilityScope = value);
+                    setState(() {
+                      _visibilityScope = value;
+                    });
                   }
                 },
               ),
@@ -1361,7 +1381,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
                 value: _isActive,
                 title: const LocalizedUiText("Promotion is active"),
                 onChanged: (bool value) {
-                  setState(() => _isActive = value);
+                  setState(() {
+                    _isActive = value;
+                  });
                 },
               ),
               const SizedBox(height: 8),
@@ -1435,7 +1457,9 @@ class _PromotionsTabState extends State<PromotionsTab> {
                   child: TextButton.icon(
                     onPressed: _saving || _compressingVideo
                         ? null
-                        : () => setState(() => _mediaFile = null),
+                        : () => setState(() {
+                            _mediaFile = null;
+                          }),
                     icon: const Icon(Icons.close_rounded),
                     label: const LocalizedUiText("Clear selected media"),
                   ),

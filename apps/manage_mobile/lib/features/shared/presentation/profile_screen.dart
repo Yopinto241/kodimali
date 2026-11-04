@@ -187,7 +187,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (!mounted) {
             return;
           }
-          setState(() => _photoProgress = progress);
+          setState(() {
+            _photoProgress = progress;
+          });
         },
       );
       await dependencies.controller.refreshProfile();

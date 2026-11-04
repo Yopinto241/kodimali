@@ -187,8 +187,12 @@ class _ManageMetricCardState extends State<ManageMetricCard> {
     final Color tint = widget.tint ?? theme.colorScheme.primary;
 
     return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
+      onEnter: (_) => setState(() {
+        _hovered = true;
+      }),
+      onExit: (_) => setState(() {
+        _hovered = false;
+      }),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         transform: Matrix4.translationValues(0, _hovered ? -4 : 0, 0),

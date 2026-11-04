@@ -1,0 +1,94 @@
+{
+  "date": "2026-11-04",
+  "base_commit": "2385eee",
+  "production_deployed": false,
+  "scope": "Local fixtures and source checks; external acceptance is documented separately.",
+  "checks": [
+    {
+      "check": "customer-analysis.log",
+      "result": "passed",
+      "evidence": "No issues found! (ran in 28.2s)"
+    },
+    {
+      "check": "manage-analysis.log",
+      "result": "passed",
+      "evidence": "No issues found! (ran in 85.6s)"
+    },
+    {
+      "check": "customer-tests.log",
+      "result": "passed",
+      "evidence": "00:13 +26: All tests passed!"
+    },
+    {
+      "check": "manage-tests.log",
+      "result": "passed",
+      "evidence": "00:13 +48: All tests passed!"
+    },
+    {
+      "check": "shared-tests.log",
+      "result": "passed",
+      "evidence": "00:01 +8: All tests passed!"
+    },
+    {
+      "check": "edge-tests.log",
+      "result": "passed",
+      "evidence": "ok | 18 passed | 0 failed (1s)"
+    },
+    {
+      "check": "web-all-unit.log",
+      "result": "passed",
+      "evidence": "\u2139 fail 0"
+    },
+    {
+      "check": "web-browser.log",
+      "result": "passed",
+      "evidence": "PASS: itemized quote uses canonical RPC; coordinator cannot read finance without finance permission"
+    },
+    {
+      "check": "web-build.log",
+      "result": "passed",
+      "evidence": "\u2713 Compiled successfully in 11.1s"
+    },
+    {
+      "check": "migrations.log",
+      "result": "passed",
+      "evidence": "All repair migrations applied transactionally to repair_fixture_20261104_a62014e1"
+    },
+    {
+      "check": "http-tests.log",
+      "result": "passed",
+      "evidence": "PASS: four concurrent verified callbacks produce one durable grant"
+    },
+    {
+      "check": "final-sql.log",
+      "result": "passed",
+      "evidence": "psql:scripts/test-production-repairs.sql:123: NOTICE:  PASS: free mode cannot revive revoked access"
+    },
+    {
+      "check": "events-sql.log",
+      "result": "passed",
+      "evidence": "Events behavioral SQL checks passed."
+    },
+    {
+      "check": "existing-sql.log",
+      "result": "passed",
+      "evidence": "PASS test-ward-wide-catalog.sql"
+    }
+  ],
+  "source_sha256": {
+    "supabase/migrations/20261104080000_permission_boundaries.sql": "26a3a92509ec0eb2d830edb13485213eaccb414b7ed887541020dc542a90224d",
+    "supabase/migrations/20261104081000_payment_integrity_and_chat_grants.sql": "494ceac2de34e0a3f7dd3e90ad4de9957831b28254aa875cf484c4dcdf058b41",
+    "supabase/migrations/20261104082000_private_worker_and_device_lifecycle.sql": "ce21fa3d627489971d6624bf415272b5530daa4e727f6a6770eacc40a16c2ba6",
+    "supabase/migrations/20261104083000_payment_control_enforcement.sql": "d9416eaec6e26d418f537fa50dd8df008da4936a80d38cbed868d84f6c82993b",
+    "supabase/migrations/20261104084000_event_provider_area_ownership.sql": "ce7d7ce42741a9e2afcff6e10a8a4dcd122b481841263d065af514c72296b447",
+    "supabase/migrations/20261104085000_owner_booking_read_boundary.sql": "905cdeb715d8ef660f9fb719b6e7d9420087419626b0ee9431ff7f26a9dfe560",
+    "supabase/migrations/20261104090000_booking_rpc_active_agent.sql": "2163ebe70bcea1c871b033e3a70930eba14f06b6aa18de1551e9186999e16804",
+    "supabase/migrations/20261104091000_event_operations_task_and_dispute_boundaries.sql": "33e34cdd32db95ab0fc716fd18c0078141145f9654a5aa2a76c2a7de3bd1b868",
+    "supabase/migrations/20261104092000_free_chat_preserves_paid_and_revoked_access.sql": "4fe35ba3f479583ddad640193204ae7e252e99365fa56c93b904e499c08339fb",
+    "scripts/test-production-repairs-device.sql": "01ce8d8f245dd32d93a72bed83847987df4257c003f5ca40fd74bf50b0c3547a",
+    "scripts/test-production-repairs-edge.test.ts": "3be888cae9ac234b471565258e7a9948091ea002509aa63c1c34a9c93322e606",
+    "scripts/test-production-repairs-http.py": "dd77b0e0d34b90335f8f2e99dc0708b4a16fefa025abd97503796e624327bd01",
+    "scripts/test-production-repairs-web.py": "ca94881c4fa5021b7658cdc5979000e3903495b65a82c972112ad226f9c174ee",
+    "scripts/test-production-repairs.sql": "28a4a3ed8ee420e85ab2dd72e3f044cb62d3483d9758575fc5fe8ac1da67a7da"
+  }
+}

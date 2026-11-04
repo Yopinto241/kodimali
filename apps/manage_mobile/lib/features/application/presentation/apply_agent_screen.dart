@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -64,7 +65,9 @@ class _ApplyAgentScreenState extends State<ApplyAgentScreen> {
     }
     final appScope = AppScope.of(context);
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+    });
     try {
       await appScope.repository.submitAgentApplication(
         businessName: _businessNameController.text.trim(),
@@ -89,10 +92,14 @@ class _ApplyAgentScreenState extends State<ApplyAgentScreen> {
       if (!mounted) {
         return;
       }
-      messenger.showSnackBar(SnackBar(content: Text(error.toString())));
+      messenger.showSnackBar(
+        SnackBar(content: Text(userMessage(context, error))),
+      );
     } finally {
       if (mounted) {
-        setState(() => _submitting = false);
+        setState(() {
+          _submitting = false;
+        });
       }
     }
   }

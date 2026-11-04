@@ -1,0 +1,49 @@
+name: Signed mobile release artifacts
+on:
+  workflow_dispatch:
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: mobile-release
+    strategy:
+      matrix:
+        include:
+          - app: customer_mobile
+            secret_prefix: CUSTOMER
+          - app: manage_mobile
+            secret_prefix: MANAGE
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.4
+      - name: Build signed AAB and record public certificate
+        working-directory: apps/${{ matrix.app }}
+        env:
+          KEYSTORE_B64: ${{ secrets[format('{0}_KEYSTORE_B64', matrix.secret_prefix)] }}
+          KODIMALI_KEY_ALIAS: ${{ secrets[format('{0}_KEY_ALIAS', matrix.secret_prefix)] }}
+          KODIMALI_STORE_PASSWORD: ${{ secrets[format('{0}_STORE_PASSWORD', matrix.secret_prefix)] }}
+          KODIMALI_KEY_PASSWORD: ${{ secrets[format('{0}_KEY_PASSWORD', matrix.secret_prefix)] }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64" && test -n "$KODIMALI_KEY_ALIAS" && test -n "$KODIMALI_STORE_PASSWORD" && test -n "$KODIMALI_KEY_PASSWORD"
+          export KODIMALI_KEYSTORE_PATH="$RUNNER_TEMP/${{ matrix.app }}.jks"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KODIMALI_KEYSTORE_PATH"
+          chmod 600 "$KODIMALI_KEYSTORE_PATH"
+          trap 'rm -f "$KODIMALI_KEYSTORE_PATH"' EXIT
+          flutter pub get
+          flutter analyze
+          flutter test
+          flutter build appbundle --release --build-number "$GITHUB_RUN_NUMBER"
+          keytool -list -v -alias "$KODIMALI_KEY_ALIAS" -keystore "$KODIMALI_KEYSTORE_PATH" -storepass:env KODIMALI_STORE_PASSWORD > release-certificate.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.app }}-signed-release
+          path: |
+            apps/${{ matrix.app }}/build/app/outputs/bundle/release/*.aab
+            apps/${{ matrix.app }}/release-certificate.txt
+          if-no-files-found: error

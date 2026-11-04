@@ -30,6 +30,7 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
       - run: npm run lint
+      - run: node --experimental-strip-types --test src/lib/*.test.mjs
       - run: npm run build
 
   flutter:
@@ -48,3 +49,27 @@ jobs:
         working-directory: ${{ matrix.app }}
       - run: flutter analyze
         working-directory: ${{ matrix.app }}
+      - run: flutter test
+        working-directory: ${{ matrix.app }}
+
+  shared-flutter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.4
+      - run: flutter pub get
+        working-directory: packages/flutter_core
+      - run: flutter test
+        working-directory: packages/flutter_core
+
+  edge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check supabase/functions/*/index.ts
+      - run: deno test --allow-env --allow-read --allow-net supabase/functions/agent-supervisor.test.ts scripts/test-production-repairs-edge.test.ts scripts/test-dynamic-listing-payment.ts

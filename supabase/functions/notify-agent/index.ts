@@ -1,3 +1,4 @@
+import { trustedWorker } from "../_shared/worker-auth.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const json = (body: unknown, status = 200) =>
@@ -11,6 +12,7 @@ Deno.serve(async (request) => {
     return json({ error: "Method not allowed" }, 405);
   }
 
+  if (!trustedWorker(request)) return json({ error: "Worker authorization required" }, 401);
   const serviceClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -31,6 +33,10 @@ Deno.serve(async (request) => {
     return json({ error: "Agent not found" }, 404);
   }
 
+  if (bookingRequestId) {
+    const { data: booking } = await serviceClient.from("booking_requests").select("agent_id").eq("id", bookingRequestId).single();
+    if (!booking || booking.agent_id !== agentId) return json({ error: "Booking assignment mismatch" }, 403);
+  }
   const { data: tokens } = await serviceClient
     .from("device_tokens")
     .select("device_token, platform")

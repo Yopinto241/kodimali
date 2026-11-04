@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 import 'dart:math';
@@ -17,11 +18,7 @@ import '../../core/localization/customer_localization.dart';
 
 typedef OpenCustomerListing = void Function(String listingId);
 
-String _accountError(Object error) => error
-    .toString()
-    .replaceFirst('Bad state: ', '')
-    .replaceFirst('Exception: ', '')
-    .trim();
+String _accountError(Object error) => safeUserMessage(error);
 
 Map<String, dynamic> _relatedMap(dynamic value) {
   if (value is Map) {
@@ -84,6 +81,7 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
   StreamSubscription<AuthState>? _authSubscription;
   Future<Map<String, dynamic>>? _profileFuture;
   bool _syncingSaved = false;
+  final Set<String> _guestMergeAsked = {};
 
   bool get _signedIn => widget.accountRepository.isSignedIn;
 
@@ -124,13 +122,70 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
     _syncingSaved = true;
     try {
       final CustomerActivityStore activity = CustomerActivityStore.instance;
-      final Set<String> localIds = activity.savedListingIds;
-      final Set<String> remoteIds = await widget.accountRepository
-          .fetchRemoteSavedListingIds();
-      for (final String listingId in localIds.difference(remoteIds)) {
-        await widget.accountRepository.saveListing(listingId);
+      final user = widget.accountRepository.currentUser?.id;
+      if (user == null) return;
+      await activity.switchAccount(user);
+      if (activity.hasGuestActivity &&
+          !_guestMergeAsked.contains(user) &&
+          mounted) {
+        _guestMergeAsked.add(user);
+        final merge = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const LocalizedUiText('Import guest favourites?'),
+            content: const LocalizedUiText(
+              'Only guest favourites from this device will be added. Other accounts stay separate.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const LocalizedUiText('Not now'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const LocalizedUiText('Import'),
+              ),
+            ],
+          ),
+        );
+        if (merge == true && activity.userId == user) {
+          await activity.mergeGuestActivity();
+        }
       }
-      await activity.setSavedFromRemote(<String>{...localIds, ...remoteIds});
+      for (final change in activity.pendingChanges.entries) {
+        if (activity.userId != user ||
+            widget.accountRepository.currentUser?.id != user) {
+          return;
+        }
+        if (change.value) {
+          await widget.accountRepository.saveListing(change.key);
+        } else {
+          await widget.accountRepository.removeSavedListing(change.key);
+        }
+        await activity.acknowledgeSaved(
+          change.key,
+          change.value,
+          forUser: user,
+        );
+      }
+      final remoteIds = await widget.accountRepository
+          .fetchRemoteSavedListingIds();
+      if (activity.userId == user &&
+          widget.accountRepository.currentUser?.id == user) {
+        await activity.setSavedFromRemote(
+          {
+            ...remoteIds,
+            ...activity.pendingChanges.entries
+                .where((e) => e.value)
+                .map((e) => e.key),
+          }.difference(
+            activity.pendingChanges.entries
+                .where((e) => !e.value)
+                .map((e) => e.key)
+                .toSet(),
+          ),
+        );
+      }
     } catch (_) {
       // Local favourites remain available when sync is temporarily unavailable.
     } finally {
@@ -225,7 +280,7 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     }
   }
@@ -273,7 +328,7 @@ class _CustomerAccountScreenState extends State<CustomerAccountScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     }
   }
@@ -485,7 +540,9 @@ class _CustomerGrowthToolsScreenState extends State<CustomerGrowthToolsScreen> {
         widget.repository.fetchComparisonListings(),
       ]);
   Future<void> _refresh() async {
-    setState(() => _future = _load());
+    setState(() {
+      _future = _load();
+    });
     await _future;
   }
 
@@ -957,16 +1014,20 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+    });
     try {
       if (_createAccount) {
-        final AuthResponse response = await widget.repository.signUp(
-          fullName: _nameController.text,
-          email: _emailController.text,
-          password: _passwordController.text,
-          phoneNumber: _phoneController.text,
-          preferredLanguage: context.languageCode,
-        );
+        final AuthResponse response = await widget.repository
+            .signUp(
+              fullName: _nameController.text,
+              email: _emailController.text,
+              password: _passwordController.text,
+              phoneNumber: _phoneController.text,
+              preferredLanguage: context.languageCode,
+            )
+            .timeout(const Duration(seconds: 20));
         if (!mounted) {
           return;
         }
@@ -974,14 +1035,18 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(context.tr('account.confirmEmail'))),
           );
-          setState(() => _createAccount = false);
+          setState(() {
+            _createAccount = false;
+          });
           return;
         }
       } else {
-        await widget.repository.signIn(
-          email: _emailController.text,
-          password: _passwordController.text,
-        );
+        await widget.repository
+            .signIn(
+              email: _emailController.text,
+              password: _passwordController.text,
+            )
+            .timeout(const Duration(seconds: 20));
       }
       if (mounted) {
         TextInput.finishAutofillContext(shouldSave: true);
@@ -991,11 +1056,13 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
       if (mounted) {
-        setState(() => _submitting = false);
+        setState(() {
+          _submitting = false;
+        });
       }
     }
   }
@@ -1008,9 +1075,13 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
       ).showSnackBar(SnackBar(content: Text(context.tr('request.emailError'))));
       return;
     }
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+    });
     try {
-      await widget.repository.sendPasswordReset(email);
+      await widget.repository
+          .sendPasswordReset(email)
+          .timeout(const Duration(seconds: 20));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(context.tr('password.resetSent'))),
@@ -1020,10 +1091,14 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
-      if (mounted) setState(() => _submitting = false);
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+        });
+      }
     }
   }
 
@@ -1140,9 +1215,9 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                         labelText: context.tr('account.password'),
                         prefixIcon: const Icon(Icons.password_rounded),
                         suffixIcon: IconButton(
-                          onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword,
-                          ),
+                          onPressed: () => setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          }),
                           icon: Icon(
                             _obscurePassword
                                 ? Icons.visibility_outlined
@@ -1183,9 +1258,9 @@ class _CustomerAuthScreenState extends State<CustomerAuthScreen> {
                     TextButton(
                       onPressed: _submitting
                           ? null
-                          : () => setState(
-                              () => _createAccount = !_createAccount,
-                            ),
+                          : () => setState(() {
+                              _createAccount = !_createAccount;
+                            }),
                       child: Text(
                         context.tr(
                           _createAccount
@@ -1232,12 +1307,16 @@ class _CustomerSettingsScreenState extends State<CustomerSettingsScreen> {
     if (!mounted) return;
     _name.text = profile['full_name']?.toString() ?? '';
     _phone.text = profile['phone_number']?.toString() ?? '';
-    setState(() => _loading = false);
+    setState(() {
+      _loading = false;
+    });
   }
 
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+    });
     try {
       await widget.repository.updateProfile(
         fullName: _name.text,
@@ -1253,10 +1332,14 @@ class _CustomerSettingsScreenState extends State<CustomerSettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() {
+          _saving = false;
+        });
+      }
     }
   }
 
@@ -1267,7 +1350,9 @@ class _CustomerSettingsScreenState extends State<CustomerSettingsScreen> {
       );
       return;
     }
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+    });
     try {
       await widget.repository.changePassword(_password.text);
       _password.clear();
@@ -1280,10 +1365,14 @@ class _CustomerSettingsScreenState extends State<CustomerSettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() {
+          _saving = false;
+        });
+      }
     }
   }
 
@@ -1411,7 +1500,9 @@ class _CustomerPasswordResetScreenState
 
   Future<void> _save() async {
     if (_password.text.length < 8) return;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+    });
     try {
       await widget.repository.changePassword(_password.text);
       if (mounted) {
@@ -1424,10 +1515,14 @@ class _CustomerPasswordResetScreenState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+        });
+      }
     }
   }
 
@@ -1497,7 +1592,9 @@ class _CustomerRequestsScreenState extends State<CustomerRequestsScreen> {
     }
     final Future<List<Map<String, dynamic>>> future = widget.accountRepository
         .fetchMyBookingRequests();
-    setState(() => _requestsFuture = future);
+    setState(() {
+      _requestsFuture = future;
+    });
     try {
       await future;
     } catch (_) {
@@ -1687,7 +1784,9 @@ class _CustomerRequestDetailScreenState
 
   Future<void> _reload() async {
     final Future<_CustomerRequestDetailData> future = _loadData();
-    setState(() => _future = future);
+    setState(() {
+      _future = future;
+    });
     try {
       await future;
     } catch (_) {
@@ -1781,7 +1880,7 @@ class _CustomerRequestDetailScreenState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     }
   }
@@ -1805,7 +1904,7 @@ class _CustomerRequestDetailScreenState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     }
   }
@@ -1818,7 +1917,7 @@ class _CustomerRequestDetailScreenState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     }
   }
@@ -1834,7 +1933,7 @@ class _CustomerRequestDetailScreenState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     }
   }
@@ -1966,7 +2065,7 @@ class _CustomerRequestDetailScreenState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     }
   }
@@ -2013,7 +2112,7 @@ class _CustomerRequestDetailScreenState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     }
   }
@@ -2486,7 +2585,9 @@ class _CustomerAgentChatScreenState extends State<CustomerAgentChatScreen> {
     if (_sending) {
       return;
     }
-    setState(() => _sending = true);
+    setState(() {
+      _sending = true;
+    });
     try {
       await widget.repository.sendBookingResponse(
         conversationId: conversationId,
@@ -2497,11 +2598,13 @@ class _CustomerAgentChatScreenState extends State<CustomerAgentChatScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
       if (mounted) {
-        setState(() => _sending = false);
+        setState(() {
+          _sending = false;
+        });
       }
     }
   }
@@ -2549,10 +2652,10 @@ class _CustomerAgentChatScreenState extends State<CustomerAgentChatScreen> {
                   message: _accountError(
                     conversation.error ?? 'Chat unavailable',
                   ),
-                  onRetry: () => setState(
-                    () => _conversationFuture = widget.repository
-                        .getOrCreateConversation(widget.bookingRequestId),
-                  ),
+                  onRetry: () => setState(() {
+                    _conversationFuture = widget.repository
+                        .getOrCreateConversation(widget.bookingRequestId);
+                  }),
                 );
               }
               final String conversationId = conversation.data!['id'].toString();
@@ -2737,7 +2840,9 @@ class _CustomerViewingAppointmentScreenState
       lastDate: now.add(const Duration(days: 180)),
     );
     if (date != null && mounted) {
-      setState(() => _selectedDate = date);
+      setState(() {
+        _selectedDate = date;
+      });
     }
   }
 
@@ -2747,7 +2852,9 @@ class _CustomerViewingAppointmentScreenState
       initialTime: _selectedTime,
     );
     if (time != null && mounted) {
-      setState(() => _selectedTime = time);
+      setState(() {
+        _selectedTime = time;
+      });
     }
   }
 
@@ -2765,7 +2872,9 @@ class _CustomerViewingAppointmentScreenState
       );
       return;
     }
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+    });
     try {
       await widget.repository.proposeViewingAppointment(
         bookingRequestId: widget.bookingRequestId,
@@ -2780,11 +2889,13 @@ class _CustomerViewingAppointmentScreenState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
       if (mounted) {
-        setState(() => _submitting = false);
+        setState(() {
+          _submitting = false;
+        });
       }
     }
   }
@@ -2876,7 +2987,9 @@ class _CustomerReviewScreenState extends State<CustomerReviewScreen> {
       ).showSnackBar(SnackBar(content: Text(context.tr('review.ratingError'))));
       return;
     }
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+    });
     try {
       await widget.repository.submitReview(
         bookingRequestId: widget.bookingRequestId,
@@ -2890,11 +3003,13 @@ class _CustomerReviewScreenState extends State<CustomerReviewScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(_accountError(error))));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
       if (mounted) {
-        setState(() => _submitting = false);
+        setState(() {
+          _submitting = false;
+        });
       }
     }
   }
@@ -2918,7 +3033,9 @@ class _CustomerReviewScreenState extends State<CustomerReviewScreen> {
               return IconButton(
                 onPressed: _submitting
                     ? null
-                    : () => setState(() => _rating = value),
+                    : () => setState(() {
+                        _rating = value;
+                      }),
                 iconSize: 40,
                 tooltip: '$value / 5',
                 icon: Icon(

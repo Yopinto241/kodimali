@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { UiInput, UiText, UiTextarea } from "@/components/ui-text";
 
 import { useEffect, useMemo, useState } from "react";
@@ -124,7 +125,7 @@ export function GuestRequestForm({
           if (!active) return;
           if (error) {
             setQuoteResult({key:quoteKey,value:null});
-            setErrors((current) => ({ ...current, form: error.message }));
+            setErrors((current) => ({ ...current, form: safeUserMessage(error) }));
             return;
           }
           const value = data as BookingQuote | null;

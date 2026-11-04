@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 
@@ -49,7 +50,7 @@ class _AgentListingChatsTabState extends State<AgentListingChatsTab> {
         return const Center(child: CircularProgressIndicator());
       }
       if (s.hasError) {
-        return Center(child: Text(s.error.toString()));
+        return Center(child: Text(userMessage(context, s.error)));
       }
       final rows = s.data ?? const <Map<String, dynamic>>[];
       if (rows.isEmpty) {
@@ -137,26 +138,32 @@ class _AgentListingChatScreenState extends State<AgentListingChatScreen> {
   Future<void> _send() async {
     final body = _text.text.trim();
     if (body.isEmpty || _sending) return;
-    setState(() => _sending = true);
+    setState(() {
+      _sending = true;
+    });
     try {
       await AppScope.of(context).repository.sendListingChatMessage(
         conversationId: widget.conversationId,
         body: body,
       );
       _text.clear();
-      setState(
-        () => _details = AppScope.of(
+      setState(() {
+        _details = AppScope.of(
           context,
-        ).repository.fetchListingChatConversation(widget.conversationId),
-      );
+        ).repository.fetchListingChatConversation(widget.conversationId);
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, e))));
       }
     } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted) {
+        setState(() {
+          _sending = false;
+        });
+      }
     }
   }
 
@@ -195,7 +202,7 @@ class _AgentListingChatScreenState extends State<AgentListingChatScreen> {
                           mobileUiFormat(
                             context,
                             "Messages could not load: {0}",
-                            [m.error],
+                            [userMessage(context, m.error)],
                           ),
                         ),
                       ),

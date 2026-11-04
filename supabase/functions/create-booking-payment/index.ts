@@ -32,6 +32,8 @@ Deno.serve(async (request) => {
     if (phone.length < 12) {
       return json({ error: "Enter a valid mobile-money number." }, 400);
     }
+    const enabled = await db.rpc("payment_feature_enabled", { p_purpose: product });
+    if (enabled.error || enabled.data !== true) return json({ error: "This payment option is currently disabled." }, 503);
     const userDb = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",

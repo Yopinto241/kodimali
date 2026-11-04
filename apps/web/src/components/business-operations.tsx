@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { translateUiPrompt } from "@/lib/ui-translation";
 import { UiInput, UiText } from "@/components/ui-text";
 
@@ -127,7 +128,7 @@ export function BusinessOperations({
         } as never) : Promise.resolve(empty),
       ]);
       const failed = [analytics, config, paymentRows, boostRows, riskRows, refundRows, performanceRows].find((result) => result.error);
-      if (failed?.error) setMessage(failed.error.message);
+      if (failed?.error) setMessage(safeUserMessage(failed.error));
       setDashboard((analytics.data as Row | null) ?? {});
       setSettings((config.data as Row | null) ?? {});
       setPayments((paymentRows.data as Row[] | null) ?? []);
@@ -186,7 +187,7 @@ export function BusinessOperations({
     const result = await supabase
       .from("marketplace_settings")
       .upsert({ id: true, [key]: next } as never);
-    setMessage(result.error?.message ?? "Payment setting saved globally.");
+    setMessage((result.error?.message ? safeUserMessage(result.error?.message) : null) ?? "Payment setting saved globally.");
     setBusy(false);
     await load();
   }
@@ -213,7 +214,7 @@ export function BusinessOperations({
       },
     );
     setMessage(
-      result.error?.message ??
+      (result.error?.message ? safeUserMessage(result.error?.message) : null) ??
         String(
           (result.data as Row | null)?.message ??
             "Payment request sent. Confirm it on the phone.",
@@ -242,7 +243,7 @@ export function BusinessOperations({
       } as never)
       .select("id")
       .single();
-    if (result.error) setMessage(result.error.message);
+    if (result.error) setMessage(safeUserMessage(result.error));
     else {
       setMessage("Campaign created. Complete payment to activate it.");
       await commercialPayment("listing_boost", String((result.data as Row).id));
@@ -263,7 +264,7 @@ export function BusinessOperations({
           : {}),
       } as never)
       .eq("id", id);
-    setMessage(result.error?.message ?? "Operation completed.");
+    setMessage((result.error?.message ? safeUserMessage(result.error?.message) : null) ?? "Operation completed.");
     setBusy(false);
     await load();
   }

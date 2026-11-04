@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { UiButton, UiText } from "@/components/ui-text";
 import { browserPreferences, readStoredIds } from "@/lib/browser-preferences";
 
@@ -60,7 +61,7 @@ export function ListingActions({
       p_listing_id: listingId,
       p_saved: next,
     } as never);
-    if (result.error) setMessage(result.error.message);
+    if (result.error) setMessage(safeUserMessage(result.error));
     else {
       setSaved(next);
       setMessage(next ? "Listing saved." : "Listing removed.");
@@ -82,7 +83,7 @@ export function ListingActions({
       { onConflict: "user_id,listing_id" },
     );
     if (!result.error) setPriceAlert(!priceAlert);
-    setMessage(result.error?.message ?? (!priceAlert ? "Price-drop alert enabled." : "Price-drop alert disabled."));
+    setMessage((result.error?.message ? safeUserMessage(result.error?.message) : null) ?? (!priceAlert ? "Price-drop alert enabled." : "Price-drop alert disabled."));
   }
 
   function toggleCompared() {

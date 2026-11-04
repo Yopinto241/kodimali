@@ -48,7 +48,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) {
         return;
       }
-      setState(() => _message = userFacingError(error));
+      setState(() {
+        _message = userFacingError(error);
+      });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final messageContext = _messageKey.currentContext;
         if (mounted && messageContext != null) {
@@ -57,7 +59,9 @@ class _LoginScreenState extends State<LoginScreen> {
       });
     } finally {
       if (mounted) {
-        setState(() => _submitting = false);
+        setState(() {
+          _submitting = false;
+        });
       }
     }
   }

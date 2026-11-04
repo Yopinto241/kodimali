@@ -1,3 +1,4 @@
+import { applyPaymentEvent } from "../_shared/payment-integrity.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import {
@@ -211,29 +212,10 @@ Deno.serve(async (request) => {
         providerChannel = statusPayload?.channel ?? null;
       }
 
-      const paidNow = mappedStatus === "paid" ? new Date() : null;
-      await supabase
-        .from("listing_contact_payments")
-        .update({
-          payment_status: mappedStatus,
-          provider_payment_id: providerPaymentId,
-          provider_payment_reference: paymentReference,
-          provider_channel: providerChannel,
-          status_message: paymentMessage,
-          provider_response: providerPayload ?? {},
-          paid_at: paidNow?.toISOString() ?? null,
-          access_expires_at: paidNow
-            ? new Date(paidNow.getTime() + 24 * 60 * 60 * 1000).toISOString()
-            : null,
-          failed_at: mappedStatus === "failed"
-            ? new Date().toISOString()
-            : null,
-          last_status_checked_at: new Date().toISOString(),
-          contact_revealed_at: mappedStatus === "paid"
-            ? new Date().toISOString()
-            : null,
-        })
-        .eq("id", paymentId);
+      mappedStatus = (await applyPaymentEvent(supabase, "listing_contact_payments", paymentId,
+        providerPaymentId?.startsWith("sp_") ? "sonicpesa" : "clickpesa", mappedStatus, providerPayload)).status;
+      const { data: persisted } = await supabase.from("listing_contact_payments").select("access_expires_at,paid_at").eq("id", paymentId).single();
+      if (persisted) Object.assign(payment, persisted);
     } else {
       const expiresAt = payment.access_expires_at
         ? new Date(payment.access_expires_at as string)

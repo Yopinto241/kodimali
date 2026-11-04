@@ -129,18 +129,24 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
       if (!mounted) {
         return;
       }
-      setState(() => _searchText = value.trim());
+      setState(() {
+        _searchText = value.trim();
+      });
       unawaited(_loadAgents(reset: true));
     });
   }
 
   Future<void> _setAccountStatusFilter(String? value) async {
-    setState(() => _accountStatusFilter = value);
+    setState(() {
+      _accountStatusFilter = value;
+    });
     await _loadAgents(reset: true);
   }
 
   Future<void> _setVerificationStatusFilter(String? value) async {
-    setState(() => _verificationStatusFilter = value);
+    setState(() {
+      _verificationStatusFilter = value;
+    });
     await _loadAgents(reset: true);
   }
 

@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 
@@ -52,7 +53,7 @@ class _ReportsTabState extends State<ReportsTab> {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.hasError) {
-              return Center(child: Text(snapshot.error.toString()));
+              return Center(child: Text(userMessage(context, snapshot.error)));
             }
             final List<Map<String, dynamic>> reports =
                 snapshot.data ?? <Map<String, dynamic>>[];

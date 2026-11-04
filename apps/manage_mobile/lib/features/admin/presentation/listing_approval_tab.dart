@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_design_system/flutter_design_system.dart';
@@ -68,7 +69,9 @@ class _ListingApprovalTabState extends State<ListingApprovalTab> {
     String? removedReason,
   }) async {
     if (_updatingListingIds.contains(listingId)) return;
-    setState(() => _updatingListingIds.add(listingId));
+    setState(() {
+      _updatingListingIds.add(listingId);
+    });
     try {
       final Map<String, dynamic> result = await AppScope.of(context).repository
           .moderateListing(
@@ -92,14 +95,18 @@ class _ListingApprovalTabState extends State<ListingApprovalTab> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              mobileUiFormat(context, "Could not update listing: {0}", [error]),
+              mobileUiFormat(context, "Could not update listing: {0}", [
+                userMessage(context, error),
+              ]),
             ),
           ),
         );
       }
     } finally {
       if (mounted) {
-        setState(() => _updatingListingIds.remove(listingId));
+        setState(() {
+          _updatingListingIds.remove(listingId);
+        });
       }
     }
   }
@@ -193,7 +200,7 @@ class _ListingApprovalTabState extends State<ListingApprovalTab> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(snapshot.error.toString()),
+                    Text(userMessage(context, snapshot.error)),
                     TextButton(
                       onPressed: _refresh,
                       child: const LocalizedUiText('Retry'),

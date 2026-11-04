@@ -52,18 +52,26 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       final value = await AppScope.of(
         context,
       ).repository.fetchMyAdminPermissions();
-      if (mounted) setState(() => _permissions = value);
+      if (mounted) {
+        setState(() {
+          _permissions = value;
+        });
+      }
     } catch (error) {
       if (mounted) {
-        setState(
-          () => _permissionError = userFacingError(
+        setState(() {
+          _permissionError = userFacingError(
             error,
             fallback: 'Could not load your workspace. Please try again.',
-          ),
-        );
+          );
+        });
       }
     } finally {
-      if (mounted) setState(() => _loadingPermissions = false);
+      if (mounted) {
+        setState(() {
+          _loadingPermissions = false;
+        });
+      }
     }
   }
 
@@ -202,7 +210,9 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     return ManageWorkspaceScaffold(
       title: destinations[_currentIndex].label,
       currentIndex: _currentIndex,
-      onSelect: (int index) => setState(() => _currentIndex = index),
+      onSelect: (int index) => setState(() {
+        _currentIndex = index;
+      }),
       destinations: destinations,
     );
   }

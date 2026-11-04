@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -29,11 +30,11 @@ class _InformationAdministrationTabState
   }
 
   Future<void> _reload() async {
-    setState(
-      () => _future = AppScope.of(
+    setState(() {
+      _future = AppScope.of(
         context,
-      ).repository.fetchInformationSubmissions(offset: _offset),
-    );
+      ).repository.fetchInformationSubmissions(offset: _offset);
+    });
     await _future;
   }
 
@@ -507,7 +508,9 @@ class _InformationAdministrationTabState
       return;
     }
     final String id = row['id'].toString();
-    setState(() => _saving.add(id));
+    setState(() {
+      _saving.add(id);
+    });
     try {
       await AppScope.of(context).repository.updateInformationSubmission(
         id: id,
@@ -530,7 +533,9 @@ class _InformationAdministrationTabState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              mobileUiFormat(context, "Haikuweza kuhifadhiwa: {0}", [error]),
+              mobileUiFormat(context, "Haikuweza kuhifadhiwa: {0}", [
+                userMessage(context, error),
+              ]),
             ),
           ),
         );
@@ -538,7 +543,11 @@ class _InformationAdministrationTabState
     } finally {
       note.dispose();
       listing.dispose();
-      if (mounted) setState(() => _saving.remove(id));
+      if (mounted) {
+        setState(() {
+          _saving.remove(id);
+        });
+      }
     }
   }
 

@@ -1,6 +1,7 @@
+import { applyPaymentEvent, completePaymentEvidence, paymentEvidence } from "../_shared/payment-integrity.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { json } from "../_shared/clickpesa.ts";
-import { mapSonicPesaStatus } from "../_shared/sonicpesa.ts";
+import { checkSonicPesaOrder, mapSonicPesaStatus } from "../_shared/sonicpesa.ts";
 
 const encoder = new TextEncoder();
 const hex = (bytes: ArrayBuffer) =>
@@ -72,134 +73,33 @@ Deno.serve(async (request) => {
     if (claimError) throw new Error(claimError.message);
     if (claimed !== true) return json({ received: true, duplicate: true });
 
-    const { data: platform } = await db.from("platform_payment_orders").select(
-      "id,amount_tzs,currency,purpose,resource_id,status",
-    ).eq("provider", "sonicpesa").eq("provider_order_id", orderId)
-      .maybeSingle();
-    if (platform?.id) {
-      if (status === "paid") {
-        const reportedAmount = payload.amount == null
-          ? null
-          : Number(payload.amount);
-        const reportedCurrency = payload.currency == null
-          ? "TZS"
-          : String(payload.currency).toUpperCase();
-        if (
-          (reportedAmount !== null &&
-            (!Number.isFinite(reportedAmount) ||
-              reportedAmount !== Number(platform.amount_tzs))) ||
-          reportedCurrency !== platform.currency
-        ) {
-          const reason =
-            `Provider amount/currency mismatch. Expected ${platform.amount_tzs} ${platform.currency}; received ${
-              String(payload.amount)
-            } ${reportedCurrency}`;
-          await db.from("platform_payment_orders").update({
-            status: "reconciliation_required",
-            status_message: reason,
-            provider_response: payload,
-            updated_at: new Date().toISOString(),
-          }).eq("id", platform.id);
-          await db.from("financial_reconciliation_cases").insert({
-            provider: "sonicpesa",
-            provider_transaction_id: transactionId || null,
-            provider_order_id: orderId,
-            expected_amount_minor: Number(platform.amount_tzs),
-            reported_amount_minor: reportedAmount,
-            currency: reportedCurrency,
-            reason,
-          });
-          await db.rpc("finish_payment_webhook_event", {
-            p_provider: "sonicpesa",
-            p_provider_event_id: providerEventId,
-            p_status: "reconciliation_required",
-            p_error: reason,
-          });
-          return json({ received: true, reconciliationRequired: true });
-        }
-        const { error } = await db.rpc("finalize_platform_payment", {
-          p_order_id: platform.id,
-          p_provider_transaction_id: transactionId || orderId,
-          p_provider_payload: payload,
-        });
-        if (error) {
-          const reason = error.message;
-          await db.from("platform_payment_orders").update({
-            status: "reconciliation_required",
-            status_message: reason,
-            provider_response: payload,
-            updated_at: new Date().toISOString(),
-          }).eq("id", platform.id);
-          await db.from("financial_reconciliation_cases").insert({
-            provider: "sonicpesa",
-            provider_transaction_id: transactionId || null,
-            provider_order_id: orderId,
-            expected_amount_minor: Number(platform.amount_tzs),
-            reported_amount_minor: payload.amount == null
-              ? null
-              : Number(payload.amount),
-            currency: String(payload.currency ?? platform.currency),
-            reason,
-          });
-          await db.rpc("finish_payment_webhook_event", {
-            p_provider: "sonicpesa",
-            p_provider_event_id: providerEventId,
-            p_status: "reconciliation_required",
-            p_error: reason,
-          });
-          return json({ received: true, reconciliationRequired: true });
-        }
-      } else {await db.from("platform_payment_orders").update({
-          status,
-          provider_transaction_id: transactionId || null,
-          provider_response: payload,
-          updated_at: new Date().toISOString(),
-        }).eq("id", platform.id);}
-    } else {
-      const tables = [
-        "listing_contact_payments",
-        "listing_chat_payments",
-        "agent_listing_payments",
-        "agent_commercial_payments",
-      ];
-      let applied = false;
-      for (const table of tables) {
-        const { data: row } = await db.from(table).select("id").eq(
-          "provider_payment_id",
-          orderId,
-        ).maybeSingle();
-        if (!row?.id) continue;
-        const update: Record<string, unknown> = {
-          payment_status: status,
-          provider_payment_reference: transactionId || null,
-          provider_response: payload,
-          paid_at: status === "paid" ? new Date().toISOString() : null,
-          status_message: String(payload.message ?? "") || null,
-          updated_at: new Date().toISOString(),
-        };
-        if (table !== "agent_commercial_payments") {
-          Object.assign(update, {
-            webhook_payload: payload,
-            webhook_received_at: new Date().toISOString(),
-          });
-        }
-        const { error } = await db.from(table).update(update).eq("id", row.id);
-        if (error) throw new Error(error.message);
-        if (status === "paid" && table === "listing_chat_payments") {
-          await db.rpc("grant_listing_chat_access", { p_payment_id: row.id });
-        }
-        if (status === "paid" && table === "agent_listing_payments") {
-          await db.rpc("release_agent_listing_if_eligible", {
-            p_listing_id:
-              (await db.from(table).select("listing_id").eq("id", row.id)
-                .single()).data?.listing_id,
-          });
-        }
-        applied = true;
-        break;
+    let verifiedPayload: unknown = payload;
+    let verifiedStatus = status;
+    if (status === "paid" && !completePaymentEvidence(paymentEvidence("sonicpesa", payload))) {
+      try {
+        const verified = await checkSonicPesaOrder(orderId);
+        verifiedPayload = verified.payload;
+        verifiedStatus = verified.status;
+      } catch {
+        // Incomplete evidence goes to the atomic reconciliation path; no grant.
       }
-      if (!applied) throw new Error("Payment order was not found");
     }
+    const tables = ["platform_payment_orders", "listing_contact_payments", "listing_chat_payments", "agent_listing_payments", "agent_commercial_payments"];
+    let applied = false;
+    for (const table of tables) {
+      const orderColumn = table === "platform_payment_orders" ? "provider_order_id" : "provider_payment_id";
+      const { data: row, error } = await db.from(table).select("id").eq(orderColumn, orderId).maybeSingle();
+      if (error) throw new Error("Payment lookup is temporarily unavailable");
+      if (!row?.id) continue;
+      const result = await applyPaymentEvent(db, table, row.id, "sonicpesa", verifiedStatus, verifiedPayload);
+      if (result.reconciliationRequired) {
+        await db.rpc("finish_payment_webhook_event", { p_provider: "sonicpesa", p_provider_event_id: providerEventId, p_status: "reconciliation_required", p_error: "Provider evidence requires review" });
+        return json({ received: true, reconciliationRequired: true });
+      }
+      applied = true;
+      break;
+    }
+    if (!applied) throw new Error("Payment order was not found");
     await db.rpc("finish_payment_webhook_event", {
       p_provider: "sonicpesa",
       p_provider_event_id: providerEventId,

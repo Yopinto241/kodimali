@@ -84,7 +84,7 @@ Deno.serve(async (request) => {
         name: String(user.user_metadata?.full_name ?? "KODIMALI agent"),
       });
       await db.from("agent_commercial_payments").update({
-        payment_status: order.status,
+        payment_status: order.status === "paid" ? "processing" : order.status,
         provider_payment_id: order.orderId,
         provider_channel: order.channel,
         provider_response: order.payload,
@@ -93,7 +93,7 @@ Deno.serve(async (request) => {
         success: true,
         paymentRequired: true,
         paymentId: payment.id,
-        paymentStatus: order.status,
+        paymentStatus: order.status === "paid" ? "processing" : order.status,
         amount,
         currency: "TZS",
         provider: "sonicpesa",

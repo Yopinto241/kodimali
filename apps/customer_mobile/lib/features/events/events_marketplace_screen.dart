@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import '../../app.dart' show CustomerSponsoredCards;
 import 'package:flutter_core/localized_ui.dart';
 // Advisor widgets remain unreachable only to preserve source compatibility with
@@ -173,13 +174,17 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
       startsAt: _browseStart,
       endsAt: _browseEnd,
     );
-    setState(() => _future = next);
+    setState(() {
+      _future = next;
+    });
     await next;
   }
 
   Future<void> _loadMore() async {
     if (_loadingMore) return;
-    setState(() => _loadingMore = true);
+    setState(() {
+      _loadingMore = true;
+    });
     final generation = _generation;
     try {
       final previous = await _future;
@@ -202,8 +207,8 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
       if (!mounted) return;
       if (generation != _generation) return;
       _offset += 30;
-      setState(
-        () => _future = Future.value({
+      setState(() {
+        _future = Future.value({
           ...next,
           'equipment': [
             ...(previous['equipment'] as List),
@@ -213,16 +218,20 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
             ...(previous['services'] as List),
             ...(next['services'] as List),
           ],
-        }),
-      );
+        });
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, e))));
       }
     } finally {
-      if (mounted) setState(() => _loadingMore = false);
+      if (mounted) {
+        setState(() {
+          _loadingMore = false;
+        });
+      }
     }
   }
 
@@ -678,7 +687,9 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
                               ),
                               selected: _categoryKey == 'all',
                               onSelected: (_) {
-                                setState(() => _categoryKey = 'all');
+                                setState(() {
+                                  _categoryKey = 'all';
+                                });
                                 _reload();
                               },
                             ),
@@ -696,10 +707,9 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
                                 selected:
                                     _categoryKey == 'equipment:${entry.key}',
                                 onSelected: (_) {
-                                  setState(
-                                    () =>
-                                        _categoryKey = 'equipment:${entry.key}',
-                                  );
+                                  setState(() {
+                                    _categoryKey = 'equipment:${entry.key}';
+                                  });
                                   _reload();
                                 },
                               ),
@@ -713,7 +723,9 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
                             ),
                             selected: _categoryKey == 'professionals',
                             onSelected: (_) {
-                              setState(() => _categoryKey = 'professionals');
+                              setState(() {
+                                _categoryKey = 'professionals';
+                              });
                               _reload();
                             },
                           ),
@@ -727,9 +739,9 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
                                     label: Text(eventServiceLabel(kind, sw)),
                                     selected: _categoryKey == 'service:$kind',
                                     onSelected: (_) {
-                                      setState(
-                                        () => _categoryKey = 'service:$kind',
-                                      );
+                                      setState(() {
+                                        _categoryKey = 'service:$kind';
+                                      });
                                       _reload();
                                     },
                                   ),
@@ -1283,7 +1295,7 @@ class _EventsMarketplaceScreenState extends State<EventsMarketplaceScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     }
     title.dispose();
@@ -1354,7 +1366,11 @@ class _ChooseEventComponentsScreenState
         ),
       );
     } catch (_) {}
-    if (mounted) setState(() => ready = true);
+    if (mounted) {
+      setState(() {
+        ready = true;
+      });
+    }
   }
 
   Future<void> _save() async {
@@ -1672,7 +1688,7 @@ class _ChooseEventComponentsScreenState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, e))));
       }
     } finally {
       if (mounted) change(() => loadingMore = false);
@@ -1841,7 +1857,7 @@ class _ChooseEventComponentsScreenState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
       if (mounted) change(() => busy = false);
@@ -1865,8 +1881,9 @@ class _MyEventPlansScreenState extends State<_MyEventPlansScreen> {
     future = widget.repository.fetchMyEventPlans();
   }
 
-  void reload() =>
-      setState(() => future = widget.repository.fetchMyEventPlans());
+  void reload() => setState(() {
+    future = widget.repository.fetchMyEventPlans();
+  });
   Future<void> _resumeDraft(JsonMap plan) async {
     try {
       final parts = plan['event_period']
@@ -1904,7 +1921,7 @@ class _MyEventPlansScreenState extends State<_MyEventPlansScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     }
   }
@@ -1927,7 +1944,7 @@ class _MyEventPlansScreenState extends State<_MyEventPlansScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text(snapshot.error.toString()));
+            return Center(child: Text(userMessage(context, snapshot.error)));
           }
           final rows = snapshot.data ?? <JsonMap>[];
           if (rows.isEmpty) {
@@ -2130,7 +2147,9 @@ class _MyEventPlansScreenState extends State<_MyEventPlansScreen> {
   }
 
   Future<void> accept(String id) async {
-    setState(() => busy = true);
+    setState(() {
+      busy = true;
+    });
     try {
       await widget.repository.acceptEventQuote(id);
       reload();
@@ -2138,15 +2157,21 @@ class _MyEventPlansScreenState extends State<_MyEventPlansScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
-      if (mounted) setState(() => busy = false);
+      if (mounted) {
+        setState(() {
+          busy = false;
+        });
+      }
     }
   }
 
   Future<void> acceptAgreement(String id) async {
-    setState(() => busy = true);
+    setState(() {
+      busy = true;
+    });
     try {
       await widget.repository.acceptEventAgreement(id);
       reload();
@@ -2154,10 +2179,14 @@ class _MyEventPlansScreenState extends State<_MyEventPlansScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
-      if (mounted) setState(() => busy = false);
+      if (mounted) {
+        setState(() {
+          busy = false;
+        });
+      }
     }
   }
 
@@ -2198,7 +2227,9 @@ class _MyEventPlansScreenState extends State<_MyEventPlansScreen> {
     );
     controller.dispose();
     if (phone == null || phone.isEmpty || !mounted) return;
-    setState(() => busy = true);
+    setState(() {
+      busy = true;
+    });
     try {
       final started = await widget.repository.createPlatformPayment(
         purpose: purpose,
@@ -2245,10 +2276,14 @@ class _MyEventPlansScreenState extends State<_MyEventPlansScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
-      if (mounted) setState(() => busy = false);
+      if (mounted) {
+        setState(() {
+          busy = false;
+        });
+      }
     }
   }
 }
@@ -2288,7 +2323,7 @@ class _IndividualBookingsHistoryScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text(snapshot.error.toString()));
+            return Center(child: Text(userMessage(context, snapshot.error)));
           }
           final rows = snapshot.data ?? <JsonMap>[];
           if (rows.isEmpty) {
@@ -2417,7 +2452,7 @@ class _EventAdvisorScreenState extends State<_EventAdvisorScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text(snapshot.error.toString()));
+            return Center(child: Text(userMessage(context, snapshot.error)));
           }
           final templates = snapshot.data ?? <JsonMap>[];
           return ListView(
@@ -2460,7 +2495,9 @@ class _EventAdvisorScreenState extends State<_EventAdvisorScreen> {
                       ),
                     )
                     .toList(),
-                onChanged: (value) => setState(() => templateId = value),
+                onChanged: (value) => setState(() {
+                  templateId = value;
+                }),
               ),
               Card(
                 child: ListTile(
@@ -2499,7 +2536,11 @@ class _EventAdvisorScreenState extends State<_EventAdvisorScreen> {
                             ),
                           ),
                         );
-                    if (value != null) setState(() => selectedLocation = value);
+                    if (value != null) {
+                      setState(() {
+                        selectedLocation = value;
+                      });
+                    }
                   },
                 ),
               ),
@@ -2539,7 +2580,11 @@ class _EventAdvisorScreenState extends State<_EventAdvisorScreen> {
                   ),
                 ],
                 onChanged: (value) {
-                  if (value != null) setState(() => setting = value);
+                  if (value != null) {
+                    setState(() {
+                      setting = value;
+                    });
+                  }
                 },
               ),
               DropdownButtonFormField<String>(
@@ -2568,7 +2613,11 @@ class _EventAdvisorScreenState extends State<_EventAdvisorScreen> {
                   ),
                 ],
                 onChanged: (value) {
-                  if (value != null) setState(() => venueStatus = value);
+                  if (value != null) {
+                    setState(() {
+                      venueStatus = value;
+                    });
+                  }
                 },
               ),
               TextField(
@@ -2595,10 +2644,9 @@ class _EventAdvisorScreenState extends State<_EventAdvisorScreen> {
                     initialDate: date,
                   );
                   if (next != null) {
-                    setState(
-                      () =>
-                          date = DateTime(next.year, next.month, next.day, 10),
-                    );
+                    setState(() {
+                      date = DateTime(next.year, next.month, next.day, 10);
+                    });
                   }
                 },
               ),
@@ -2657,7 +2705,9 @@ class _EventAdvisorScreenState extends State<_EventAdvisorScreen> {
         selectedLocation?.locationId == null) {
       return;
     }
-    setState(() => busy = true);
+    setState(() {
+      busy = true;
+    });
     try {
       final template = templates.firstWhere(
         (row) => row['id'].toString() == templateId,
@@ -2680,17 +2730,21 @@ class _EventAdvisorScreenState extends State<_EventAdvisorScreen> {
         accessibility: accessibility.text,
       );
       if (mounted) {
-        setState(() => recommendations = rows);
+        setState(() {
+          recommendations = rows;
+        });
       }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
       if (mounted) {
-        setState(() => busy = false);
+        setState(() {
+          busy = false;
+        });
       }
     }
   }
@@ -2727,7 +2781,7 @@ class _IndividualEventDetailScreenState
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text(snapshot.error.toString()));
+            return Center(child: Text(userMessage(context, snapshot.error)));
           }
           final row = snapshot.data!;
           final provider = row['event_service_profiles'] as Map?;
@@ -2975,7 +3029,9 @@ class _IndividualEventDetailScreenState
       ),
     );
     if (accepted == true) {
-      setState(() => busy = true);
+      setState(() {
+        busy = true;
+      });
       try {
         final booking = await widget.repository.createIndividualEventBooking(
           kind: widget.kind,
@@ -3000,11 +3056,13 @@ class _IndividualEventDetailScreenState
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text(error.toString())));
+          ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
         }
       } finally {
         if (mounted) {
-          setState(() => busy = false);
+          setState(() {
+            busy = false;
+          });
         }
       }
     }

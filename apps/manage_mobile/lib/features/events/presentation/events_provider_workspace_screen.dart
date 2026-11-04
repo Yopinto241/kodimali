@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -64,7 +65,11 @@ class _EventLocationPickerState extends State<_EventLocationPicker> {
         .limit(1)
         .single();
     regions = await _children('region', country['id'].toString());
-    if (mounted) setState(() => loading = false);
+    if (mounted) {
+      setState(() {
+        loading = false;
+      });
+    }
   }
 
   String _name(List<Map<String, dynamic>> values, String? id) {
@@ -196,7 +201,9 @@ class _EventLocationPickerState extends State<_EventLocationPicker> {
                       .toList(),
                   onChanged: districtId == null
                       ? null
-                      : (id) => setState(() => areaId = id),
+                      : (id) => setState(() {
+                          areaId = id;
+                        }),
                 ),
                 const SizedBox(height: 28),
                 FilledButton(
@@ -367,9 +374,14 @@ class _EventsProviderWorkspaceScreenState
         }
       }
     } catch (e) {
-      error = e.toString();
+      if (!mounted) return;
+      error = userMessage(context, e);
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
     }
   }
 
@@ -683,6 +695,7 @@ class _EventsProviderWorkspaceScreenState
           .eq('id', row['id']);
       await _load();
     } catch (e) {
+      if (!mounted) return;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -690,7 +703,7 @@ class _EventsProviderWorkspaceScreenState
               mobileUiFormat(
                 context,
                 "Photo upload failed. The saved item is available for retry: {0}",
-                [e],
+                [userMessage(context, e)],
               ),
             ),
           ),
@@ -739,10 +752,11 @@ class _EventsProviderWorkspaceScreenState
         await _load();
       }
     } catch (e) {
+      if (!mounted) return;
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, e))));
       }
     } finally {
       reason.dispose();
@@ -783,10 +797,11 @@ class _EventsProviderWorkspaceScreenState
       await Supabase.instance.client.rpc(function, params: params);
       await _load();
     } catch (e) {
+      if (!mounted) return;
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, e))));
       }
     }
   }
@@ -854,10 +869,11 @@ class _EventsProviderWorkspaceScreenState
         );
         await _load();
       } catch (e) {
+        if (!mounted) return;
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text(e.toString())));
+          ).showSnackBar(SnackBar(content: Text(userMessage(context, e))));
         }
       }
     }
@@ -982,10 +998,11 @@ class _EventsProviderWorkspaceScreenState
         }
         await _load();
       } catch (e) {
+        if (!mounted) return;
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text(e.toString())));
+          ).showSnackBar(SnackBar(content: Text(userMessage(context, e))));
         }
       }
     }
@@ -1006,10 +1023,11 @@ class _EventsProviderWorkspaceScreenState
           }, onConflict: 'profile_id,location_id');
       await _load();
     } catch (e) {
+      if (!mounted) return;
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, e))));
       }
     }
   }
@@ -1137,10 +1155,11 @@ class _EventsProviderWorkspaceScreenState
         }
         await _load();
       } catch (e) {
+        if (!mounted) return;
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text(e.toString())));
+          ).showSnackBar(SnackBar(content: Text(userMessage(context, e))));
         }
       }
     }
@@ -1244,10 +1263,11 @@ class _EventsProviderWorkspaceScreenState
             });
         await _load();
       } catch (e) {
+        if (!mounted) return;
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text(e.toString())));
+          ).showSnackBar(SnackBar(content: Text(userMessage(context, e))));
         }
       }
     }

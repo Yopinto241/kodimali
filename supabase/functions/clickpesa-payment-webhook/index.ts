@@ -1,3 +1,4 @@
+import { applyPaymentEvent } from "../_shared/payment-integrity.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import {
@@ -5,6 +6,8 @@ import {
   mapClickPesaStatus,
   readClickPesaConfig,
   validateChecksum,
+  fetchClickPesaToken,
+  queryPaymentStatus,
 } from "../_shared/clickpesa.ts";
 
 type JsonRecord = Record<string, unknown>;
@@ -25,13 +28,10 @@ Deno.serve(async (request) => {
       return json({ error: "Invalid webhook payload" }, 400);
     }
 
-    const config = readClickPesaConfig();
+    const config = readClickPesaConfig({clientIdEnv:"CLICKPESA_COLLECTION_CLIENT_ID",apiKeyEnv:"CLICKPESA_COLLECTION_API_KEY",checksumKeyEnv:"CLICKPESA_COLLECTION_CHECKSUM_KEY"});
     const record = payload as JsonRecord;
-    if (config.checksumKey && typeof record.checksum === "string") {
-      const valid = validateChecksum(config.checksumKey, record);
-      if (!valid) {
-        return json({ error: "Invalid checksum" }, 401);
-      }
+    if (!config.checksumKey || typeof record.checksum !== "string" || !validateChecksum(config.checksumKey,record)) {
+      return json({error:"Invalid webhook checksum"},401);
     }
 
     const eventName = typeof record.event === "string"
@@ -98,42 +98,13 @@ Deno.serve(async (request) => {
       return json({ received: true, ignored: true });
     }
 
-    let paymentStatus = mapClickPesaStatus(
-      typeof data.status === "string" ? data.status : undefined,
-    );
-    if (eventName === "PAYMENT RECEIVED") {
-      paymentStatus = "paid";
-    } else if (eventName === "PAYMENT FAILED") {
-      paymentStatus = "failed";
-    }
-
-    const updatePayload: Record<string, unknown> = {
-      payment_status: paymentStatus,
-      provider_payment_id: typeof data.id === "string" ? data.id : null,
-      provider_payment_reference: typeof data.paymentReference === "string"
-        ? data.paymentReference
-        : null,
-      provider_channel: typeof data.channel === "string" ? data.channel : null,
-      status_message: typeof data.message === "string" ? data.message : null,
-      webhook_payload: payload,
-      webhook_received_at: new Date().toISOString(),
-      reconciliation_status: paymentStatus === "paid"
-        ? "pending"
-        : paymentStatus === "failed"
-        ? "not_required"
-        : "pending",
-      next_reconcile_at: paymentStatus === "paid"
-        ? new Date().toISOString()
-        : null,
-      paid_at: paymentStatus === "paid" ? new Date().toISOString() : null,
-      failed_at: paymentStatus === "failed" ? new Date().toISOString() : null,
-      updated_at: new Date().toISOString(),
-    };
-
-    const { error: paymentUpdateError } = await supabase
-      .from(paymentTable)
-      .update(updatePayload)
-      .eq("id", payment.id);
+    // Signed webhook content is a hint; query the provider with server credentials.
+    const verified = await queryPaymentStatus(config,await fetchClickPesaToken(config),orderReference);
+    if (!verified) throw new Error("Provider verification pending");
+    let paymentUpdateError: Error | null = null;
+    try {
+      await applyPaymentEvent(supabase,paymentTable,payment.id,"clickpesa",mapClickPesaStatus(verified.status),verified);
+    } catch { paymentUpdateError = new Error("Provider verification pending"); }
 
     if (eventRow?.id) {
       await supabase
@@ -152,10 +123,6 @@ Deno.serve(async (request) => {
 
     return json({ received: true });
   } catch (error) {
-    return json({
-      error: error instanceof Error && error.message.trim().length > 0
-        ? error.message
-        : "Webhook processing failed",
-    }, 500);
+    return json({error:"Provider verification pending"},503);
   }
 });

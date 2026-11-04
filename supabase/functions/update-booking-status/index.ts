@@ -57,7 +57,9 @@ Deno.serve(async (request) => {
       .maybeSingle(),
   ]);
 
-  const canManage = booking.agent_id === agent?.id || adminRole?.role === "admin";
+  const permission = await userClient.rpc("has_admin_permission", { p_permission: "bookings.manage" });
+  const activeAgent = agent?.id ? await serviceClient.from("agents").select("account_status").eq("id", agent.id).single() : { data: null };
+  const canManage = (booking.agent_id === agent?.id && activeAgent.data?.account_status === "active") || permission.data === true;
   if (!canManage) {
     return json({ error: "Forbidden" }, 403);
   }
@@ -70,10 +72,7 @@ Deno.serve(async (request) => {
     updatePayload.first_agent_response_at = new Date().toISOString();
   }
 
-  const { error: updateError } = await serviceClient
-    .from("booking_requests")
-    .update(updatePayload)
-    .eq("id", bookingRequestId);
+  const { error: updateError } = await userClient.rpc("manage_update_booking_status", { p_booking_id: bookingRequestId, p_status: nextStatus });
 
   if (updateError) {
     return json({ error: updateError.message }, 500);

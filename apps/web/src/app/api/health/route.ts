@@ -1,3 +1,4 @@
+import { safeUserMessage } from "@/lib/user-message";
 import { checkPublicBackendHealth } from "@/lib/supabase-public";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ export async function GET() {
       {
         status: "degraded",
         checkedAt,
-        error: error instanceof Error ? error.message : "Backend check failed",
+        error: safeUserMessage(error),
       },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );

@@ -108,17 +108,9 @@ async function contactPaymentsEnabled(
   supabase: RpcClient,
 ): Promise<boolean> {
   const { data, error } = await supabase.rpc("contact_payments_enabled");
-  if (error) {
-    if (
-      error.code === "PGRST202" ||
-      error.message.includes("schema cache") ||
-      error.message.includes("Could not find the function")
-    ) {
-      return true;
-    }
-    throw new Error(error.message);
-  }
-  return data !== false;
+  if (error || typeof data !== "boolean") throw new Error("Contact payment settings are temporarily unavailable");
+  return data;
+
 }
 
 Deno.serve(async (request) => {
@@ -307,7 +299,7 @@ Deno.serve(async (request) => {
             provider_payment_id: order.orderId,
             provider_channel: order.channel,
             provider_response: order.payload,
-            payment_status: order.status,
+            payment_status: order.status === "paid" ? "processing" : order.status,
             status_message: order.status === "failed"
               ? "The payment request could not be sent to this phone number."
               : null,
@@ -321,7 +313,7 @@ Deno.serve(async (request) => {
           amount,
           currency: "TZS",
           paymentMethod: order.channel,
-          paymentStatus: order.status,
+          paymentStatus: order.status === "paid" ? "processing" : order.status,
           provider: "sonicpesa",
           message:
             "SonicPesa payment request sent. Confirm it on your phone to unlock the agent number.",
@@ -385,7 +377,7 @@ Deno.serve(async (request) => {
             preview,
             initiated,
           },
-          payment_status: mappedStatus,
+          payment_status: mappedStatus === "paid" ? "processing" : mappedStatus,
           status_message: mappedStatus === "failed"
             ? "The payment request could not be sent to this phone number."
             : null,
@@ -401,7 +393,7 @@ Deno.serve(async (request) => {
         currency: "TZS",
         paymentMethod: detectedChannel,
         senderName,
-        paymentStatus: mappedStatus,
+        paymentStatus: mappedStatus === "paid" ? "processing" : mappedStatus,
         message:
           "Payment request sent. Confirm it on your phone to unlock the agent number.",
       });

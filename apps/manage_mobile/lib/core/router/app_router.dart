@@ -1,3 +1,4 @@
+import '../../features/shared/presentation/notification_destination_screen.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_models/shared_models.dart';
 
@@ -53,6 +54,12 @@ GoRouter createAppRouter(AppController controller) {
       if (isAuthPath) {
         return target;
       }
+      if (location.startsWith('/notification/') &&
+          role != null &&
+          !controller.isCustomerOnly &&
+          !controller.isAgentAccessBlocked) {
+        return null;
+      }
       if (location.startsWith("/admin") && role == AppRole.admin) {
         return null;
       }
@@ -91,6 +98,13 @@ GoRouter createAppRouter(AppController controller) {
       return target;
     },
     routes: <RouteBase>[
+      GoRoute(
+        path: '/notification/:kind/:id',
+        builder: (context, state) => NotificationDestinationScreen(
+          kind: state.pathParameters['kind']!,
+          id: state.pathParameters['id']!,
+        ),
+      ),
       GoRoute(
         path: "/workspaces",
         builder: (context, state) => const WorkspaceSwitcherScreen(),

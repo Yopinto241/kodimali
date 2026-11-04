@@ -1,3 +1,5 @@
+import 'package:flutter_core/push_payload.dart';
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 import 'dart:io';
@@ -40,20 +42,7 @@ import 'core/notifications/push_notification_service.dart';
 final GlobalKey<NavigatorState> customerNavigatorKey =
     GlobalKey<NavigatorState>();
 
-String _readableErrorMessage(
-  Object error, {
-  String fallback = "Something went wrong. Please try again.",
-}) {
-  final String text = error
-      .toString()
-      .replaceFirst("Bad state: ", "")
-      .replaceFirst("Exception: ", "")
-      .trim();
-  if (text.isEmpty) {
-    return fallback;
-  }
-  return text;
-}
+String _readableErrorMessage(Object error) => safeUserMessage(error);
 
 void _openListingDetails(
   BuildContext context, {
@@ -154,6 +143,7 @@ class _CustomerAppState extends State<CustomerApp> {
   ThemeMode _themeMode = ThemeMode.system;
   bool _languageReady = false;
   StreamSubscription<Map<String, dynamic>>? _notificationTaps;
+  StreamSubscription<AuthState>? _activityAuth;
 
   @override
   void initState() {
@@ -164,6 +154,9 @@ class _CustomerAppState extends State<CustomerApp> {
   }
 
   void _openNotification(Map<String, dynamic> data) {
+    if (!pushBelongsToUser(data, Supabase.instance.client.auth.currentUser?.id)) {
+      return;
+    }
     final String route = data['route']?.toString() ?? '';
     final navigator = customerNavigatorKey.currentState;
     if (navigator == null) return;
@@ -195,13 +188,24 @@ class _CustomerAppState extends State<CustomerApp> {
   @override
   void dispose() {
     _notificationTaps?.cancel();
+    _activityAuth?.cancel();
     super.dispose();
   }
 
   Future<void> _loadLanguage() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     await CustomerSnapshotStore.initialize(prefs);
-    await CustomerActivityStore.instance.initialize(prefs);
+    await CustomerActivityStore.instance.initialize(
+      prefs,
+      userId: Supabase.instance.client.auth.currentUser?.id,
+    );
+    _activityAuth ??= Supabase.instance.client.auth.onAuthStateChange.listen((
+      state,
+    ) {
+      unawaited(
+        CustomerActivityStore.instance.switchAccount(state.session?.user.id),
+      );
+    });
     setState(() {
       _languageCode = prefs.getString(_languagePrefKey) ?? "sw";
       _themeMode = switch (prefs.getString(_themePrefKey)) {
@@ -216,14 +220,20 @@ class _CustomerAppState extends State<CustomerApp> {
   Future<void> _setThemeMode(ThemeMode nextThemeMode) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setString(_themePrefKey, nextThemeMode.name);
-    if (mounted) setState(() => _themeMode = nextThemeMode);
+    if (mounted) {
+      setState(() {
+        _themeMode = nextThemeMode;
+      });
+    }
   }
 
   Future<void> _setLanguageCode(String nextLanguageCode) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setString(_languagePrefKey, nextLanguageCode);
     if (mounted) {
-      setState(() => _languageCode = nextLanguageCode);
+      setState(() {
+        _languageCode = nextLanguageCode;
+      });
     }
   }
 
@@ -343,13 +353,39 @@ class _CustomerRootState extends State<CustomerRoot> {
                 const Duration(seconds: 2))) {
       return;
     }
-    if (uri.scheme == 'kodimali' && uri.host == 'reset-password') {
+    if ((uri.scheme == 'kodimali' && uri.host == 'reset-password') ||
+        (uri.scheme == 'https' &&
+            uri.host == 'kodimali.com' &&
+            uri.path == '/account' &&
+            uri.queryParameters['mode'] == 'recovery')) {
       _lastOpenedDeepLink = uri.toString();
       _lastOpenedDeepLinkAt = now;
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) =>
               CustomerPasswordResetScreen(repository: _accountRepository),
+        ),
+      );
+      return;
+    }
+    if (uri.scheme == 'https' &&
+        !{'kodimali.com', 'kodimali.co.tz'}.contains(uri.host)) {
+      return;
+    }
+    if (uri.pathSegments.length == 3 &&
+        uri.pathSegments[0] == 'account' &&
+        uri.pathSegments[1] == 'request') {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => CustomerRequestDetailScreen(
+            bookingRequestId: uri.pathSegments[2],
+            repository: _accountRepository,
+            onOpenListing: (id) => _openListingDetails(
+              context,
+              repository: widget.repository,
+              listingId: id,
+            ),
+          ),
         ),
       );
       return;
@@ -451,7 +487,9 @@ class _CustomerRootState extends State<CustomerRoot> {
       "customer_location_banner_hidden_until",
       DateTime.now().add(const Duration(days: 3)).millisecondsSinceEpoch,
     );
-    setState(() => _bannerHidden = true);
+    setState(() {
+      _bannerHidden = true;
+    });
   }
 
   Future<void> _saveHelpBubblePosition() async {
@@ -487,7 +525,9 @@ class _CustomerRootState extends State<CustomerRoot> {
       return;
     }
     widget.repository.invalidatePublicDataCache(includeCategories: true);
-    setState(() => _refreshTick += 1);
+    setState(() {
+      _refreshTick += 1;
+    });
     unawaited(_loadCategoryMenu());
   }
 
@@ -495,10 +535,18 @@ class _CustomerRootState extends State<CustomerRoot> {
     if (notification is UserScrollNotification) {
       if (notification.direction == ScrollDirection.reverse) {
         _navigationRevealTimer?.cancel();
-        if (_navigationVisible) setState(() => _navigationVisible = false);
+        if (_navigationVisible) {
+          setState(() {
+            _navigationVisible = false;
+          });
+        }
       } else if (notification.direction == ScrollDirection.forward) {
         _navigationRevealTimer?.cancel();
-        if (!_navigationVisible) setState(() => _navigationVisible = true);
+        if (!_navigationVisible) {
+          setState(() {
+            _navigationVisible = true;
+          });
+        }
       }
     } else if (notification is ScrollEndNotification) {
       _scheduleNavigationReveal();
@@ -510,7 +558,9 @@ class _CustomerRootState extends State<CustomerRoot> {
     _navigationRevealTimer?.cancel();
     _navigationRevealTimer = Timer(const Duration(seconds: 3), () {
       if (mounted && !_navigationVisible) {
-        setState(() => _navigationVisible = true);
+        setState(() {
+          _navigationVisible = true;
+        });
       }
     });
   }
@@ -686,12 +736,16 @@ class _CustomerRootState extends State<CustomerRoot> {
       if (!mounted) {
         return;
       }
-      setState(() => _categoryMenuItems = categories);
+      setState(() {
+        _categoryMenuItems = categories;
+      });
     } catch (_) {
       if (!mounted) {
         return;
       }
-      setState(() => _categoryMenuItems = CustomerSnapshotStore.categories);
+      setState(() {
+        _categoryMenuItems = CustomerSnapshotStore.categories;
+      });
     }
   }
 
@@ -1864,7 +1918,9 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
   }
 
   void _handleSearchChanged(String _) {
-    setState(() => _errorMessage = null);
+    setState(() {
+      _errorMessage = null;
+    });
     _searchDebounce?.cancel();
     _searchDebounce = Timer(
       const Duration(milliseconds: 350),
@@ -2556,7 +2612,9 @@ class _PopularCategoryFeedScreenState extends State<PopularCategoryFeedScreen> {
   }
 
   Future<void> _loadMore() async {
-    setState(() => _loadingMore = true);
+    setState(() {
+      _loadingMore = true;
+    });
     try {
       final int nextPage = _page + 1;
       final List<Map<String, dynamic>> rows = await _load(page: nextPage);
@@ -2573,7 +2631,11 @@ class _PopularCategoryFeedScreenState extends State<PopularCategoryFeedScreen> {
         _loadingMore = false;
       });
     } catch (_) {
-      if (mounted) setState(() => _loadingMore = false);
+      if (mounted) {
+        setState(() {
+          _loadingMore = false;
+        });
+      }
     }
   }
 
@@ -3305,17 +3367,29 @@ class PublicListingCard extends StatelessWidget {
     if (listingId.isEmpty) {
       return;
     }
+    final actor = Supabase.instance.client.auth.currentUser?.id;
     final bool saved = await CustomerActivityStore.instance.toggleSaved(
       listing,
     );
     final CustomerAccountRepository account = CustomerAccountRepository(
       Supabase.instance.client,
     );
+    if (account.currentUser?.id != actor) return;
     try {
       if (saved) {
         await account.saveListing(listingId);
+        await CustomerActivityStore.instance.acknowledgeSaved(
+          listingId,
+          true,
+          forUser: actor,
+        );
       } else {
         await account.removeSavedListing(listingId);
+        await CustomerActivityStore.instance.acknowledgeSaved(
+          listingId,
+          false,
+          forUser: actor,
+        );
       }
     } catch (_) {
       // The local favourite stays responsive and sync can retry after sign-in.
@@ -3808,17 +3882,29 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     if (listing == null) {
       return;
     }
+    final actor = Supabase.instance.client.auth.currentUser?.id;
     final bool saved = await CustomerActivityStore.instance.toggleSaved(
       listing,
     );
     final CustomerAccountRepository account = CustomerAccountRepository(
       Supabase.instance.client,
     );
+    if (account.currentUser?.id != actor) return;
     try {
       if (saved) {
         await account.saveListing(widget.listingId);
+        await CustomerActivityStore.instance.acknowledgeSaved(
+          widget.listingId,
+          true,
+          forUser: actor,
+        );
       } else {
         await account.removeSavedListing(widget.listingId);
+        await CustomerActivityStore.instance.acknowledgeSaved(
+          widget.listingId,
+          false,
+          forUser: actor,
+        );
       }
     } catch (_) {
       // The local action succeeds immediately and will be synced later.
@@ -4318,7 +4404,9 @@ class _ListingMediaGalleryState extends State<_ListingMediaGallery> {
             controller: _controller,
             itemCount: visibleMedia.length,
             onPageChanged: (int index) {
-              setState(() => _currentIndex = index);
+              setState(() {
+                _currentIndex = index;
+              });
             },
             itemBuilder: (BuildContext context, int index) {
               final Map<String, dynamic> mediaItem = visibleMedia[index];
@@ -4805,7 +4893,11 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
         _checkInDate == null ||
         _checkOutDate == null ||
         !_checkOutDate!.isAfter(_checkInDate!)) {
-      if (mounted) setState(() => _quote = null);
+      if (mounted) {
+        setState(() {
+          _quote = null;
+        });
+      }
       return;
     }
     setState(() {
@@ -4830,7 +4922,11 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text(_readableErrorMessage(error))));
     } finally {
-      if (mounted) setState(() => _quoteLoading = false);
+      if (mounted) {
+        setState(() {
+          _quoteLoading = false;
+        });
+      }
     }
   }
 
@@ -4890,7 +4986,9 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
         return;
       }
     }
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+    });
     try {
       if (_isReservable) {
         final Map<String, dynamic> availability = await widget.repository
@@ -4943,7 +5041,9 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
       ).showSnackBar(SnackBar(content: Text(_readableErrorMessage(error))));
     } finally {
       if (mounted) {
-        setState(() => _submitting = false);
+        setState(() {
+          _submitting = false;
+        });
       }
     }
   }
@@ -5189,9 +5289,9 @@ class _GuestRequestScreenState extends State<GuestRequestScreen> {
                                   CheckboxListTile(
                                     contentPadding: EdgeInsets.zero,
                                     value: _termsAccepted,
-                                    onChanged: (bool? value) => setState(
-                                      () => _termsAccepted = value ?? false,
-                                    ),
+                                    onChanged: (bool? value) => setState(() {
+                                      _termsAccepted = value ?? false;
+                                    }),
                                     title: Text(
                                       context.isSwahili
                                           ? mobileUi(
@@ -5594,7 +5694,9 @@ class _HomeHeroCardState extends State<_HomeHeroCard> {
   }
 
   void _toggleSearch() {
-    setState(() => _searchExpanded = !_searchExpanded);
+    setState(() {
+      _searchExpanded = !_searchExpanded;
+    });
     if (_searchExpanded) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -6631,10 +6733,14 @@ class _ListingContactUnlockScreenState
       if (!mounted) {
         return;
       }
-      setState(() => _message = _readableErrorMessage(error));
+      setState(() {
+        _message = _readableErrorMessage(error);
+      });
     } finally {
       if (mounted) {
-        setState(() => _submitting = false);
+        setState(() {
+          _submitting = false;
+        });
       }
     }
   }
@@ -6669,11 +6775,15 @@ class _ListingContactUnlockScreenState
         return;
       }
       if (!silent) {
-        setState(() => _message = _readableErrorMessage(error));
+        setState(() {
+          _message = _readableErrorMessage(error);
+        });
       }
     } finally {
       if (mounted) {
-        setState(() => _checking = false);
+        setState(() {
+          _checking = false;
+        });
       }
     }
   }

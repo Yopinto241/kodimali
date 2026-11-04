@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 
@@ -175,7 +176,9 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
       return;
     }
     if (_saving) return;
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+    });
     try {
       await AppScope.of(context).repository.updateListingBasic(
         listingId: widget.listingId,
@@ -202,16 +205,22 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() {
+          _saving = false;
+        });
+      }
     }
   }
 
   Future<void> _moderateAsAdmin(String status, [String? reason]) async {
     if (_saving) return;
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+    });
     try {
       await AppScope.of(context).repository.moderateListing(
         listingId: widget.listingId,
@@ -223,10 +232,14 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() {
+          _saving = false;
+        });
+      }
     }
   }
 
@@ -352,7 +365,7 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text(snapshot.error.toString()));
+            return Center(child: Text(userMessage(context, snapshot.error)));
           }
           final Map<String, dynamic> detail =
               snapshot.data ?? <String, dynamic>{};
@@ -512,7 +525,9 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                         ],
                         onChanged: (String? value) {
                           if (value != null) {
-                            setState(() => _pricePeriod = value);
+                            setState(() {
+                              _pricePeriod = value;
+                            });
                           }
                         },
                       ),
@@ -550,7 +565,9 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                         ],
                         onChanged: (String? value) {
                           if (value != null) {
-                            setState(() => _availability = value);
+                            setState(() {
+                              _availability = value;
+                            });
                           }
                         },
                       ),
@@ -814,8 +831,9 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
           title: Text(label),
           subtitle: helpText?.isNotEmpty == true ? Text(helpText!) : null,
           contentPadding: EdgeInsets.zero,
-          onChanged: (bool? value) =>
-              setState(() => _attributeBooleans[key] = value ?? false),
+          onChanged: (bool? value) => setState(() {
+            _attributeBooleans[key] = value ?? false;
+          }),
         );
       }
       if (type == 'select') {
@@ -844,8 +862,9 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                 ? (String? value) =>
                       value?.isNotEmpty == true ? null : '$label is required'
                 : null,
-            onChanged: (String? value) =>
-                setState(() => _attributeSelections[key] = value),
+            onChanged: (String? value) => setState(() {
+              _attributeSelections[key] = value;
+            }),
           ),
         );
       }

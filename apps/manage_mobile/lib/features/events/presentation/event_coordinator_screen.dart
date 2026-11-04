@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -97,9 +98,14 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
       offerings = (values[3] as List).cast<Map<String, dynamic>>();
       escalations = (values[4] as List).cast<Map<String, dynamic>>();
     } catch (e) {
-      error = e.toString();
+      if (!mounted) return;
+      error = userMessage(context, e);
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
     }
   }
 
@@ -132,7 +138,10 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
                   ),
           ),
           if (error != null)
-            Padding(padding: const EdgeInsets.all(12), child: LocalizedUiText(error!)),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: LocalizedUiText(error!),
+            ),
           _heading(sw ? 'Mipango ya wateja' : 'Customer event plans'),
           if (plans.isEmpty)
             Text(
@@ -280,7 +289,8 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
                             .eq('id', item['id']);
                         await _load();
                       } catch (e) {
-                        _message(e.toString());
+                        if (!context.mounted) return;
+                        _message(userMessage(context, e));
                       }
                     }
                   },
@@ -345,7 +355,8 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
                               .eq('id', item['id']);
                           await _load();
                         } catch (e) {
-                          _message(e.toString());
+                          if (!context.mounted) return;
+                          _message(userMessage(context, e));
                         }
                       }
                     },
@@ -513,7 +524,8 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
       }
       await _load();
     } catch (e) {
-      _message(e.toString());
+      if (!mounted) return;
+      _message(userMessage(context, e));
     }
   }
 
@@ -525,7 +537,8 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
           .eq('id', id);
       await _load();
     } catch (e) {
-      _message(e.toString());
+      if (!mounted) return;
+      _message(userMessage(context, e));
     }
   }
 
@@ -597,7 +610,8 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
         await _load();
       }
     } catch (e) {
-      _message(e.toString());
+      if (!mounted) return;
+      _message(userMessage(context, e));
     } finally {
       reference.dispose();
     }
@@ -659,7 +673,8 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
         await _load();
       }
     } catch (e) {
-      _message(e.toString());
+      if (!mounted) return;
+      _message(userMessage(context, e));
     } finally {
       reference.dispose();
       amount.dispose();
@@ -682,7 +697,8 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
           .eq('id', item['id']);
       await _load();
     } catch (e) {
-      _message(e.toString());
+      if (!mounted) return;
+      _message(userMessage(context, e));
     }
   }
 
@@ -801,7 +817,8 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
         await _load();
       }
     } catch (e) {
-      _message(e.toString());
+      if (!mounted) return;
+      _message(userMessage(context, e));
     } finally {
       reason.dispose();
       difference.dispose();
@@ -847,7 +864,8 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
         await _load();
       }
     } catch (e) {
-      _message(e.toString());
+      if (!mounted) return;
+      _message(userMessage(context, e));
     } finally {
       resolution.dispose();
     }
@@ -864,7 +882,8 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
           .eq('id', id);
       await _load();
     } catch (e) {
-      _message(e.toString());
+      if (!mounted) return;
+      _message(userMessage(context, e));
     }
   }
 
@@ -974,7 +993,8 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
         );
         await _load();
       } catch (e) {
-        _message(e.toString());
+        if (!mounted) return;
+        _message(userMessage(context, e));
       }
     }
     for (final controller in controllers) {
@@ -1039,7 +1059,8 @@ class _EventCoordinatorScreenState extends State<EventCoordinatorScreen> {
         _message(sw ? 'Makubaliano yametumwa.' : 'Agreement sent.');
         await _load();
       } catch (e) {
-        _message(e.toString());
+        if (!mounted) return;
+        _message(userMessage(context, e));
       }
     }
     terms.dispose();

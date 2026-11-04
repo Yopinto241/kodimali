@@ -1,3 +1,4 @@
+import { safeUserMessage } from "@/lib/user-message";
 import { checkListingAvailability } from "@/lib/supabase-public";
 
 export async function POST(request: Request) {
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
     return Response.json(
       {
         error:
-          error instanceof Error ? error.message : "Availability check failed",
+          safeUserMessage(error),
       },
       { status: 400 },
     );

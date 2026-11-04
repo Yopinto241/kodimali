@@ -1,3 +1,4 @@
+import { applyPaymentEvent } from "../_shared/payment-integrity.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   fetchClickPesaToken,
@@ -32,14 +33,7 @@ Deno.serve(async (request) => {
     if (!["paid", "failed", "expired", "cancelled"].includes(status)) {
       if (String(p.provider_payment_id ?? "").startsWith("sp_")) {
         const result = await checkSonicPesaOrder(String(p.provider_payment_id));
-        status = result.status;
-        await db.from("listing_chat_payments").update({
-          payment_status: status,
-          paid_at: status === "paid" ? new Date().toISOString() : null,
-          provider_payment_reference: result.transactionId,
-          provider_channel: result.channel,
-          provider_response: result.payload,
-        }).eq("id", p.id);
+        status = (await applyPaymentEvent(db, "listing_chat_payments", p.id, "sonicpesa", result.status, result.payload)).status;
       } else {
         const config = readClickPesaConfig({
           clientIdEnv: "CLICKPESA_COLLECTION_CLIENT_ID",
@@ -52,25 +46,14 @@ Deno.serve(async (request) => {
           token,
           p.order_reference,
         );
-        status = mapClickPesaStatus(result?.status);
-        await db.from("listing_chat_payments").update({
-          payment_status: status,
-          paid_at: status === "paid" ? new Date().toISOString() : null,
-          provider_payment_reference: result?.paymentReference ?? null,
-        }).eq("id", p.id);
+        status = (await applyPaymentEvent(db, "listing_chat_payments", p.id, "clickpesa", mapClickPesaStatus(result?.status), result)).status;
       }
     }
     let expiresAt = null;
     if (status === "paid") {
-      let { data: a } = await db.from("listing_chat_access").select(
+      const { data: a } = await db.from("listing_chat_access").select(
         "expires_at",
       ).eq("customer_id", user.id).eq("listing_id", p.listing_id).maybeSingle();
-      if (!a) {
-        await db.rpc("grant_listing_chat_access", { p_payment_id: p.id });
-        const result = await db.from("listing_chat_access").select("expires_at")
-          .eq("customer_id", user.id).eq("listing_id", p.listing_id).single();
-        a = result.data;
-      }
       expiresAt = a?.expires_at ?? null;
     }
     return json({ success: true, paymentStatus: status, expiresAt });

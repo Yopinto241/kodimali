@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { ListingPublication } from "@/components/listing-publication";
 import { uploadListingPhoto } from "@/lib/listing-upload";
 import { ListingImagePicker, type ListingPhoto } from "@/components/listing-image-picker";
@@ -39,6 +40,8 @@ import { canUseManageTab } from "@/lib/manage-access";
 type Row = Record<string, unknown>;
 type Role = "admin" | "agent";
 type Tab =
+  | "events-provider"
+  | "events-coordinator"
   | "information"
   | "dashboard"
   | "business"
@@ -462,7 +465,7 @@ export function ManagePortal({ preferredRole, requestedSection = "dashboard", re
       email: email.trim(),
       password,
     });
-    if (error) setMessage(error.message);
+    if (error) setMessage(safeUserMessage(error));
     setBusy(false);
   }
 
@@ -684,6 +687,8 @@ export function ManagePortal({ preferredRole, requestedSection = "dashboard", re
           { id: "promotions" as Tab, label: "Promotions" },
         ]
       : []),
+    { id: "events-provider", label: "Events provider" },
+    { id: "events-coordinator", label: "Events coordinator" },
     { id: "notifications", label: "Notifications" },
     { id: "profile", label: "Profile" },
   ] satisfies { id: Tab; label: string }[]).filter((item) => canUseManageTab(role, permissions, item.id));
@@ -2004,7 +2009,7 @@ function nestedTitle(value: unknown) {
 }
 function readError(error: unknown) {
   if (error && typeof error === "object" && "message" in error)
-    return String(error.message);
+    return String(safeUserMessage(error));
   return "The request could not be completed.";
 }
 function isMissingFunction(error: unknown) {

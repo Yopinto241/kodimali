@@ -40,9 +40,15 @@ class _AgentShellScreenState extends State<AgentShellScreen> {
             label: mobileUi(context, "Dashboard"),
             icon: Icons.dashboard_outlined,
             screen: AgentDashboardTab(
-              onOpenRequests: () => setState(() => _currentIndex = 3),
-              onOpenListings: () => setState(() => _currentIndex = 1),
-              onOpenNotifications: () => setState(() => _currentIndex = 6),
+              onOpenRequests: () => setState(() {
+                _currentIndex = 3;
+              }),
+              onOpenListings: () => setState(() {
+                _currentIndex = 1;
+              }),
+              onOpenNotifications: () => setState(() {
+                _currentIndex = 6;
+              }),
             ),
           ),
           ManageWorkspaceDestination(
@@ -84,7 +90,9 @@ class _AgentShellScreenState extends State<AgentShellScreen> {
     return ManageWorkspaceScaffold(
       title: _titles[_currentIndex],
       currentIndex: _currentIndex,
-      onSelect: (int index) => setState(() => _currentIndex = index),
+      onSelect: (int index) => setState(() {
+        _currentIndex = index;
+      }),
       destinations: destinations,
     );
   }

@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 
@@ -84,12 +85,16 @@ class _EventLocationPickerState extends State<EventLocationPicker> {
       }
       regionId = _existing(regions, widget.initialRegionId);
       if (regionId != null) await _selectRegion(regionId!, restoring: true);
-      if (mounted) setState(() => loading = false);
+      if (mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
           loading = false;
-          error = e.toString();
+          error = userMessage(context, e);
         });
       }
     }
@@ -99,7 +104,11 @@ class _EventLocationPickerState extends State<EventLocationPicker> {
       id != null && rows.any((row) => row['id'] == id) ? id : null;
 
   Future<void> _selectRegion(String value, {bool restoring = false}) async {
-    if (!restoring) setState(() => loading = true);
+    if (!restoring) {
+      setState(() {
+        loading = true;
+      });
+    }
     regionId = value;
     districtId = wardId = areaId = null;
     wards = areas = <_JsonMap>[];
@@ -109,11 +118,19 @@ class _EventLocationPickerState extends State<EventLocationPicker> {
     );
     districtId = _existing(districts, widget.initialDistrictId);
     if (districtId != null) await _selectDistrict(districtId!, restoring: true);
-    if (mounted && !restoring) setState(() => loading = false);
+    if (mounted && !restoring) {
+      setState(() {
+        loading = false;
+      });
+    }
   }
 
   Future<void> _selectDistrict(String value, {bool restoring = false}) async {
-    if (!restoring) setState(() => loading = true);
+    if (!restoring) {
+      setState(() {
+        loading = true;
+      });
+    }
     districtId = value;
     wardId = areaId = null;
     areas = <_JsonMap>[];
@@ -123,11 +140,19 @@ class _EventLocationPickerState extends State<EventLocationPicker> {
     );
     wardId = _existing(wards, widget.initialWardId);
     if (wardId != null) await _selectWard(wardId!, restoring: true);
-    if (mounted && !restoring) setState(() => loading = false);
+    if (mounted && !restoring) {
+      setState(() {
+        loading = false;
+      });
+    }
   }
 
   Future<void> _selectWard(String value, {bool restoring = false}) async {
-    if (!restoring) setState(() => loading = true);
+    if (!restoring) {
+      setState(() {
+        loading = true;
+      });
+    }
     wardId = value;
     areaId = null;
     areas = await widget.repository.fetchLocations(
@@ -135,7 +160,11 @@ class _EventLocationPickerState extends State<EventLocationPicker> {
       locationType: 'area',
     );
     areaId = _existing(areas, widget.initialAreaId);
-    if (mounted && !restoring) setState(() => loading = false);
+    if (mounted && !restoring) {
+      setState(() {
+        loading = false;
+      });
+    }
   }
 
   String _name(List<_JsonMap> rows, String? id) =>
@@ -198,7 +227,9 @@ class _EventLocationPickerState extends State<EventLocationPicker> {
             areaId,
             wardId == null
                 ? null
-                : (value) async => setState(() => areaId = value),
+                : (value) async => setState(() {
+                    areaId = value;
+                  }),
           ),
           if (loading) const LinearProgressIndicator(),
           const SizedBox(height: 24),

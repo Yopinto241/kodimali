@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { UiText } from "@/components/ui-text";
 
 import { useMemo, useState } from "react";
@@ -40,7 +41,7 @@ export function SaveSearchButton({
       } as never);
     setMessage(
       result.error
-        ? result.error.message
+        ? safeUserMessage(result.error)
         : sw
           ? "Utafutaji umehifadhiwa na taarifa za mali zinazolingana zimewashwa."
           : "Search saved. Matching-listing alerts are enabled.",

@@ -1,3 +1,4 @@
+import { trustedWorker } from "../_shared/worker-auth.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const json = (body: unknown, status = 200) =>
@@ -11,6 +12,7 @@ Deno.serve(async (request) => {
     return json({ error: "Method not allowed" }, 405);
   }
 
+  if (!trustedWorker(request)) return json({ error: "Worker authorization required" }, 401);
   const serviceClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",

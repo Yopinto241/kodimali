@@ -1,3 +1,4 @@
+import '../notifications/push_notification_service.dart';
 import '../utils/agent_registration_error.dart';
 import 'dart:typed_data';
 
@@ -388,7 +389,10 @@ class ManageRepository {
         );
       }
 
-      await _client.auth.resetPasswordForEmail(loginEmail);
+      await _client.auth.resetPasswordForEmail(
+        loginEmail,
+        redirectTo: 'https://kodimali.com/account?mode=recovery',
+      );
     } on AuthException catch (error) {
       throw StateError(_friendlyAuthError(error));
     } on StateError {
@@ -416,7 +420,11 @@ class ManageRepository {
   }
 
   Future<void> signOut() async {
-    await _client.auth.signOut();
+    try {
+      await PushNotificationService.instance.prepareLogout();
+    } finally {
+      await _client.auth.signOut(scope: SignOutScope.local);
+    }
   }
 
   Future<AppProfile> fetchProfile(String userId) async {

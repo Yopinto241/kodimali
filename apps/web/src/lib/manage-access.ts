@@ -3,9 +3,11 @@ export function hasPermission(permissions: readonly string[], permission: string
 }
 
 export function canUseManageTab(role: 'admin' | 'agent', permissions: readonly string[], tab: string) {
-  if (role === 'agent') return ['dashboard', 'business', 'listings', 'add-listing', 'requests', 'notifications', 'profile'].includes(tab);
+  if (role === 'agent') return ['events-provider', 'dashboard', 'business', 'listings', 'add-listing', 'requests', 'notifications', 'profile'].includes(tab);
   if (permissions.includes('supervisor.scoped') && !permissions.includes('*') && !['agents', 'profile', 'notifications'].includes(tab)) return false;
   const required: Record<string, string[]> = {
+    'events-coordinator': ['events.manage'],
+    'events-provider': ['*'],
     dashboard: ['dashboard.view'],
     information: ['information.manage'],
     business: ['analytics.view', 'payments.manage', 'boosts.manage', 'risk.manage', 'refunds.manage'],

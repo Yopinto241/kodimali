@@ -1,3 +1,4 @@
+import { trustedWorker } from "../_shared/worker-auth.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const MAX_ATTEMPTS = 8;
@@ -78,6 +79,7 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") {
     return json({ error: "Method not allowed" }, 405);
   }
+  if (!trustedWorker(request)) return json({ error: "Worker authorization required" }, 401);
   const db = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -144,7 +146,7 @@ Deno.serve(async (request) => {
         ] = await Promise.all([
           db.from("notifications").select("title,body,payload,type")
             .eq("id", job.notification_id).single(),
-          db.from("device_tokens").select("id,device_token")
+          db.from("device_tokens").select("id,device_token,session_id")
             .eq("user_id", job.user_id).eq("is_enabled", true),
           db.from("notification_preferences")
             .select(
@@ -192,10 +194,17 @@ Deno.serve(async (request) => {
         const messageIds: string[] = [];
         const transientErrors: string[] = [];
         for (const device of devices) {
+          if (device.session_id) {
+            const active = await db.rpc("push_registration_has_active_session", { p_device_id: device.id });
+            if (active.error) throw new Error("Device session validation unavailable");
+            if (active.data !== true) continue;
+          }
           const data: Record<string, string> = {
             notificationId: job.notification_id,
+            userId: job.user_id,
           };
           for (const [key, value] of Object.entries(payload)) {
+            if (!["route","eventType","bookingId","listingId","eventPlanId","paymentId","conversationId","agreementId"].includes(key)) continue;
             data[key] = typeof value === "string"
               ? value
               : JSON.stringify(value);
@@ -214,8 +223,8 @@ Deno.serve(async (request) => {
                 message: {
                   token: device.device_token,
                   notification: {
-                    title: notification.title,
-                    body: notification.body,
+                    title: "KODIMALI",
+                    body: "You have a new update. Open KODIMALI to view it. / Una taarifa mpya. Fungua KODIMALI kuiona.",
                   },
                   data,
                   android: {

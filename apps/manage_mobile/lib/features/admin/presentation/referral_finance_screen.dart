@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -22,7 +23,9 @@ class _ReferralFinanceScreenState extends State<ReferralFinanceScreen> {
               as List)
           .cast<Map<String, dynamic>>();
   Future<void> _reload() async {
-    setState(() => _future = _load());
+    setState(() {
+      _future = _load();
+    });
     await _future;
   }
 
@@ -159,27 +162,24 @@ class _ReferralFinanceScreenState extends State<ReferralFinanceScreen> {
 
   Future<void> _perform(Future<dynamic> Function() action) async {
     if (!mounted) return;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+    });
     try {
       await action();
       await _reload();
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              error is PostgrestException
-                  ? error.message
-                  : mobileUi(
-                      context,
-                      'Could not save the finance action. Please retry.',
-                    ),
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+        });
+      }
     }
   }
 

@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { UiButton, UiLink, UiSpan, UiText, UiTextarea } from "@/components/ui-text";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
@@ -189,7 +190,5 @@ function formatChatTime(value: unknown, language: string) {
 }
 
 function readError(error: unknown) {
-  return error instanceof Error
-    ? error.message
-    : "The chat could not be loaded.";
+  return safeUserMessage(error);
 }

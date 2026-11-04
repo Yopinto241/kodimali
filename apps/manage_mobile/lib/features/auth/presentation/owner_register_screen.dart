@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -114,7 +115,11 @@ class _OwnerRegisterScreenState extends State<OwnerRegisterScreen> {
               ),
             ],
             onChanged: (value) {
-              if (value != null) setState(() => ownerType = value);
+              if (value != null) {
+                setState(() {
+                  ownerType = value;
+                });
+              }
             },
           ),
           TextField(
@@ -197,7 +202,9 @@ class _OwnerRegisterScreenState extends State<OwnerRegisterScreen> {
         authority.text.trim().isEmpty) {
       return;
     }
-    setState(() => busy = true);
+    setState(() {
+      busy = true;
+    });
     try {
       await Supabase.instance.client.auth.signUp(
         email: email.text.trim().toLowerCase(),
@@ -235,11 +242,13 @@ class _OwnerRegisterScreenState extends State<OwnerRegisterScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
       if (mounted) {
-        setState(() => busy = false);
+        setState(() {
+          busy = false;
+        });
       }
     }
   }

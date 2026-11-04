@@ -1,0 +1,124 @@
+\set ON_ERROR_STOP on
+-- Execute only against the metadata-only localhost repair fixture.
+begin;
+create function pg_temp.assert_true(value boolean,label text) returns void language plpgsql as $$ begin if value is distinct from true then raise exception 'FAIL: %',label; end if; raise notice 'PASS: %',label; end $$;
+select set_config('request.jwt.claim.role','authenticated',true);
+select set_config('request.jwt.claim.sub',md5('repair-analyst')::uuid::text,true);
+set local role authenticated;
+select pg_temp.assert_true(not has_admin_permission('bookings.manage'),'analyst lacks booking permission');
+select pg_temp.assert_true((select count(*) from booking_requests)=0,'F01 analyst cannot read private bookings');
+select pg_temp.assert_true((select count(*) from profiles)=1,'analyst can read own profile only');
+reset role;
+select set_config('request.jwt.claim.sub',md5('repair-marketing')::uuid::text,true);
+set local role authenticated;
+select pg_temp.assert_true((select count(*) from booking_requests)=0,'marketing cannot read private bookings');
+select pg_temp.assert_true(has_domain_permission('platform_promotions','UPDATE'),'marketing can manage promotions');
+reset role;
+select set_config('request.jwt.claim.sub',md5('repair-support')::uuid::text,true);
+set local role authenticated;
+select pg_temp.assert_true((select count(*) from booking_requests)=2,'support retains authorized booking access');
+select pg_temp.assert_true(not has_domain_permission('platform_payment_orders'),'support has no finance access');
+reset role;
+select set_config('request.jwt.claim.sub',md5('repair-finance')::uuid::text,true);
+set local role authenticated;
+select pg_temp.assert_true((select count(*) from booking_requests)=0,'finance does not acquire unrelated contact data');
+select pg_temp.assert_true(has_domain_permission('platform_payment_orders'),'finance retains payment scope');
+reset role;
+select set_config('request.jwt.claim.sub',md5('repair-customer')::uuid::text,true);
+set local role authenticated;
+select pg_temp.assert_true((select count(*) from booking_requests)=1,'customer sees only own booking');
+do $$ begin
+ begin perform grant_listing_chat_access(md5('repair-chat')::uuid);raise exception 'Unauthorized grant accepted'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claim.sub',md5('repair-agent')::uuid::text,true);
+set local role authenticated;
+select pg_temp.assert_true((select count(*) from booking_requests)=1,'agent sees assigned booking only');
+reset role;
+select set_config('request.jwt.claim.sub',md5('repair-owner')::uuid::text,true);
+set local role authenticated;
+select pg_temp.assert_true((select count(*) from booking_requests)=1,'owner retains verified asset booking access');
+reset role;
+select set_config('request.jwt.claim.sub',md5('repair-supervisor')::uuid::text,true);
+set local role authenticated;
+select pg_temp.assert_true((select count(*) from agents)=1,'scoped supervisor sees own team only');
+select pg_temp.assert_true((select count(*) from booking_requests)=0,'supervisor cannot read customer bookings');
+reset role;
+select set_config('request.jwt.claim.sub',md5('repair-superadmin')::uuid::text,true);
+set local role authenticated;
+select pg_temp.assert_true((select count(*) from booking_requests)=2,'Super Admin retains booking access');
+reset role;
+select set_config('request.jwt.claim.sub','',true);
+select set_config('request.jwt.claim.role','anon',true);
+set local role anon;
+select pg_temp.assert_true(is_listing_public(md5('repair-listing')::uuid),'anonymous public browsing retained');
+do $$ begin
+ begin perform grant_listing_chat_access(md5('repair-chat')::uuid);raise exception 'Anonymous grant accepted'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claim.role','service_role',true);
+select pg_temp.assert_true((apply_verified_payment_event('listing_chat_payments',md5('repair-chat')::uuid,'sonicpesa','paid','fixture-txn',jsonb_build_object('order_id','sp_fixture_chat','amount',999,'currency','TZS'))->>'reconciliationRequired')::boolean,'F05 wrong amount requires reconciliation');
+select pg_temp.assert_true(not exists(select from listing_chat_access where customer_id=md5('repair-customer')::uuid),'mismatched payment grants no access');
+select pg_temp.assert_true((apply_verified_payment_event('listing_chat_payments',md5('repair-chat')::uuid,'sonicpesa','paid','fixture-txn',jsonb_build_object('order_id','sp_fixture_chat','amount',1000))->>'reconciliationRequired')::boolean,'missing currency requires reconciliation');
+select pg_temp.assert_true((apply_verified_payment_event('listing_chat_payments',md5('repair-chat')::uuid,'sonicpesa','paid','fixture-txn',jsonb_build_object('order_id','sp_fixture_chat','amount',1000,'currency','TZS'))->>'status')='paid','complete verified receipt succeeds');
+create temp table grant_expiry as select expires_at from listing_chat_access where customer_id=md5('repair-customer')::uuid;
+select grant_listing_chat_access(md5('repair-chat')::uuid);
+select grant_listing_chat_access(md5('repair-chat')::uuid);
+select pg_temp.assert_true((select expires_at from listing_chat_access where customer_id=md5('repair-customer')::uuid)=(select expires_at from grant_expiry),'F02 same paid receipt grants once');
+select pg_temp.assert_true((apply_verified_payment_event('listing_chat_payments',md5('repair-chat')::uuid,'sonicpesa','processing','fixture-txn','{"order_id":"sp_fixture_chat"}')->>'status')='paid','F04 delayed processing does not downgrade paid');
+select pg_temp.assert_true((apply_verified_payment_event('listing_chat_payments',md5('repair-chat')::uuid,'sonicpesa','failed','fixture-txn','{"order_id":"sp_fixture_chat"}')->>'reconciliationRequired')::boolean,'contradictory terminal event enters reconciliation');
+select pg_temp.assert_true((select count(*) from chat_entitlement_grants where payment_id=md5('repair-chat')::uuid)=1,'one durable grant ledger row');
+-- A distinct verified receipt renews once; a revoked entitlement is never revived.
+insert into listing_chat_payments(id,listing_id,agent_id,customer_id,order_reference,payment_provider,requested_amount,customer_phone_number,provider_payment_id)
+select md5('repair-renewal')::uuid,listing_id,agent_id,customer_id,'FIXTURE-RENEW','sonicpesa',1000,customer_phone_number,'sp_fixture_renew' from listing_chat_payments where id=md5('repair-chat')::uuid;
+select apply_verified_payment_event('listing_chat_payments',md5('repair-renewal')::uuid,'sonicpesa','paid','fixture-renew-txn','{"order_id":"sp_fixture_renew","amount":1000,"currency":"TZS"}');
+select pg_temp.assert_true((select expires_at from listing_chat_access where customer_id=md5('repair-customer')::uuid)=(select expires_at+interval '7 days' from grant_expiry),'distinct renewal adds exactly seven days');
+update grant_expiry set expires_at=expires_at+interval '7 days';
+update listing_chat_access set revoked_at=now() where customer_id=md5('repair-customer')::uuid;
+insert into listing_chat_payments(id,listing_id,agent_id,customer_id,order_reference,payment_provider,requested_amount,customer_phone_number,provider_payment_id)
+select md5('repair-revoked')::uuid,listing_id,agent_id,customer_id,'FIXTURE-REVOKED','sonicpesa',1000,customer_phone_number,'sp_fixture_revoked' from listing_chat_payments where id=md5('repair-chat')::uuid;
+select apply_verified_payment_event('listing_chat_payments',md5('repair-revoked')::uuid,'sonicpesa','paid','fixture-revoked-txn','{"order_id":"sp_fixture_revoked","amount":1000,"currency":"TZS"}');
+select pg_temp.assert_true((select revoked_at is not null and expires_at=(select expires_at from grant_expiry) from listing_chat_access where customer_id=md5('repair-customer')::uuid),'verified renewal cannot revive revoked access');
+select pg_temp.assert_true(exists(select from financial_reconciliation_cases where provider_order_id='sp_fixture_revoked'),'revoked paid renewal is sent to finance review');
+-- Direct booking RPC is protected even if the caller bypasses Edge.
+select set_config('request.jwt.claim.role','authenticated',true);
+select set_config('request.jwt.claim.sub',md5('repair-agent')::uuid::text,true);
+update agents set account_status='suspended' where id=md5('repair-agent-id')::uuid;
+set local role authenticated;
+do $$ begin
+ begin perform manage_update_booking_status(md5('repair-booking')::uuid,'confirmed');raise exception 'Inactive agent RPC accepted'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claim.role','service_role',true);
+update agents set account_status='active' where id=md5('repair-agent-id')::uuid;
+select set_config('request.jwt.claim.role','authenticated',true);
+set local role authenticated;
+select update_event_fulfillment_task(md5('repair-task')::uuid,'in_progress');
+reset role;
+select pg_temp.assert_true((select status from event_tasks where id=md5('repair-task')::uuid)='in_progress','assigned provider can progress own fulfillment task');
+select set_config('request.jwt.claim.sub',md5('repair-other-agent')::uuid::text,true);
+set local role authenticated;
+do $$ begin
+ begin perform update_event_fulfillment_task(md5('repair-task')::uuid,'completed');raise exception 'Other provider task update accepted'; exception when insufficient_privilege then null; end;
+ begin perform resolve_event_dispute(md5('repair-dispute')::uuid,'Unauthorized resolution');raise exception 'Provider dispute resolution accepted'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select set_config('request.jwt.claim.sub',md5('repair-coordinator')::uuid::text,true);
+set local role authenticated;
+select resolve_event_dispute(md5('repair-dispute')::uuid,'Fixture resolution recorded');
+reset role;
+select pg_temp.assert_true((select status from event_disputes where id=md5('repair-dispute')::uuid)='resolved','coordinator can resolve dispute');
+select pg_temp.assert_true(exists(select from event_audit_log where action='event_dispute_reviewed'),'dispute resolution has audit evidence');
+-- Administrative switch changes never mutate verified receipts or entitlements.
+select set_config('request.jwt.claim.role','authenticated',true);
+select set_config('request.jwt.claim.sub',md5('repair-superadmin')::uuid::text,true);
+set local role authenticated;
+update marketplace_settings set chat_payments_enabled=false,contact_payments_enabled=false,booking_payments_enabled=false,event_payments_enabled=false,subscription_payments_enabled=false,listing_boost_payments_enabled=false,agent_listing_payments_enabled=false where id=true;
+select pg_temp.assert_true(not payment_feature_enabled('booking_deposit') and not payment_feature_enabled('booking_balance') and not payment_feature_enabled('event_deposit') and not payment_feature_enabled('event_balance') and not payment_feature_enabled('paid_chat') and not payment_feature_enabled('contact') and not payment_feature_enabled('publication') and not payment_feature_enabled('subscription') and not payment_feature_enabled('listing_boost'),'all configurable products disabled server-side');
+reset role;
+select pg_temp.assert_true((select payment_status from listing_chat_payments where id=md5('repair-chat')::uuid)='paid','disabled collection preserves verified history');
+select pg_temp.assert_true((select expires_at from listing_chat_access where customer_id=md5('repair-customer')::uuid)=(select expires_at from grant_expiry),'disabled collection preserves paid entitlement');
+select pg_temp.assert_true(exists(select from audit_logs where action='marketplace_controls_changed'),'administrative switch change is audited');
+select set_config('request.jwt.claim.role','service_role',true);
+select pg_temp.assert_true((ensure_free_listing_chat_access(md5('repair-listing')::uuid,md5('repair-customer')::uuid)->>'blocked')::boolean,'free mode cannot revive revoked access');
+rollback;

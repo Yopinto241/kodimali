@@ -1,3 +1,4 @@
+import '../notifications/push_notification_service.dart';
 import 'dart:async';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -140,10 +141,12 @@ class CustomerAccountRepository {
     required String email,
     required String password,
   }) {
-    return _client.auth.signInWithPassword(
-      email: email.trim().toLowerCase(),
-      password: password,
-    );
+    return _client.auth
+        .signInWithPassword(
+          email: email.trim().toLowerCase(),
+          password: password,
+        )
+        .timeout(const Duration(seconds: 20));
   }
 
   Future<AuthResponse> signUp({
@@ -153,25 +156,33 @@ class CustomerAccountRepository {
     String? phoneNumber,
     String preferredLanguage = 'sw',
   }) {
-    return _client.auth.signUp(
-      email: email.trim().toLowerCase(),
-      password: password,
-      data: <String, dynamic>{
-        'full_name': fullName.trim(),
-        'phone_number': phoneNumber?.trim(),
-        'preferred_language': preferredLanguage,
-        'registration_source': 'customer_mobile',
-        'register_as_agent': false,
-      },
-    );
+    return _client.auth
+        .signUp(
+          email: email.trim().toLowerCase(),
+          password: password,
+          data: <String, dynamic>{
+            'full_name': fullName.trim(),
+            'phone_number': phoneNumber?.trim(),
+            'preferred_language': preferredLanguage,
+            'registration_source': 'customer_mobile',
+            'register_as_agent': false,
+          },
+        )
+        .timeout(const Duration(seconds: 20));
   }
 
-  Future<void> signOut() => _client.auth.signOut();
+  Future<void> signOut() async {
+    try {
+      await PushNotificationService.instance.prepareLogout();
+    } finally {
+      await _client.auth.signOut(scope: SignOutScope.local);
+    }
+  }
 
   Future<void> sendPasswordReset(String email) =>
       _client.auth.resetPasswordForEmail(
         email.trim().toLowerCase(),
-        redirectTo: 'kodimali://reset-password',
+        redirectTo: 'https://kodimali.com/account?mode=recovery',
       );
 
   Future<void> changePassword(String newPassword) =>

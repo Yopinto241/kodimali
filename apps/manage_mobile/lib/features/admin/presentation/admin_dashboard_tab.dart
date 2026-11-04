@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_design_system/flutter_design_system.dart';
@@ -73,7 +74,7 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return Center(child: Text(snapshot.error.toString()));
+          return Center(child: Text(userMessage(context, snapshot.error)));
         }
         final Map<String, int> counts = snapshot.data ?? <String, int>{};
         if (counts.isEmpty) {
@@ -327,7 +328,9 @@ class _ContactPaymentSettingsPanelState
     final note = controller.text.trim();
     controller.dispose();
     if (confirmed != true || !mounted) return;
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+    });
     try {
       await AppScope.of(context).repository.updateKodimaliRolloutFlag(
         key: key,
@@ -346,7 +349,11 @@ class _ContactPaymentSettingsPanelState
         );
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() {
+          _saving = false;
+        });
+      }
     }
   }
 
@@ -438,7 +445,9 @@ class _ContactPaymentSettingsPanelState
     if (!confirmed || !mounted) {
       return;
     }
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+    });
     try {
       await AppScope.of(
         context,
@@ -455,10 +464,12 @@ class _ContactPaymentSettingsPanelState
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        setState(() {
+          _saving = false;
+        });
       }
     }
   }
@@ -475,7 +486,9 @@ class _ContactPaymentSettingsPanelState
     if (!confirmed || !mounted) {
       return;
     }
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+    });
     try {
       await AppScope.of(
         context,
@@ -489,11 +502,13 @@ class _ContactPaymentSettingsPanelState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        setState(() {
+          _saving = false;
+        });
       }
     }
   }
@@ -513,7 +528,9 @@ class _ContactPaymentSettingsPanelState
     if (!confirmed || !mounted) {
       return;
     }
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+    });
     try {
       await AppScope.of(context).repository.updateChatPaymentsEnabled(enabled);
       if (mounted) {
@@ -525,11 +542,13 @@ class _ContactPaymentSettingsPanelState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        setState(() {
+          _saving = false;
+        });
       }
     }
   }
@@ -569,7 +588,9 @@ class _ContactPaymentSettingsPanelState
     );
     controller.dispose();
     if (amount == null || amount <= 0 || !mounted) return;
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+    });
     try {
       await AppScope.of(context).repository.updatePaidChatUnlockPrice(amount);
       if (mounted) {
@@ -584,7 +605,11 @@ class _ContactPaymentSettingsPanelState
         );
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() {
+          _saving = false;
+        });
+      }
     }
   }
 
@@ -600,7 +625,9 @@ class _ContactPaymentSettingsPanelState
     if (!confirmed || !mounted) {
       return;
     }
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+    });
     try {
       await AppScope.of(
         context,
@@ -614,11 +641,13 @@ class _ContactPaymentSettingsPanelState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        setState(() {
+          _saving = false;
+        });
       }
     }
   }
@@ -633,7 +662,9 @@ class _ContactPaymentSettingsPanelState
           'New booking checkout will be unavailable. Existing paid reservations remain valid and unpaid requests are not confirmed for free.',
     );
     if (!confirmed || !mounted) return;
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+    });
     try {
       await AppScope.of(
         context,
@@ -647,10 +678,14 @@ class _ContactPaymentSettingsPanelState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() {
+          _saving = false;
+        });
+      }
     }
   }
 
@@ -664,7 +699,9 @@ class _ContactPaymentSettingsPanelState
           'New event deposit and balance checkout will be unavailable. Existing paid obligations remain recorded and inventory is not reserved for free.',
     );
     if (!confirmed || !mounted) return;
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+    });
     try {
       await AppScope.of(context).repository.updateEventPaymentsEnabled(enabled);
       if (mounted) {
@@ -676,10 +713,14 @@ class _ContactPaymentSettingsPanelState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() {
+          _saving = false;
+        });
+      }
     }
   }
 
@@ -695,7 +736,9 @@ class _ContactPaymentSettingsPanelState
     if (!confirmed || !mounted) {
       return;
     }
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+    });
     try {
       await AppScope.of(
         context,
@@ -709,11 +752,13 @@ class _ContactPaymentSettingsPanelState
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, error))));
       }
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        setState(() {
+          _saving = false;
+        });
       }
     }
   }

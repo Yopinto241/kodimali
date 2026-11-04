@@ -59,30 +59,19 @@ Deno.serve(async (request) => {
     if (settingsError) throw new Error(settingsError.message);
     if (priceError) throw new Error(priceError.message);
     if (enabled === false) {
-      const now = new Date();
-      const expires = new Date(now.getTime() + 7 * 86400000);
-      await db.from("listing_chat_access").upsert({
-        listing_id: listingId,
-        agent_id: listing.agent_id,
-        customer_id: user.id,
-        access_source: "free",
-        starts_at: now.toISOString(),
-        expires_at: expires.toISOString(),
-        revoked_at: null,
-      }, { onConflict: "customer_id,listing_id,agent_id" });
-      return json({
-        success: true,
-        paymentRequired: false,
-        paymentStatus: "paid",
-        expiresAt: expires.toISOString(),
-      });
+      const free=await db.rpc("ensure_free_listing_chat_access",{p_listing_id:listingId,p_customer_id:user.id});
+      if (free.error) throw new Error("Chat access is temporarily unavailable");
+      if (free.data?.blocked) return json({error:"This chat access is restricted. Please contact support."},403);
+      return json({success:true,paymentRequired:false,paymentStatus:"free",expiresAt:free.data?.expiresAt});
     }
+    if (enabled !== true) return json({error:"Chat settings are temporarily unavailable"},503);
+
     if (phone.length < 12) {
       return json({ error: "Enter a valid mobile-money phone number." }, 400);
     }
     const { data: access } = await db.from("listing_chat_access").select(
       "expires_at",
-    ).eq("listing_id", listingId).eq("customer_id", user.id).gt(
+    ).eq("listing_id", listingId).eq("customer_id", user.id).is("revoked_at", null).gt(
       "expires_at",
       new Date().toISOString(),
     ).maybeSingle();
@@ -138,7 +127,7 @@ Deno.serve(async (request) => {
       if (sonic) {
         const order = await createSonicPesaOrder({ phone, amount });
         await db.from("listing_chat_payments").update({
-          payment_status: order.status,
+          payment_status: order.status === "paid" ? "processing" : order.status,
           provider_payment_id: order.orderId,
           provider_channel: order.channel,
           provider_response: order.payload,
@@ -147,7 +136,7 @@ Deno.serve(async (request) => {
           success: true,
           paymentRequired: true,
           paymentId: payment.id,
-          paymentStatus: order.status,
+          paymentStatus: order.status === "paid" ? "processing" : order.status,
           amount,
           currency: "TZS",
           provider: "sonicpesa",
@@ -167,7 +156,8 @@ Deno.serve(async (request) => {
         );
       }
       const initiated = await initiateUssdPushRequest(config!, token, payload);
-      const status = mapClickPesaStatus(initiated.status);
+      const initiatedStatus = mapClickPesaStatus(initiated.status);
+    const status = initiatedStatus === "paid" ? "processing" : initiatedStatus;
       await db.from("listing_chat_payments").update({
         payment_status: status,
         provider_payment_id: initiated.id ?? null,

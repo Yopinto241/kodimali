@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 
@@ -15,16 +16,48 @@ class CustomerListingChatsScreen extends StatefulWidget {
 
 class _CustomerListingChatsScreenState
     extends State<CustomerListingChatsScreen> {
-  late Future<List<Map<String, dynamic>>> _future = widget.repository
-      .fetchListingChats();
+  late Future<List<Map<String, dynamic>>> _future;
+  List<Map<String, dynamic>> _lastRows = [];
   Timer? _refreshTimer;
+  bool _refreshInFlight = false;
+  Object? _refreshError;
+  Future<List<Map<String, dynamic>>> _fetch() async {
+    _refreshInFlight = true;
+    try {
+      final rows = await widget.repository.fetchListingChats().timeout(
+        const Duration(seconds: 20),
+      );
+      _refreshError = null;
+      _lastRows = rows;
+      return rows;
+    } catch (error) {
+      _refreshError = error;
+      if (_lastRows.isNotEmpty) return _lastRows;
+      rethrow;
+    } finally {
+      _refreshInFlight = false;
+    }
+  }
+
+  Future<void> _reload() async {
+    if (!mounted || _refreshInFlight) return;
+    final next = _fetch();
+    setState(() {
+      _future = next;
+    });
+    try {
+      await next;
+    } catch (_) {}
+  }
 
   @override
   void initState() {
     super.initState();
+    _future = _fetch();
     _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (mounted) {
-        setState(() => _future = widget.repository.fetchListingChats());
+      if (WidgetsBinding.instance.lifecycleState == null ||
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        unawaited(_reload());
       }
     });
   }
@@ -37,25 +70,35 @@ class _CustomerListingChatsScreenState
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const LocalizedUiText('My chats')),
+    appBar: AppBar(
+      title: const LocalizedUiText('My chats'),
+      actions: [
+        IconButton(
+          onPressed: _reload,
+          tooltip: mobileUi(context, 'Retry'),
+          icon: Icon(_refreshError == null ? Icons.refresh : Icons.cloud_off),
+        ),
+      ],
+    ),
     body: FutureBuilder<List<Map<String, dynamic>>>(
       future: _future,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData &&
+            _lastRows.isEmpty) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return Center(child: Text(snapshot.error.toString()));
+          return RecoverableError(error: snapshot.error, onRetry: _reload);
         }
-        final rows = snapshot.data ?? const <Map<String, dynamic>>[];
+        final rows = snapshot.data ?? _lastRows;
         if (rows.isEmpty) {
           return const Center(
             child: LocalizedUiText('Your agent chats will appear here.'),
           );
         }
         return RefreshIndicator(
-          onRefresh: () async =>
-              setState(() => _future = widget.repository.fetchListingChats()),
+          onRefresh: _reload,
           child: ListView.builder(
             itemCount: rows.length,
             itemBuilder: (context, index) {
@@ -180,10 +223,10 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
       final required = result['paymentRequired'] as bool? ?? true;
       final id = result['paymentId']?.toString();
       if (required && id != null && status != 'paid') {
-        setState(
-          () => _message =
-              'Payment prompt sent. Confirm TSh ${result['amount'] ?? _chatPrice} on your phone.',
-        );
+        setState(() {
+          _message =
+              'Payment prompt sent. Confirm TSh ${result['amount'] ?? _chatPrice} on your phone.';
+        });
         for (var i = 0; i < 30 && status != 'paid'; i++) {
           await Future<void>.delayed(const Duration(seconds: 3));
           result = await widget.repository.checkListingChatPayment(id);
@@ -208,12 +251,16 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
       );
     } catch (error) {
       if (mounted) {
-        setState(
-          () => _message = error.toString().replaceFirst('Bad state: ', ''),
-        );
+        setState(() {
+          _message = userMessage(context, error);
+        });
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+        });
+      }
     }
   }
 
@@ -287,7 +334,10 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
               prefixText: '+255 ',
             ),
           ),
-        if (_message != null) ...[const SizedBox(height: 12), LocalizedUiText(_message!)],
+        if (_message != null) ...[
+          const SizedBox(height: 12),
+          LocalizedUiText(_message!),
+        ],
         const SizedBox(height: 20),
         if (widget.repository.isSignedIn)
           FilledButton.icon(
@@ -329,9 +379,54 @@ class CustomerListingChatScreen extends StatefulWidget {
 class _CustomerListingChatScreenState extends State<CustomerListingChatScreen> {
   final _text = TextEditingController();
   final _scroll = ScrollController();
-  late Future<Map<String, dynamic>> _details = widget.repository
-      .fetchListingConversation(widget.conversationId);
+  late Future<Map<String, dynamic>> _details = _loadDetails();
+  late Stream<List<Map<String, dynamic>>> _messages = widget.repository
+      .watchListingChatMessages(widget.conversationId);
+  Map<String, dynamic>? _lastDetails;
+  List<Map<String, dynamic>> _lastMessages = [];
+  void _retryMessages() => setState(() {
+    _messages = widget.repository.watchListingChatMessages(
+      widget.conversationId,
+    );
+  });
+  bool _refreshingDetails = false;
   bool _sending = false;
+  int _messageCount = 0;
+  bool _newMessages = false;
+  Timer? _accessTimer;
+  Future<Map<String, dynamic>> _loadDetails() async {
+    final details = await widget.repository
+        .fetchListingConversation(widget.conversationId)
+        .timeout(const Duration(seconds: 20));
+    _lastDetails = details;
+    return details;
+  }
+
+  Future<void> _retryDetails() async {
+    if (_refreshingDetails || !mounted) return;
+    _refreshingDetails = true;
+    final next = _loadDetails();
+    setState(() {
+      _details = next;
+    });
+    try {
+      await next;
+    } catch (_) {
+    } finally {
+      _refreshingDetails = false;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _accessTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (WidgetsBinding.instance.lifecycleState == null ||
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        unawaited(_retryDetails());
+      }
+    });
+  }
 
   void _scrollToLatest() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -347,6 +442,7 @@ class _CustomerListingChatScreenState extends State<CustomerListingChatScreen> {
 
   @override
   void dispose() {
+    _accessTimer?.cancel();
     _text.dispose();
     _scroll.dispose();
     super.dispose();
@@ -355,26 +451,30 @@ class _CustomerListingChatScreenState extends State<CustomerListingChatScreen> {
   Future<void> _send() async {
     final body = _text.text.trim();
     if (body.isEmpty || _sending) return;
-    setState(() => _sending = true);
+    setState(() {
+      _sending = true;
+    });
     try {
       await widget.repository.sendListingChatMessage(
         conversationId: widget.conversationId,
         body: body,
       );
+      if (!mounted) return;
       _text.clear();
-      setState(
-        () => _details = widget.repository.fetchListingConversation(
-          widget.conversationId,
-        ),
-      );
+      _scrollToLatest();
+      await _retryDetails();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ).showSnackBar(SnackBar(content: Text(userMessage(context, e))));
       }
     } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted) {
+        setState(() {
+          _sending = false;
+        });
+      }
     }
   }
 
@@ -382,10 +482,21 @@ class _CustomerListingChatScreenState extends State<CustomerListingChatScreen> {
   Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
     future: _details,
     builder: (context, s) {
-      final d = s.data ?? <String, dynamic>{};
+      final d = s.data ?? _lastDetails;
+      if (d == null) {
+        return Scaffold(
+          appBar: AppBar(title: const LocalizedUiText('Agent chat')),
+          body: s.hasError
+              ? RecoverableError(error: s.error, onRetry: _retryDetails)
+              : const Center(child: CircularProgressIndicator()),
+        );
+      }
       final sent = (d['messages_sent_today'] as num?)?.toInt() ?? 0;
       final expiry = DateTime.tryParse(d['expires_at']?.toString() ?? '');
-      final active = expiry?.isAfter(DateTime.now()) ?? false;
+      final revoked =
+          d['revoked_at'] != null || d['access_status'] == 'revoked';
+      final active =
+          !revoked && (expiry?.isAfter(DateTime.now()) ?? false) && !s.hasError;
       return Scaffold(
         appBar: AppBar(
           title: Text(d['agent_name']?.toString() ?? 'Agent chat'),
@@ -396,7 +507,11 @@ class _CustomerListingChatScreenState extends State<CustomerListingChatScreen> {
               child: Text(
                 mobileUiFormat(context, "{0}/10 sent today • {1}", [
                   sent,
-                  active
+                  s.hasError
+                      ? mobileUi(context, 'Unable to check chat access')
+                      : revoked
+                      ? mobileUi(context, 'Chat access revoked')
+                      : active
                       ? mobileUiFormat(context, 'Access until {0}', [
                           expiry!.toLocal(),
                         ])
@@ -408,27 +523,35 @@ class _CustomerListingChatScreenState extends State<CustomerListingChatScreen> {
         ),
         body: Column(
           children: [
+            if (s.hasError)
+              MaterialBanner(
+                content: Text(userMessage(context, s.error)),
+                actions: [
+                  TextButton(
+                    onPressed: _retryDetails,
+                    child: const LocalizedUiText('Retry'),
+                  ),
+                ],
+              ),
+            if (revoked)
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: LocalizedUiText(
+                  'Chat access was revoked. Contact support.',
+                ),
+              ),
             Expanded(
               child: StreamBuilder<List<Map<String, dynamic>>>(
-                stream: widget.repository.watchListingChatMessages(
-                  widget.conversationId,
-                ),
+                stream: _messages,
                 builder: (context, m) {
-                  if (m.hasError) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Text(
-                          mobileUiFormat(
-                            context,
-                            "Messages could not load: {0}",
-                            [m.error],
-                          ),
-                        ),
-                      ),
+                  final rows = m.data ?? _lastMessages;
+                  if (m.data != null) _lastMessages = m.data!;
+                  if (m.hasError && rows.isEmpty) {
+                    return RecoverableError(
+                      error: m.error,
+                      onRetry: _retryMessages,
                     );
                   }
-                  final rows = m.data ?? const <Map<String, dynamic>>[];
                   if (rows.isEmpty) {
                     return const Center(
                       child: LocalizedUiText('Start the conversation.'),
@@ -439,8 +562,24 @@ class _CustomerListingChatScreenState extends State<CustomerListingChatScreen> {
                       widget.conversationId,
                     ),
                   );
-                  _scrollToLatest();
-                  return ListView.builder(
+                  if (rows.length != _messageCount) {
+                    final nearLatest =
+                        !_scroll.hasClients || _scroll.offset < 100;
+                    final first = _messageCount == 0;
+                    _messageCount = rows.length;
+                    if (nearLatest || first) {
+                      _scrollToLatest();
+                    } else {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) {
+                          setState(() {
+                            _newMessages = true;
+                          });
+                        }
+                      });
+                    }
+                  }
+                  final messages = ListView.builder(
                     controller: _scroll,
                     reverse: true,
                     padding: const EdgeInsets.all(12),
@@ -475,9 +614,35 @@ class _CustomerListingChatScreenState extends State<CustomerListingChatScreen> {
                       );
                     },
                   );
+                  return Column(
+                    children: [
+                      if (m.hasError)
+                        MaterialBanner(
+                          content: Text(userMessage(context, m.error)),
+                          actions: [
+                            TextButton(
+                              onPressed: _retryMessages,
+                              child: const LocalizedUiText('Retry'),
+                            ),
+                          ],
+                        ),
+                      Expanded(child: messages),
+                    ],
+                  );
                 },
               ),
             ),
+            if (_newMessages)
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _newMessages = false;
+                  });
+                  _scrollToLatest();
+                },
+                icon: const Icon(Icons.arrow_downward),
+                label: const LocalizedUiText('New messages'),
+              ),
             SafeArea(
               top: false,
               child: Padding(
@@ -496,7 +661,14 @@ class _CustomerListingChatScreenState extends State<CustomerListingChatScreen> {
                               ? (sent < 10
                                     ? mobileUi(context, 'Message agent…')
                                     : mobileUi(context, 'Daily limit reached'))
-                              : mobileUi(context, 'Chat access expired'),
+                              : mobileUi(
+                                  context,
+                                  s.hasError
+                                      ? 'Unable to check chat access. Retry.'
+                                      : revoked
+                                      ? 'Chat access was revoked. Contact support.'
+                                      : 'Chat access expired',
+                                ),
                         ),
                       ),
                     ),

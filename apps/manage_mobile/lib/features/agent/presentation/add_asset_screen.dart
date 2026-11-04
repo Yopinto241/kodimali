@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -234,7 +235,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
     final SharedPreferences preferences = await SharedPreferences.getInstance();
     await preferences.setString(storageKey, jsonEncode(payload));
     if (mounted) {
-      setState(() => _draftSavedAt = DateTime.now());
+      setState(() {
+        _draftSavedAt = DateTime.now();
+      });
     }
   }
 
@@ -408,14 +411,16 @@ class _AddAssetScreenState extends State<AddAssetScreen>
       if (!mounted) {
         return;
       }
-      setState(() => _bootstrapLoading = false);
+      setState(() {
+        _bootstrapLoading = false;
+      });
     } catch (error) {
       if (!mounted) {
         return;
       }
       setState(() {
         _bootstrapLoading = false;
-        _bootstrapError = error.toString();
+        _bootstrapError = userMessage(context, error);
       });
     }
   }
@@ -795,7 +800,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
             picked,
             onProgress: (double progress) {
               if (mounted) {
-                setState(() => _videoCompressionProgress = progress);
+                setState(() {
+                  _videoCompressionProgress = progress;
+                });
               }
             },
           );
@@ -819,7 +826,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
       await _videoCompressor.clearCache();
     } finally {
       if (mounted) {
-        setState(() => _compressingVideo = false);
+        setState(() {
+          _compressingVideo = false;
+        });
       }
     }
   }
@@ -841,7 +850,10 @@ class _AddAssetScreenState extends State<AddAssetScreen>
 
   void _showMediaError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: LocalizedUiText(message), behavior: SnackBarBehavior.floating),
+      SnackBar(
+        content: LocalizedUiText(message),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -1299,7 +1311,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
           if (!mounted) {
             return;
           }
-          setState(() => _uploadProgress = progress);
+          setState(() {
+            _uploadProgress = progress;
+          });
         },
       );
       final Map<String, dynamic> payment = await repository
@@ -1700,7 +1714,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                                 .toList(),
                             onChanged: (PricePeriod? value) {
                               if (value != null) {
-                                setState(() => _pricePeriod = value);
+                                setState(() {
+                                  _pricePeriod = value;
+                                });
                                 _scheduleDraftSave();
                               }
                             },
@@ -1745,7 +1761,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                                 .toList(),
                             onChanged: (PricePeriod? value) {
                               if (value != null) {
-                                setState(() => _pricePeriod = value);
+                                setState(() {
+                                  _pricePeriod = value;
+                                });
                                 _scheduleDraftSave();
                               }
                             },
@@ -1791,7 +1809,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                   ],
                   onChanged: (String? value) {
                     if (value != null) {
-                      setState(() => _availabilityStatus = value);
+                      setState(() {
+                        _availabilityStatus = value;
+                      });
                       _scheduleDraftSave();
                     }
                   },
@@ -1821,7 +1841,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                   title: const LocalizedUiText("Add owner details (optional)"),
                   value: _includeOwnerDetails,
                   onChanged: (value) {
-                    setState(() => _includeOwnerDetails = value);
+                    setState(() {
+                      _includeOwnerDetails = value;
+                    });
                     _scheduleDraftSave();
                   },
                 ),
@@ -1831,7 +1853,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                     value: _creatingOwner,
                     title: const LocalizedUiText("Create new owner"),
                     onChanged: (bool value) {
-                      setState(() => _creatingOwner = value);
+                      setState(() {
+                        _creatingOwner = value;
+                      });
                       _scheduleDraftSave();
                     },
                   ),
@@ -1857,7 +1881,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                         )
                         .toList(),
                     onChanged: (String? value) {
-                      setState(() => _selectedOwnerId = value);
+                      setState(() {
+                        _selectedOwnerId = value;
+                      });
                       _scheduleDraftSave();
                     },
                   ),
@@ -1910,7 +1936,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                     if (!mounted || value == null) {
                       return;
                     }
-                    setState(() => _regionId = value);
+                    setState(() {
+                      _regionId = value;
+                    });
                     _loadNextLevel(
                       type: LocationType.district,
                       parentId: value,
@@ -1932,7 +1960,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                     if (!mounted || value == null) {
                       return;
                     }
-                    setState(() => _districtId = value);
+                    setState(() {
+                      _districtId = value;
+                    });
                     _loadNextLevel(type: LocationType.ward, parentId: value);
                   },
                 ),
@@ -1950,7 +1980,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                     if (!mounted || value == null) {
                       return;
                     }
-                    setState(() => _wardId = value);
+                    setState(() {
+                      _wardId = value;
+                    });
                     _loadNextLevel(type: LocationType.area, parentId: value);
                   },
                 ),
@@ -2035,7 +2067,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                     if (!mounted || value == null) {
                       return;
                     }
-                    setState(() => _streetId = value.isEmpty ? null : value);
+                    setState(() {
+                      _streetId = value.isEmpty ? null : value;
+                    });
                     _scheduleDraftSave();
                   },
                 ),
@@ -2252,7 +2286,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                       ),
                       onTap: _submitting
                           ? null
-                          : () => setState(() => _videoIsCover = true),
+                          : () => setState(() {
+                              _videoIsCover = true;
+                            }),
                     ),
                   ),
                 ],
@@ -2342,7 +2378,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
         return CheckboxListTile(
           value: _attributeBooleans[key] ?? false,
           onChanged: (bool? value) {
-            setState(() => _attributeBooleans[key] = value ?? false);
+            setState(() {
+              _attributeBooleans[key] = value ?? false;
+            });
             _scheduleDraftSave();
           },
           title: Text(label),
@@ -2371,7 +2409,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
                 )
                 .toList(),
             onChanged: (String? value) {
-              setState(() => _attributeSelections[key] = value);
+              setState(() {
+                _attributeSelections[key] = value;
+              });
               _scheduleDraftSave();
             },
             validator: required

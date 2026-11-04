@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 
@@ -28,7 +29,7 @@ Future<void> main() async {
     FlutterError.reportError(
       FlutterErrorDetails(exception: error, stack: stackTrace),
     );
-    runApp(_StartupErrorApp(message: error.toString()));
+    runApp(_StartupErrorApp(message: safeUserMessage(error)));
   }
 }
 

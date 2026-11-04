@@ -144,7 +144,7 @@ Deno.serve(async (request) => {
       });
       await service.from("agent_listing_payments").update({
         payment_provider: "sonicpesa",
-        payment_status: order.status,
+        payment_status: order.status === "paid" ? "processing" : order.status,
         provider_payment_id: order.orderId,
         provider_channel: order.channel,
         provider_response: order.payload,
@@ -153,7 +153,7 @@ Deno.serve(async (request) => {
         success: true,
         paymentRequired: true,
         paymentId,
-        paymentStatus: order.status,
+        paymentStatus: order.status === "paid" ? "processing" : order.status,
         approvalRequired,
         amount,
         currency: "TZS",
@@ -175,7 +175,8 @@ Deno.serve(async (request) => {
       );
     }
     const initiated = await initiateUssdPushRequest(config!, access, payload);
-    const status = mapClickPesaStatus(initiated.status);
+    const initiatedStatus = mapClickPesaStatus(initiated.status);
+    const status = initiatedStatus === "paid" ? "processing" : initiatedStatus;
     await service.from("agent_listing_payments").update({
       payment_status: status,
       provider_payment_id: initiated.id ?? null,

@@ -1,0 +1,396 @@
+{
+  "date": "2026-11-03",
+  "commit": "2385eee",
+  "feature_rows": 96,
+  "web_pages": [
+    "apps/web/src/app/account/chat/[id]/page.tsx",
+    "apps/web/src/app/account/page.tsx",
+    "apps/web/src/app/account/request/[id]/page.tsx",
+    "apps/web/src/app/admin/page.tsx",
+    "apps/web/src/app/advertise/page.tsx",
+    "apps/web/src/app/agent/[id]/page.tsx",
+    "apps/web/src/app/agent/page.tsx",
+    "apps/web/src/app/category/[slug]/page.tsx",
+    "apps/web/src/app/compare/page.tsx",
+    "apps/web/src/app/delete-account/page.tsx",
+    "apps/web/src/app/download/page.tsx",
+    "apps/web/src/app/events/equipment/[id]/page.tsx",
+    "apps/web/src/app/events/page.tsx",
+    "apps/web/src/app/events/plan/page.tsx",
+    "apps/web/src/app/events/service/[id]/page.tsx",
+    "apps/web/src/app/listing/[id]/book/page.tsx",
+    "apps/web/src/app/listing/[id]/chat/page.tsx",
+    "apps/web/src/app/listing/[id]/contact/page.tsx",
+    "apps/web/src/app/listing/[id]/page.tsx",
+    "apps/web/src/app/listings/page.tsx",
+    "apps/web/src/app/login/page.tsx",
+    "apps/web/src/app/manage/[section]/[id]/page.tsx",
+    "apps/web/src/app/manage/[section]/page.tsx",
+    "apps/web/src/app/manage/page.tsx",
+    "apps/web/src/app/manage/register/agent/page.tsx",
+    "apps/web/src/app/manage/register/owner/page.tsx",
+    "apps/web/src/app/map/page.tsx",
+    "apps/web/src/app/owner/page.tsx",
+    "apps/web/src/app/page.tsx",
+    "apps/web/src/app/privacy/page.tsx",
+    "apps/web/src/app/register/page.tsx",
+    "apps/web/src/app/safety/page.tsx",
+    "apps/web/src/app/terms/page.tsx",
+    "apps/web/src/app/toa-taarifa/page.tsx"
+  ],
+  "web_endpoints": [
+    "apps/web/src/app/api/check-availability/route.ts",
+    "apps/web/src/app/api/guest-requests/route.ts",
+    "apps/web/src/app/api/health/route.ts",
+    "apps/web/src/app/api/listing-contact-payment/route.ts",
+    "apps/web/src/app/api/listing-contact-payment/status/route.ts",
+    "apps/web/src/app/api/locations/route.ts",
+    "apps/web/src/app/api/promotions/route.ts",
+    "apps/web/src/app/app-ads.txt/route.ts"
+  ],
+  "flutter_screens": {
+    "customer_mobile": [
+      {
+        "file": "apps/customer_mobile/lib/app.dart",
+        "classes": [
+          "CustomerApp",
+          "_HelpSupportScreen",
+          "PublicHomeScreen",
+          "PublicSearchScreen",
+          "PopularCategoryFeedScreen",
+          "CategoriesScreen",
+          "CategoryListingsScreen",
+          "ListingDetailScreen",
+          "GuestRequestScreen",
+          "RequestSuccessScreen",
+          "_FullscreenImageScreen",
+          "_ListingContactUnlockScreen"
+        ]
+      },
+      {
+        "file": "apps/customer_mobile/lib/main.dart",
+        "classes": [
+          "_StartupErrorApp"
+        ]
+      },
+      {
+        "file": "apps/customer_mobile/lib/features/account/customer_account_screens.dart",
+        "classes": [
+          "CustomerAccountScreen",
+          "CustomerGrowthToolsScreen",
+          "CustomerAuthScreen",
+          "CustomerSettingsScreen",
+          "CustomerPasswordResetScreen",
+          "CustomerRequestsScreen",
+          "CustomerRequestDetailScreen",
+          "CustomerAgentChatScreen",
+          "CustomerViewingAppointmentScreen",
+          "CustomerReviewScreen"
+        ]
+      },
+      {
+        "file": "apps/customer_mobile/lib/features/account/customer_information_screen.dart",
+        "classes": [
+          "CustomerInformationScreen"
+        ]
+      },
+      {
+        "file": "apps/customer_mobile/lib/features/account/customer_tenancy_screen.dart",
+        "classes": [
+          "CustomerTenancyScreen"
+        ]
+      },
+      {
+        "file": "apps/customer_mobile/lib/features/chat/listing_chat_screens.dart",
+        "classes": [
+          "CustomerListingChatsScreen",
+          "CustomerListingChatGate",
+          "CustomerListingChatScreen"
+        ]
+      },
+      {
+        "file": "apps/customer_mobile/lib/features/events/events_marketplace_screen.dart",
+        "classes": [
+          "EventsMarketplaceScreen",
+          "_ChooseEventComponentsScreen",
+          "_MyEventPlansScreen",
+          "_IndividualEventDetailScreen",
+          "_IndividualBookingsHistoryScreen",
+          "_EventAdvisorScreen"
+        ]
+      }
+    ],
+    "manage_mobile": [
+      {
+        "file": "apps/manage_mobile/lib/app.dart",
+        "classes": [
+          "ManageApp"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/main.dart",
+        "classes": [
+          "_StartupErrorApp"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/shared/presentation/agent_recommendations_screen.dart",
+        "classes": [
+          "AgentRecommendationsScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/shared/presentation/booking_workspace_screen.dart",
+        "classes": [
+          "BookingWorkspaceScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/shared/presentation/notifications_screen.dart",
+        "classes": [
+          "NotificationsScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/shared/presentation/profile_screen.dart",
+        "classes": [
+          "ProfileScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/shared/presentation/workspace_switcher_screen.dart",
+        "classes": [
+          "WorkspaceSwitcherScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/owner/presentation/owner_workspace_screen.dart",
+        "classes": [
+          "OwnerWorkspaceScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/events/presentation/events_provider_workspace_screen.dart",
+        "classes": [
+          "EventsProviderWorkspaceScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/events/presentation/event_coordinator_screen.dart",
+        "classes": [
+          "EventCoordinatorScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/auth/presentation/access_denied_screen.dart",
+        "classes": [
+          "AccessDeniedScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/auth/presentation/agent_account_status_screen.dart",
+        "classes": [
+          "AgentAccountStatusScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/auth/presentation/forgot_password_screen.dart",
+        "classes": [
+          "ForgotPasswordScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/auth/presentation/login_screen.dart",
+        "classes": [
+          "LoginScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/auth/presentation/owner_register_screen.dart",
+        "classes": [
+          "OwnerRegisterScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/auth/presentation/register_screen.dart",
+        "classes": [
+          "RegisterScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/auth/presentation/splash_screen.dart",
+        "classes": [
+          "SplashScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/application/presentation/apply_agent_screen.dart",
+        "classes": [
+          "ApplyAgentScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/agent/presentation/add_asset_screen.dart",
+        "classes": [
+          "AddAssetScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/agent/presentation/agent_bookings_tab.dart",
+        "classes": [
+          "AgentBookingsTab"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/agent/presentation/agent_business_center_screen.dart",
+        "classes": [
+          "AgentBusinessCenterScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/agent/presentation/agent_dashboard_tab.dart",
+        "classes": [
+          "AgentDashboardTab"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/agent/presentation/agent_listings_tab.dart",
+        "classes": [
+          "AgentListingsTab"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/agent/presentation/agent_listing_chats_tab.dart",
+        "classes": [
+          "AgentListingChatsTab",
+          "AgentListingChatScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/agent/presentation/agent_shell_screen.dart",
+        "classes": [
+          "AgentShellScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/agent/presentation/listing_detail_screen.dart",
+        "classes": [
+          "ListingDetailScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/admin/presentation/admin_bookings_tab.dart",
+        "classes": [
+          "AdminBookingsTab"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/admin/presentation/admin_dashboard_tab.dart",
+        "classes": [
+          "AdminDashboardTab"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/admin/presentation/admin_growth_operations_screen.dart",
+        "classes": [
+          "AdminGrowthOperationsScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/admin/presentation/admin_shell_screen.dart",
+        "classes": [
+          "AdminShellScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/admin/presentation/agent_verification_tab.dart",
+        "classes": [
+          "AgentVerificationTab"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/admin/presentation/categories_tab.dart",
+        "classes": [
+          "CategoriesTab"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/admin/presentation/information_administration_tab.dart",
+        "classes": [
+          "InformationAdministrationTab"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/admin/presentation/listing_approval_tab.dart",
+        "classes": [
+          "ListingApprovalTab"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/admin/presentation/locations_tab.dart",
+        "classes": [
+          "LocationsTab"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/admin/presentation/promotions_tab.dart",
+        "classes": [
+          "PromotionsTab"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/admin/presentation/referral_finance_screen.dart",
+        "classes": [
+          "ReferralFinanceScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/admin/presentation/reports_tab.dart",
+        "classes": [
+          "ReportsTab"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/admin/presentation/supervisor_management_screen.dart",
+        "classes": [
+          "SupervisorManagementScreen"
+        ]
+      },
+      {
+        "file": "apps/manage_mobile/lib/features/admin/presentation/users_tab.dart",
+        "classes": [
+          "UsersTab"
+        ]
+      }
+    ]
+  },
+  "edge_entrypoints": [
+    "supabase/functions/admin-delete-listing/index.ts",
+    "supabase/functions/approve-listing/index.ts",
+    "supabase/functions/check-agent-commercial-payment/index.ts",
+    "supabase/functions/check-agent-listing-payment/index.ts",
+    "supabase/functions/check-availability/index.ts",
+    "supabase/functions/check-listing-chat-payment/index.ts",
+    "supabase/functions/check-listing-contact-payment/index.ts",
+    "supabase/functions/check-platform-payment/index.ts",
+    "supabase/functions/clickpesa-payment-webhook/index.ts",
+    "supabase/functions/clickpesa-return-page/index.ts",
+    "supabase/functions/create-agent-account/index.ts",
+    "supabase/functions/create-agent-commercial-payment/index.ts",
+    "supabase/functions/create-agent-listing-payment/index.ts",
+    "supabase/functions/create-booking-payment/index.ts",
+    "supabase/functions/create-booking-request/index.ts",
+    "supabase/functions/create-guest-booking-request/index.ts",
+    "supabase/functions/create-listing-chat-payment/index.ts",
+    "supabase/functions/create-listing-contact-payment/index.ts",
+    "supabase/functions/create-platform-payment/index.ts",
+    "supabase/functions/delete-empty-listing/index.ts",
+    "supabase/functions/dispatch-push-notifications/index.ts",
+    "supabase/functions/mark-agent-delayed/index.ts",
+    "supabase/functions/notify-agent/index.ts",
+    "supabase/functions/sonicpesa-payment-webhook/index.ts",
+    "supabase/functions/update-booking-status/index.ts",
+    "supabase/functions/verify-agent/index.ts"
+  ],
+  "scope_note": "Enumeration and feature coverage; presence is not end-to-end certification."
+}

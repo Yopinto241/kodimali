@@ -59,7 +59,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       if (identifier.isNotEmpty) "Identifier niliyojaribu: $identifier",
     ].join("\n");
 
-    setState(() => _openingWhatsApp = true);
+    setState(() {
+      _openingWhatsApp = true;
+    });
     try {
       await Launchers.openWhatsAppMessage(_adminPhoneNumber, message);
     } catch (error) {
@@ -71,7 +73,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       );
     } finally {
       if (mounted) {
-        setState(() => _openingWhatsApp = false);
+        setState(() {
+          _openingWhatsApp = false;
+        });
       }
     }
   }
@@ -81,7 +85,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
     final dependencies = AppScope.of(context);
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+    });
     try {
       await dependencies.controller.sendPasswordReset(
         _identifierController.text.trim(),
@@ -105,7 +111,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       );
     } finally {
       if (mounted) {
-        setState(() => _submitting = false);
+        setState(() {
+          _submitting = false;
+        });
       }
     }
   }

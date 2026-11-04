@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { translateUiPrompt } from "@/lib/ui-translation";
 import { UiText } from "@/components/ui-text";
 
@@ -38,7 +39,7 @@ export function AccountDeletionForm() {
     setSubmitting(false);
     setMessage(
       error
-        ? error.message
+        ? safeUserMessage(error)
         : "Your deletion request was submitted. Support will verify ownership and process it.",
     );
   }

@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { UiText } from "@/components/ui-text";
 
 import Image from "next/image";
@@ -86,7 +87,7 @@ export function EventIndividualDetail({ kind, id, initialRow, initialImages = []
     setNotice(sw ? `Ombi limetumwa. Namba: ${String(booking.reference ?? "")}` : `Request sent. Reference: ${String(booking.reference ?? "")}`);
     formElement.reset();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : String((error as Row)?.message ?? error));
+      setNotice(safeUserMessage(error));
     } finally {
       setBusy(false);
     }

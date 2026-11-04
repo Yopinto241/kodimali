@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { translateUiPrompt } from "@/lib/ui-translation";
 import { UiInput, UiText } from "@/components/ui-text";
 
@@ -21,9 +22,9 @@ export function AdminAccessPanel() {
       supabase.rpc("get_admin_role_directory"),
       supabase.from("admin_role_definitions").select("id,name,description,rank").eq("is_active", true).order("rank", { ascending: false }),
     ]);
-    if (directory.error) setMessage(directory.error.message);
+    if (directory.error) setMessage(safeUserMessage(directory.error));
     else setUsers((directory.data as Row[] | null) ?? []);
-    if (definitions.error) setMessage(definitions.error.message);
+    if (definitions.error) setMessage(safeUserMessage(definitions.error));
     else setRoles((definitions.data as Row[] | null) ?? []);
   }, [supabase]);
 
@@ -34,7 +35,7 @@ export function AdminAccessPanel() {
     if (!window.confirm(translateUiPrompt(`${enabled ? "Assign" : "Remove"} ${roleName}? Administrative access changes immediately and will be audited.`))) return;
     const key = `${userId}:${roleId}`; setBusyKey(key); setMessage("");
     const result = await supabase.rpc("assign_admin_role", { p_user_id: userId, p_role_id: roleId, p_assign: enabled } as never);
-    setMessage(result.error?.message ?? `${roleName} ${enabled ? "assigned" : "removed"}.`);
+    setMessage((result.error?.message ? safeUserMessage(result.error?.message) : null) ?? `${roleName} ${enabled ? "assigned" : "removed"}.`);
     setBusyKey(""); await load();
   }
 

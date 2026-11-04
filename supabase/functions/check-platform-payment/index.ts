@@ -1,3 +1,4 @@
+import { applyPaymentEvent } from "../_shared/payment-integrity.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   checkCollectionOrder,
@@ -37,22 +38,8 @@ Deno.serve(async (request) => {
         payment.provider,
         String(payment.provider_order_id),
       );
-      status = result.status;
-      if (status === "paid") {
-        const { error } = await db.rpc("finalize_platform_payment", {
-          p_order_id: payment.id,
-          p_provider_transaction_id: result.transactionId ?? result.orderId,
-          p_provider_payload: result.payload,
-        });
-        if (error) throw new Error(error.message);
-      } else {
-        await db.from("platform_payment_orders").update({
-          status,
-          provider_transaction_id: result.transactionId,
-          provider_response: result.payload,
-          updated_at: new Date().toISOString(),
-        }).eq("id", payment.id);
-      }
+      const applied = await applyPaymentEvent(db, "platform_payment_orders", payment.id, "sonicpesa", result.status, result.payload);
+      status = applied.status;
     }
     return json({
       success: true,

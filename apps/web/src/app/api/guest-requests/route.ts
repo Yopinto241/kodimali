@@ -1,3 +1,4 @@
+import { safeUserMessage } from "@/lib/user-message";
 import { submitGuestRequest } from "@/lib/supabase-public";
 
 export async function POST(request: Request) {
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
     return Response.json(payload);
   } catch (error) {
     return Response.json(
-      { error: error instanceof Error ? error.message : "Request failed" },
+      { error: safeUserMessage(error) },
       { status: 400 },
     );
   }

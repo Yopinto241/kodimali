@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { UiText } from "@/components/ui-text";
 
 import Link from "next/link";
@@ -161,7 +162,7 @@ export function OwnerPortal({
       p_document_paths: [],
     } as never);
     setBusy(false);
-    if (error) setNotice(error.message);
+    if (error) setNotice(safeUserMessage(error));
     else {
       setNotice("Application submitted for secure review.");
       await load();
@@ -175,7 +176,7 @@ export function OwnerPortal({
     } as never);
     setBusy(false);
     setNotice(
-      error?.message ?? (approve ? "Booking approved." : "Booking declined."),
+      (error?.message ? safeUserMessage(error?.message) : null) ?? (approve ? "Booking approved." : "Booking declined."),
     );
     if (!error) await load();
   }
@@ -186,7 +187,7 @@ export function OwnerPortal({
     } as never);
     setBusy(false);
     setNotice(
-      error?.message ?? "Owner booking agreement accepted and recorded.",
+      (error?.message ? safeUserMessage(error?.message) : null) ?? "Owner booking agreement accepted and recorded.",
     );
     if (!error) await load();
   }
@@ -205,7 +206,7 @@ export function OwnerPortal({
     } as never);
     setBusy(false);
     setNotice(
-      error?.message ??
+      (error?.message ? safeUserMessage(error?.message) : null) ??
         "Asset claim submitted. An administrator must verify the item and your authority before bookings open.",
     );
     if (!error) await load();
@@ -235,7 +236,7 @@ export function OwnerPortal({
       } as never);
     setBusy(false);
     setNotice(
-      error?.message ??
+      (error?.message ? safeUserMessage(error?.message) : null) ??
         "Booking policy saved. Paid booking stays disabled until the owner agreement and payment activation requirements are satisfied.",
     );
     if (!error) await load();
@@ -251,7 +252,7 @@ export function OwnerPortal({
     } as never);
     setBusy(false);
     setNotice(
-      error?.message ??
+      (error?.message ? safeUserMessage(error?.message) : null) ??
         `Invitation created. Secure token: ${String((result as Row | null)?.token ?? "")}`,
     );
     if (!error) await load();
@@ -273,7 +274,7 @@ export function OwnerPortal({
     );
     setBusy(false);
     setNotice(
-      error?.message ?? "Rental agreement sent to the renter for acceptance.",
+      (error?.message ? safeUserMessage(error?.message) : null) ?? "Rental agreement sent to the renter for acceptance.",
     );
     if (!error) await load();
   }
@@ -301,7 +302,7 @@ export function OwnerPortal({
         <p className="eyebrow !text-brand-amber"><UiText text={"Owner workspace"} /></p>
         <h1 className="mt-2 font-heading text-2xl font-semibold text-white">
           {String(owner.display_name)}
-        </h1>
+        </h1><Link className="btn btn-outline my-3" href="/manage/events-provider"><UiText text="Events provider workspace"/></Link>
         <div className="mt-6 grid gap-2">
           {tabs.map(([id, label]) => (
             <button
@@ -762,7 +763,5 @@ function relation(value: unknown): Row | null {
   return value && typeof value === "object" ? (value as Row) : null;
 }
 function readError(error: unknown) {
-  return error instanceof Error
-    ? error.message
-    : "The owner workspace could not be loaded.";
+  return safeUserMessage(error);
 }

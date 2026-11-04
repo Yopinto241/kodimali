@@ -13,8 +13,72 @@ class CustomerActivityStore extends ChangeNotifier {
 
   static final CustomerActivityStore instance = CustomerActivityStore._();
 
-  static const String _savedKey = 'customer_saved_listing_snapshots_v1';
-  static const String _recentKey = 'customer_recent_listing_snapshots_v1';
+  String _scope = 'guest';
+  String? get userId => _scope == 'guest' ? null : _scope;
+  String get _savedKey => 'customer_activity_v2|$_scope|saved';
+  String get _recentKey => 'customer_activity_v2|$_scope|recent';
+  String get _pendingKey => 'customer_activity_v2|$_scope|pending';
+  final Map<String, bool> _pending = {};
+  Map<String, bool> get pendingChanges => Map.unmodifiable(_pending);
+  bool get hasGuestActivity => _decodeSnapshots(
+    _preferences?.getString('customer_activity_v2|guest|saved'),
+  ).isNotEmpty;
+
+  Future<void> switchAccount(String? user) async {
+    final scope = user ?? 'guest';
+    if (_scope == scope) return;
+    _scope = scope;
+    _loadScope();
+    notifyListeners();
+  }
+
+  void _loadScope() {
+    final prefs = _preferences;
+    _saved
+      ..clear()
+      ..addAll(_decodeSnapshots(prefs?.getString(_savedKey)));
+    _recent
+      ..clear()
+      ..addAll(_decodeSnapshots(prefs?.getString(_recentKey)));
+    _pending
+      ..clear()
+      ..addAll(
+        Map<String, bool>.from(
+          jsonDecode(prefs?.getString(_pendingKey) ?? '{}') as Map,
+        ),
+      );
+  }
+
+  Future<void> mergeGuestActivity() async {
+    if (userId == null) return;
+    final rows = _decodeSnapshots(
+      _preferences?.getString('customer_activity_v2|guest|saved'),
+    );
+    for (final row in rows) {
+      final id = _listingId(row);
+      if (!isSaved(id)) _saved.add(row);
+      _pending[id] = true;
+    }
+    final savedKey = _savedKey;
+    final pendingKey = _pendingKey;
+    final savedJson = jsonEncode(_saved);
+    final pendingJson = jsonEncode(_pending);
+    await _preferences?.setString(savedKey, savedJson);
+    await _preferences?.setString(pendingKey, pendingJson);
+    await _preferences?.remove('customer_activity_v2|guest|saved');
+    notifyListeners();
+  }
+
+  Future<void> acknowledgeSaved(
+    String id,
+    bool saved, {
+    required String? forUser,
+  }) async {
+    if (forUser != userId || _pending[id] != saved) return;
+    _pending.remove(id);
+    await _preferences?.setString(_pendingKey, jsonEncode(_pending));
+  }
+
   static const int _maximumRecentItems = 20;
 
   SharedPreferences? _preferences;
@@ -30,14 +94,15 @@ class CustomerActivityStore extends ChangeNotifier {
   Set<String> get savedListingIds =>
       _saved.map(_listingId).where((String id) => id.isNotEmpty).toSet();
 
-  Future<void> initialize(SharedPreferences preferences) async {
+  Future<void> initialize(
+    SharedPreferences preferences, {
+    String? userId,
+  }) async {
     _preferences = preferences;
-    _saved
-      ..clear()
-      ..addAll(_decodeSnapshots(preferences.getString(_savedKey)));
-    _recent
-      ..clear()
-      ..addAll(_decodeSnapshots(preferences.getString(_recentKey)));
+    _scope = userId ?? 'guest';
+    // v1 is deliberately retained but never attributed to a different account:
+    // old device-global data has no trustworthy owner. Remote favourites remain.
+    _loadScope();
   }
 
   bool isSaved(String listingId) =>
@@ -60,7 +125,13 @@ class CustomerActivityStore extends ChangeNotifier {
       _saved.insert(0, snapshot);
       saved = true;
     }
-    await _persist(_savedKey, _saved);
+    _pending[listingId] = saved;
+    final savedKey = _savedKey;
+    final pendingKey = _pendingKey;
+    final savedJson = jsonEncode(_saved);
+    final pendingJson = jsonEncode(_pending);
+    await _preferences?.setString(pendingKey, pendingJson);
+    await _preferences?.setString(savedKey, savedJson);
     notifyListeners();
     return saved;
   }

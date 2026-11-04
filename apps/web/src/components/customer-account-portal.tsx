@@ -1,4 +1,5 @@
 "use client";
+import { safeUserMessage } from "@/lib/user-message";
 import { UiButton, UiDiv, UiInput, UiNav, UiText } from "@/components/ui-text";
 
 import Link from "next/link";
@@ -222,7 +223,7 @@ export function CustomerAccountPortal({
       p_token: tenantToken.trim(),
     } as never);
     setBusy(false);
-    if (error) setMessage(error.message);
+    if (error) setMessage(safeUserMessage(error));
     else {
       setTenantToken("");
       setMessage(
@@ -238,7 +239,7 @@ export function CustomerAccountPortal({
       p_agreement_id: id,
     } as never);
     setBusy(false);
-    setMessage(error?.message ?? "Rental agreement accepted and activated.");
+    setMessage((error?.message ? safeUserMessage(error?.message) : null) ?? "Rental agreement accepted and activated.");
     if (!error) await loadRentalAgreements();
   }
   async function acceptEventQuote(id: string) {
@@ -249,7 +250,7 @@ export function CustomerAccountPortal({
     } as never);
     setBusy(false);
     setMessage(
-      error?.message ??
+      (error?.message ? safeUserMessage(error?.message) : null) ??
         "Quotation accepted. Your final event agreement is being prepared.",
     );
     if (!error) await loadEventPlans();
@@ -262,7 +263,7 @@ export function CustomerAccountPortal({
     } as never);
     setBusy(false);
     setMessage(
-      error?.message ??
+      (error?.message ? safeUserMessage(error?.message) : null) ??
         "Makubaliano yamekubaliwa. Lipa deposit ili kuthibitisha tukio.",
     );
     if (!error) await loadEventPlans();
@@ -408,7 +409,7 @@ export function CustomerAccountPortal({
       redirectTo: `${window.location.origin}/account`,
     });
     setBusy(false);
-    setMessage(error?.message ?? "Tumetuma kiungo cha kubadili nenosiri kwenye barua pepe yako.");
+    setMessage((error?.message ? safeUserMessage(error?.message) : null) ?? "Tumetuma kiungo cha kubadili nenosiri kwenye barua pepe yako.");
   }
 
   async function updateRecoveredPassword(event: FormEvent<HTMLFormElement>) {
@@ -417,7 +418,7 @@ export function CustomerAccountPortal({
     setBusy(true); setMessage(null);
     const { error } = await supabase.auth.updateUser({ password });
     setBusy(false);
-    if (error) setMessage(error.message);
+    if (error) setMessage(safeUserMessage(error));
     else { setRecoveryMode(false); setPassword(""); setConfirmPassword(""); setMessage("Nenosiri limebadilishwa. Akaunti yako iko tayari."); }
   }
 
@@ -959,9 +960,7 @@ function AccountActionIcon({ title }: { title: string }) {
 }
 
 function readError(error: unknown) {
-  return error instanceof Error
-    ? error.message
-    : "The request could not be completed.";
+  return safeUserMessage(error);
 }
 
 function assignedAgentName(booking: BookingRow) {

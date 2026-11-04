@@ -22,31 +22,31 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.update-booking-status]
-verify_jwt = true
+verify_jwt = false
 
 [functions.check-availability]
-verify_jwt = true
+verify_jwt = false
 
 [functions.notify-agent]
-verify_jwt = true
+verify_jwt = false
 
 [functions.approve-listing]
-verify_jwt = true
+verify_jwt = false
 
 [functions.verify-agent]
-verify_jwt = true
+verify_jwt = false
 
 [functions.create-agent-account]
-verify_jwt = true
+verify_jwt = false
 
 [functions.delete-empty-listing]
-verify_jwt = true
+verify_jwt = false
 
 [functions.admin-delete-listing]
-verify_jwt = true
+verify_jwt = false
 
 [functions.mark-agent-delayed]
-verify_jwt = true
+verify_jwt = false
 
 [functions.create-listing-contact-payment]
 verify_jwt = false
@@ -69,19 +69,19 @@ verify_jwt = false
   verify_jwt = false
 
 [functions.create-listing-chat-payment]
-  verify_jwt = true
+  verify_jwt = false
 
 [functions.check-listing-chat-payment]
-  verify_jwt = true
+  verify_jwt = false
 
 [functions.dispatch-push-notifications]
   verify_jwt = false
 
 [functions.create-agent-commercial-payment]
-  verify_jwt = true
+  verify_jwt = false
 
 [functions.check-agent-commercial-payment]
-  verify_jwt = true
+  verify_jwt = false
 
 [functions.create-platform-payment]
     verify_jwt = false
@@ -91,3 +91,6 @@ verify_jwt = false
 
 [functions.sonicpesa-payment-webhook]
   verify_jwt = false
+
+[functions.create-booking-payment]
+verify_jwt = false

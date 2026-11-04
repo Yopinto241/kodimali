@@ -59,7 +59,9 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
 
   Future<void> _refresh() async {
     final Future<List<Map<String, dynamic>>> next = _load();
-    setState(() => _future = next);
+    setState(() {
+      _future = next;
+    });
     await next;
   }
 
@@ -71,7 +73,9 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
     if (_updatingIds.contains(id)) {
       return;
     }
-    setState(() => _updatingIds.add(id));
+    setState(() {
+      _updatingIds.add(id);
+    });
     try {
       await AppScope.of(
         context,
@@ -86,7 +90,9 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
       }
     } finally {
       if (mounted) {
-        setState(() => _updatingIds.remove(id));
+        setState(() {
+          _updatingIds.remove(id);
+        });
       }
     }
   }
@@ -240,7 +246,9 @@ class _AgentBookingsTabState extends State<AgentBookingsTab> {
                     selected: <String>{_filter},
                     showSelectedIcon: false,
                     onSelectionChanged: (Set<String> value) {
-                      setState(() => _filter = value.first);
+                      setState(() {
+                        _filter = value.first;
+                      });
                     },
                   ),
                 ),

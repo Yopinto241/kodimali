@@ -39,7 +39,9 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
 
   Future<void> _refresh() async {
     final Future<List<Map<String, dynamic>>> next = _load();
-    setState(() => _future = next);
+    setState(() {
+      _future = next;
+    });
     await next;
   }
 
@@ -51,7 +53,9 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
     if (_updatingIds.contains(id)) {
       return;
     }
-    setState(() => _updatingIds.add(id));
+    setState(() {
+      _updatingIds.add(id);
+    });
     try {
       await AppScope.of(
         context,
@@ -65,7 +69,9 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
       }
     } finally {
       if (mounted) {
-        setState(() => _updatingIds.remove(id));
+        setState(() {
+          _updatingIds.remove(id);
+        });
       }
     }
   }
@@ -180,7 +186,9 @@ class _AdminBookingsTabState extends State<AdminBookingsTab> {
                     selected: <String>{_filter},
                     showSelectedIcon: false,
                     onSelectionChanged: (Set<String> value) {
-                      setState(() => _filter = value.first);
+                      setState(() {
+                        _filter = value.first;
+                      });
                     },
                   ),
                 ),

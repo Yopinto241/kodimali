@@ -25,11 +25,9 @@ class _ManageAppState extends State<ManageApp> {
     super.initState();
     SharedPreferences.getInstance().then((prefs) {
       if (!mounted) return;
-      setState(
-        () => _languageCode = prefs.getString(_preferenceKey) == 'en'
-            ? 'en'
-            : 'sw',
-      );
+      setState(() {
+        _languageCode = prefs.getString(_preferenceKey) == 'en' ? 'en' : 'sw';
+      });
     });
   }
 
@@ -37,7 +35,11 @@ class _ManageAppState extends State<ManageApp> {
     final next = value == 'en' ? 'en' : 'sw';
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_preferenceKey, next);
-    if (mounted) setState(() => _languageCode = next);
+    if (mounted) {
+      setState(() {
+        _languageCode = next;
+      });
+    }
   }
 
   @override

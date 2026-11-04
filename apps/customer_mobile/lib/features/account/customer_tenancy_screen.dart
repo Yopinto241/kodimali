@@ -1,3 +1,4 @@
+import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 
@@ -32,7 +33,9 @@ class _CustomerTenancyScreenState extends State<CustomerTenancyScreen> {
 
   Future<void> _reload() async {
     final next = widget.repository.fetchMyRentalAgreements();
-    setState(() => _agreements = next);
+    setState(() {
+      _agreements = next;
+    });
     await next;
   }
 
@@ -44,7 +47,9 @@ class _CustomerTenancyScreenState extends State<CustomerTenancyScreen> {
     final value = _token.text.trim();
     if (value.isEmpty) return;
     final sw = context.isSwahili;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+    });
     try {
       await widget.repository.acceptTenantInvitation(value);
       if (!mounted) return;
@@ -56,24 +61,34 @@ class _CustomerTenancyScreenState extends State<CustomerTenancyScreen> {
       );
       await _reload();
     } catch (error) {
-      if (mounted) _message(error.toString());
+      if (mounted) _message(userMessage(context, error));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+        });
+      }
     }
   }
 
   Future<void> _acceptAgreement(String id) async {
     final sw = context.isSwahili;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+    });
     try {
       await widget.repository.acceptRentalAgreement(id);
       if (!mounted) return;
       _message(sw ? 'Mkataba umekubaliwa.' : 'Agreement accepted.');
       await _reload();
     } catch (error) {
-      if (mounted) _message(error.toString());
+      if (mounted) _message(userMessage(context, error));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+        });
+      }
     }
   }
 
@@ -123,7 +138,9 @@ class _CustomerTenancyScreenState extends State<CustomerTenancyScreen> {
       reason.dispose();
       return;
     }
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+    });
     try {
       await widget.repository.submitMoveOutNotice(
         agreementId: id,
@@ -138,10 +155,14 @@ class _CustomerTenancyScreenState extends State<CustomerTenancyScreen> {
       );
       await _reload();
     } catch (error) {
-      if (mounted) _message(error.toString());
+      if (mounted) _message(userMessage(context, error));
     } finally {
       reason.dispose();
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+        });
+      }
     }
   }
 
@@ -214,7 +235,9 @@ class _CustomerTenancyScreenState extends State<CustomerTenancyScreen> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                if (snapshot.hasError) return Text(snapshot.error.toString());
+                if (snapshot.hasError) {
+                  return Text(userMessage(context, snapshot.error));
+                }
                 final rows = snapshot.data ?? const <CustomerJson>[];
                 if (rows.isEmpty) {
                   return Text(

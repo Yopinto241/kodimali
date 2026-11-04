@@ -106,7 +106,9 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
       return;
     }
     final Future<Map<String, dynamic>> next = _load();
-    setState(() => _future = next);
+    setState(() {
+      _future = next;
+    });
     if (!quiet) {
       await next;
     }
@@ -116,7 +118,9 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
     if (_busy) {
       return;
     }
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+    });
     try {
       await action();
       await widget.onChanged?.call();
@@ -132,7 +136,9 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
       );
     } finally {
       if (mounted) {
-        setState(() => _busy = false);
+        setState(() {
+          _busy = false;
+        });
       }
     }
   }
@@ -144,7 +150,9 @@ class _BookingWorkspaceScreenState extends State<BookingWorkspaceScreen> {
       ).repository.updateBookingStatus(bookingId: _bookingId, status: status),
     );
     if (mounted) {
-      setState(() => _booking["booking_status"] = status.storageValue);
+      setState(() {
+        _booking["booking_status"] = status.storageValue;
+      });
     }
   }
 
