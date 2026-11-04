@@ -1,0 +1,322 @@
+{
+  "date": "2026-11-04",
+  "status": "Deployment blocked before changes",
+  "candidate_commit": "1c394fdc230e404e966627172ff0ed5128243804",
+  "branch": "feature/kodimali-events",
+  "supabase_project": "tlhoajedyaeaaqtrjqqh",
+  "production_mutations_performed": false,
+  "backup_gate": {
+    "backups": null,
+    "physical_backup_data": {},
+    "pitr_enabled": false,
+    "region": "eu-north-1",
+    "walg_enabled": true
+  },
+  "reviewed_source_hashes_match": true,
+  "historical_migrations_modified": false,
+  "pending_migrations": [
+    "supabase/migrations/20261104080000_permission_boundaries.sql",
+    "supabase/migrations/20261104081000_payment_integrity_and_chat_grants.sql",
+    "supabase/migrations/20261104082000_private_worker_and_device_lifecycle.sql",
+    "supabase/migrations/20261104083000_payment_control_enforcement.sql",
+    "supabase/migrations/20261104084000_event_provider_area_ownership.sql",
+    "supabase/migrations/20261104085000_owner_booking_read_boundary.sql",
+    "supabase/migrations/20261104090000_booking_rpc_active_agent.sql",
+    "supabase/migrations/20261104091000_event_operations_task_and_dispute_boundaries.sql",
+    "supabase/migrations/20261104092000_free_chat_preserves_paid_and_revoked_access.sql"
+  ],
+  "database_before": {
+    "atomic_payment_rpc_present": false,
+    "grant_executable_anon": true,
+    "grant_executable_authenticated": true,
+    "migration_count": 148,
+    "new_entitlement_ledger_present": false,
+    "new_evidence_ledger_present": false,
+    "notification_outbox": [
+      {
+        "status": "skipped",
+        "total": 7
+      },
+      {
+        "status": "sent",
+        "total": 24
+      }
+    ],
+    "public_rls_tables": 135,
+    "public_tables_without_rls": 0,
+    "reconciliation_queue": [],
+    "repair_versions_applied": [],
+    "session_bound_registration_present": false,
+    "vault_worker_secret_present": false,
+    "worker_cron_callers": []
+  },
+  "edge_versions_before_and_after": [
+    {
+      "slug": "admin-delete-listing",
+      "version": 17,
+      "verify_jwt": true
+    },
+    {
+      "slug": "approve-listing",
+      "version": 16,
+      "verify_jwt": true
+    },
+    {
+      "slug": "check-agent-commercial-payment",
+      "version": 13,
+      "verify_jwt": true
+    },
+    {
+      "slug": "check-agent-listing-payment",
+      "version": 17,
+      "verify_jwt": false
+    },
+    {
+      "slug": "check-availability",
+      "version": 19,
+      "verify_jwt": false
+    },
+    {
+      "slug": "check-listing-chat-payment",
+      "version": 14,
+      "verify_jwt": true
+    },
+    {
+      "slug": "check-listing-contact-payment",
+      "version": 22,
+      "verify_jwt": false
+    },
+    {
+      "slug": "check-platform-payment",
+      "version": 5,
+      "verify_jwt": false
+    },
+    {
+      "slug": "clickpesa-payment-webhook",
+      "version": 28,
+      "verify_jwt": false
+    },
+    {
+      "slug": "clickpesa-return-page",
+      "version": 14,
+      "verify_jwt": false
+    },
+    {
+      "slug": "create-agent-account",
+      "version": 19,
+      "verify_jwt": true
+    },
+    {
+      "slug": "create-agent-commercial-payment",
+      "version": 15,
+      "verify_jwt": true
+    },
+    {
+      "slug": "create-agent-listing-payment",
+      "version": 21,
+      "verify_jwt": false
+    },
+    {
+      "slug": "create-booking-payment",
+      "version": 3,
+      "verify_jwt": true
+    },
+    {
+      "slug": "create-booking-request",
+      "version": 27,
+      "verify_jwt": false
+    },
+    {
+      "slug": "create-guest-booking-request",
+      "version": 24,
+      "verify_jwt": false
+    },
+    {
+      "slug": "create-listing-chat-payment",
+      "version": 21,
+      "verify_jwt": true
+    },
+    {
+      "slug": "create-listing-contact-payment",
+      "version": 31,
+      "verify_jwt": false
+    },
+    {
+      "slug": "create-platform-payment",
+      "version": 5,
+      "verify_jwt": false
+    },
+    {
+      "slug": "delete-empty-listing",
+      "version": 15,
+      "verify_jwt": true
+    },
+    {
+      "slug": "dispatch-push-notifications",
+      "version": 12,
+      "verify_jwt": false
+    },
+    {
+      "slug": "mark-agent-delayed",
+      "version": 14,
+      "verify_jwt": true
+    },
+    {
+      "slug": "notify-agent",
+      "version": 14,
+      "verify_jwt": true
+    },
+    {
+      "slug": "sonicpesa-payment-webhook",
+      "version": 3,
+      "verify_jwt": false
+    },
+    {
+      "slug": "update-booking-status",
+      "version": 14,
+      "verify_jwt": true
+    },
+    {
+      "slug": "verify-agent",
+      "version": 17,
+      "verify_jwt": true
+    }
+  ],
+  "cloudflare_existing_deployment": {
+    "id": "eadf8d2d-6d6a-4b7a-adcc-deea46af7ebf",
+    "created_on": "2026-11-02T07:55:09.330654Z",
+    "versions": [
+      {
+        "version_id": "a6b9d0a8-bb2f-4174-8662-34d218b35be8",
+        "percentage": 100
+      }
+    ],
+    "source": "wrangler"
+  },
+  "local_test_results": [
+    {
+      "check": "customer-analysis.log",
+      "status": "passed",
+      "evidence": "No issues found! (ran in 27.9s)"
+    },
+    {
+      "check": "manage-analysis.log",
+      "status": "passed",
+      "evidence": "No issues found! (ran in 27.8s)"
+    },
+    {
+      "check": "customer-tests.log",
+      "status": "passed",
+      "evidence": "00:35 +26: All tests passed!"
+    },
+    {
+      "check": "manage-tests.log",
+      "status": "passed",
+      "evidence": "00:37 +48: All tests passed!"
+    },
+    {
+      "check": "shared-tests.log",
+      "status": "passed",
+      "evidence": "00:02 +8: All tests passed!"
+    },
+    {
+      "check": "edge-tests.log",
+      "status": "passed",
+      "evidence": "ok | 18 passed | 0 failed (1s)"
+    },
+    {
+      "check": "web-unit.log",
+      "status": "passed",
+      "evidence": "\u2139 pass 29"
+    },
+    {
+      "check": "web-build.log",
+      "status": "passed",
+      "evidence": "\u2713 Compiled successfully in 13.1s"
+    },
+    {
+      "check": "web-browser.log",
+      "status": "passed",
+      "evidence": "PASS: itemized quote uses canonical RPC; coordinator cannot read finance without finance permission"
+    },
+    {
+      "check": "web-types.log",
+      "status": "passed"
+    },
+    {
+      "check": "web-lint.log",
+      "status": "passed"
+    }
+  ],
+  "administrative_controls_unchanged": true,
+  "controls_snapshot_sha256": "f42420a2881e976a4c7a9f30376f6a458db09acd7fc223842fb029045ad47bfe",
+  "live_http_baseline": [
+    {
+      "path": "/",
+      "status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "title": "KODIMALI | Nyumba, Magari na Huduma za Kukodisha Tanzania"
+    },
+    {
+      "path": "/listings",
+      "status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "title": "Mali za kukodisha Tanzania | KODIMALI"
+    },
+    {
+      "path": "/events",
+      "status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "title": "Sherehe na Matukio Tanzania | KODIMALI"
+    },
+    {
+      "path": "/events/plan",
+      "status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "title": "Panga Tukio | KODIMALI"
+    },
+    {
+      "path": "/toa-taarifa",
+      "status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "title": "Toa Taarifa ya Mali | KODIMALI"
+    },
+    {
+      "path": "/login",
+      "status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "title": "Ingia | KODIMALI"
+    },
+    {
+      "path": "/account?mode=recovery",
+      "status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "title": "KODIMALI | Nyumba, Magari na Huduma za Kukodisha Tanzania"
+    },
+    {
+      "path": "/manage",
+      "status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "title": "Manage KODIMALI | KODIMALI"
+    },
+    {
+      "path": "/.well-known/assetlinks.json",
+      "status": 404
+    },
+    {
+      "path": "/.well-known/apple-app-site-association",
+      "status": 404
+    },
+    {
+      "path": "/api/health",
+      "status": 200,
+      "content_type": "application/json",
+      "title": null
+    }
+  ],
+  "limits": [
+    "No available backup/recovery point was exposed; PITR disabled; no restore test performed.",
+    "No production deployment, privileged exploit probe, payment, notification send, or account mutation performed.",
+    "No real ES256 role acceptance, provider round-trip or physical-device certification."
+  ]
+}
