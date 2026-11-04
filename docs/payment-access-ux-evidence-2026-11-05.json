@@ -1,0 +1,93 @@
+{
+  "date": "2026-11-05",
+  "source_commit": "e3a9f5e46ceb22ed5cc899371c041cb429b791bf",
+  "branch": "feature/kodimali-events",
+  "project": "tlhoajedyaeaaqtrjqqh",
+  "backend_deployed": true,
+  "edge_functions": [
+    {
+      "slug": "create-listing-contact-payment",
+      "version": 34,
+      "status": "ACTIVE",
+      "verify_jwt": false
+    },
+    {
+      "slug": "check-listing-contact-payment",
+      "version": 25,
+      "status": "ACTIVE",
+      "verify_jwt": false
+    },
+    {
+      "slug": "create-listing-chat-payment",
+      "version": 24,
+      "status": "ACTIVE",
+      "verify_jwt": false
+    }
+  ],
+  "database_migrations_required": false,
+  "live_read_only_quote": {
+    "status": 200,
+    "quote_only": true,
+    "payment_required": false,
+    "amount": 0,
+    "currency": "TZS",
+    "no_payment_or_capability_created": true,
+    "paid_contact_number_not_exposed": null,
+    "free_contact_available": true
+  },
+  "controls_after_edge_equal_before": true,
+  "tests": {
+    "customer_full_suite": 30,
+    "customer_focused_gate_final": 4,
+    "web_unit": 29,
+    "edge_regressions": 22,
+    "browser_scenarios_local": 8,
+    "browser_backend_mode": "Auth, payment and PostgREST fixtures; public production listing used for page identity",
+    "customer_analysis": "passed",
+    "manage_changed_file_analysis": "passed",
+    "web_lint": "passed",
+    "web_types": "passed",
+    "edge_changed_entrypoints_typechecked": 3,
+    "cloudflare_build": "passed"
+  },
+  "mobile_source_updated": true,
+  "mobile_artifact_distributed": false,
+  "social_targets": {
+    "instagram": "@kodimali1",
+    "facebook": "Kodimali Tanzania",
+    "tiktok": "@kodimali1"
+  },
+  "social_publishing_active": false,
+  "social_blocker": "Metricool suggested but installation/account authorization is not confirmed. The repository has no active automatic publisher; listing event queue and approved publisher integration must be completed after authorized account/API access is available.",
+  "caption_requirement": "Use the agent description as the caption; publish only publicly approved listings; deduplicate by listing and platform.",
+  "sonicpesa": "Provider verification deferred by user. Existing SonicPesa authenticity enforcement and credential names preserved; no claim that the inaccessible webhook signing documentation was verified.",
+  "verified_at_utc": "2026-11-04T21:22:39.374812+00:00",
+  "website_deployed": true,
+  "cloudflare": {
+    "id": "0e8ce1ab-9367-413b-a552-2a8708760916",
+    "source": "wrangler",
+    "created_on": "2026-11-04T21:20:24.05388Z",
+    "versions": [
+      {
+        "version_id": "6301db89-cd50-4018-8e0e-467c9f666da0",
+        "percentage": 100
+      }
+    ]
+  },
+  "controls_final_equal_before": true,
+  "controls_snapshot_sha256": "da7a1bdeff05f9af9a572ec3f99020fc320cf72c0914d71369caaeb7cf22be4f",
+  "current_chat_payments_enabled": false,
+  "current_contact_payments_enabled": false,
+  "browser_scenarios_production_frontend": 8,
+  "unmocked_live_ui": {
+    "actual_production_without_backend_interception": true,
+    "free_contact_number_visible": true,
+    "phone_and_whatsapp_links_share_correct_destination": true,
+    "no_contact_payment_form_when_free": true,
+    "anonymous_free_chat_requests_sign_in_without_payment_fields": true,
+    "customer_data_exported": false,
+    "charges_created": false
+  },
+  "real_payment_created": false,
+  "provider_secret_values_read_or_rotated": false
+}
