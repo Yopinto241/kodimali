@@ -144,14 +144,14 @@ _localizedStrings = <String, Map<String, String>>{
     "listing.notFound": "Listing not found",
     "agent.title": "Agent details",
     "agent.phoneHidden":
-        "Phone number hidden. Pay to unlock this agent contact.",
-    "agent.unlockCta": "Unlock phone number",
-    "agent.unlockTitle": "Unlock agent phone",
+        "Contact the agent by phone or WhatsApp.",
+    "agent.unlockCta": "Contact agent",
+    "agent.unlockTitle": "Contact agent",
     "agent.unlockBody":
         "Pay once through SonicPesa to reveal this agent contact on this device.",
     "agent.paymentName": "Full name",
     "agent.paymentPhone": "Phone number",
-    "agent.paymentContinue": "Pay and unlock number",
+    "agent.paymentContinue": "Continue to contact",
     "agent.paymentCheck": "Check payment now",
     "agent.paymentAmount": "Amount: {amount} {currency}",
     "agent.paymentStarted":
@@ -309,7 +309,7 @@ _localizedStrings = <String, Map<String, String>>{
     "requests.progress": "Request progress",
     "requests.openListing": "Open listing",
     "requests.chatOnlyAssigned":
-        "This private chat only connects you with the agent assigned to this request.",
+        "This chat connects you with the agent assigned to this request.",
     "requests.claimTitle": "Link an earlier request",
     "requests.claimHelp":
         "Use the reference shown after you sent the guest request.",
@@ -446,14 +446,14 @@ _localizedStrings = <String, Map<String, String>>{
     "listing.notFound": "Tangazo la mali halikupatikana",
     "agent.title": "Maelezo ya wakala",
     "agent.phoneHidden":
-        "Namba ya simu imefichwa. Lipa ili kuona mawasiliano ya wakala huyu.",
-    "agent.unlockCta": "Fungua namba ya simu",
-    "agent.unlockTitle": "Fungua simu ya wakala",
+        "Wasiliana na wakala kwa simu au WhatsApp.",
+    "agent.unlockCta": "Wasiliana na wakala",
+    "agent.unlockTitle": "Wasiliana na wakala",
     "agent.unlockBody":
         "Lipa mara moja kupitia SonicPesa ili kuona namba ya wakala huyu kwenye kifaa hiki.",
     "agent.paymentName": "Jina kamili",
     "agent.paymentPhone": "Namba ya simu",
-    "agent.paymentContinue": "Lipa na fungua namba",
+    "agent.paymentContinue": "Endelea kwa mawasiliano",
     "agent.paymentCheck": "Angalia hali ya malipo",
     "agent.paymentAmount": "Kiasi: {amount} {currency}",
     "agent.paymentStarted":

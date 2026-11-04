@@ -169,6 +169,8 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
   String? _message;
   bool? _paymentsEnabled;
   int? _chatPrice;
+  bool _hasAccess = false;
+  bool _modeFailed = false;
 
   @override
   void initState() {
@@ -178,21 +180,36 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
 
   Future<void> _loadPaymentMode() async {
     try {
-      final values = await Future.wait<dynamic>(<Future<dynamic>>[
-        widget.repository.fetchChatPaymentsEnabled(),
-        widget.repository.fetchPaidChatUnlockPrice(),
-      ]);
+      final hasAccess = await widget.repository
+          .hasListingChatAccess(widget.listingId)
+          .timeout(const Duration(seconds: 20));
+      final enabled = hasAccess
+          ? true
+          : await widget.repository.fetchChatPaymentsEnabled().timeout(
+              const Duration(seconds: 20),
+            );
+      final price = enabled && !hasAccess
+          ? await widget.repository.fetchPaidChatUnlockPrice().timeout(
+              const Duration(seconds: 20),
+            )
+          : 0;
       if (mounted) {
         setState(() {
-          _paymentsEnabled = values[0] as bool;
-          _chatPrice = values[1] as int;
+          _paymentsEnabled = enabled;
+          _chatPrice = price;
+          _hasAccess = hasAccess;
+          _modeFailed = false;
         });
+        if ((_paymentsEnabled == false || _hasAccess) &&
+            widget.repository.isSignedIn) {
+          await _continue();
+        }
       }
     } catch (_) {
       if (mounted) {
         setState(() {
-          _paymentsEnabled = true;
-          _chatPrice = 1000;
+          _modeFailed = true;
+          _paymentsEnabled = null;
         });
       }
     }
@@ -218,6 +235,9 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
           .createListingChatPayment(
             listingId: widget.listingId,
             phoneNumber: _phone.text,
+            expectedAmount: _paymentsEnabled == true && !_hasAccess
+                ? _chatPrice
+                : null,
           );
       String status = result['paymentStatus']?.toString() ?? 'pending';
       final required = result['paymentRequired'] as bool? ?? true;
@@ -282,17 +302,23 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
         ),
         const SizedBox(height: 8),
         Text(
-          _paymentsEnabled == false
-              ? mobileUi(
-                  context,
-                  'Private chat with this listing’s assigned agent is currently free and stays active for 7 days. Each participant may send 10 messages per Tanzania day.',
-                )
-              : mobileUiFormat(
-                  context,
-                  "Private chat with this listing’s assigned agent costs TSh {0} and stays active for 7 days. Each participant may send 10 messages per Tanzania day.",
-                  [_chatPrice ?? '-'],
-                ),
+          _paymentsEnabled == null
+              ? (Localizations.localeOf(context).languageCode == 'sw'
+                    ? 'Inaangalia ruhusa...'
+                    : 'Checking access...')
+              : _paymentsEnabled == false || _hasAccess
+              ? (Localizations.localeOf(context).languageCode == 'sw'
+                    ? 'Zungumza moja kwa moja na wakala kuhusu mali hii.'
+                    : 'Chat directly with the agent about this listing.')
+              : (Localizations.localeOf(context).languageCode == 'sw'
+                    ? 'TZS $_chatPrice kwa siku 7. Thibitisha malipo ili kuendelea.'
+                    : 'TZS $_chatPrice for 7 days. Confirm payment to continue.'),
         ),
+        if (_modeFailed)
+          TextButton(
+            onPressed: _loadPaymentMode,
+            child: const LocalizedUiText('Retry'),
+          ),
         const SizedBox(height: 20),
         if (!widget.repository.isSignedIn)
           Card(
@@ -308,14 +334,20 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () => widget.onAuthenticate(true),
+                          onPressed: () async {
+                            await widget.onAuthenticate(true);
+                            await _loadPaymentMode();
+                          },
                           child: const LocalizedUiText('Register'),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: FilledButton(
-                          onPressed: () => widget.onAuthenticate(false),
+                          onPressed: () async {
+                            await widget.onAuthenticate(false);
+                            await _loadPaymentMode();
+                          },
                           child: const LocalizedUiText('Sign in'),
                         ),
                       ),
@@ -325,7 +357,7 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
               ),
             ),
           )
-        else if (_paymentsEnabled != false)
+        else if (_paymentsEnabled == true && !_hasAccess)
           TextField(
             controller: _phone,
             keyboardType: TextInputType.phone,
@@ -351,8 +383,10 @@ class _CustomerListingChatGateState extends State<CustomerListingChatGate> {
             label: Text(
               _busy
                   ? mobileUi(context, 'Checking access…')
-                  : _paymentsEnabled == false
-                  ? mobileUi(context, 'Open free private chat')
+                  : _paymentsEnabled == false || _hasAccess
+                  ? (Localizations.localeOf(context).languageCode == 'sw'
+                        ? 'Zungumza hapa'
+                        : 'Chat here')
                   : mobileUiFormat(context, "Pay TSh {0} and open chat", [
                       _chatPrice ?? '-',
                     ]),

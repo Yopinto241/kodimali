@@ -12,7 +12,7 @@ export async function ListingServicePage({ id, service }: { id: string; service:
   const sw = (await cookies()).get("kodimali_language")?.value !== "en";
   const listing = await fetchListingDetail(id);
   if (!listing) notFound();
-  const booking = service === "book" ? await fetchListingBookingCapability(id) : null;
+  const booking = await fetchListingBookingCapability(id);
   const attributes = (listing.listing_attributes ?? {}) as Record<string, unknown>;
   const services = listing.asset_categories?.slug === "apartment" ? [
     { key: "wifi_available", label: "WiFi" }, { key: "food_available", label: "Food" },
@@ -20,10 +20,10 @@ export async function ListingServicePage({ id, service }: { id: string; service:
     { key: "laundry_available", label: "Laundry" },
   ].filter((item) => attributes[item.key] === true) : [];
   const actions = [
-    { key: "contact", label: sw ? "Fungua namba" : "Unlock number" },
-    { key: "chat", label: sw ? "Mazungumzo ya faragha" : "Private chat" },
+    { key: "contact", label: sw ? "Mawasiliano" : "Contact" },
+    { key: "chat", label: sw ? "Zungumza hapa" : "Chat here" },
     { key: "book", label: sw ? "Weka nafasi" : "Booking" },
-  ];
+  ].filter(action => action.key !== "book" || booking.effective_mode !== "not_bookable");
   return <PageShell className="pb-20"><div className="mx-auto max-w-3xl space-y-6">
     <Link href={`/listing/${id}`} className="inline-flex font-semibold text-brand-navy">&larr; <UiText text={sw ? "Rudi kwenye maelezo ya mali" : "Back to listing details"} /></Link>
     <header className="surface-card rounded-[20px] p-5 sm:p-7">
@@ -34,7 +34,7 @@ export async function ListingServicePage({ id, service }: { id: string; service:
         {actions.map((action) => <Link key={action.key} href={`/listing/${id}/${action.key}`} aria-current={action.key === service ? "page" : undefined} className={`btn ${action.key === service ? "btn-success" : "btn-outline"}`}><UiText text={action.label} /></Link>)}
       </UiNav>
     </header>
-    {service === "contact" ? <AgentContactCard listingId={id} agentSummary={listing.agent_summary as never} /> : null}
+    {service === "contact" ? <AgentContactCard listingId={id} agentSummary={{...listing.agent_summary,phone_number:null} as never} /> : null}
     {service === "chat" ? <ListingChatCard listingId={id} /> : null}
     {service === "book" && booking ? <GuestRequestForm listingId={id} listingTitle={listing.title} categorySlug={listing.asset_categories?.slug} availableServices={services} bookingMode={booking.effective_mode} /> : null}
   </div></PageShell>;

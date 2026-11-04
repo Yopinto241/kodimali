@@ -37,7 +37,7 @@ Deno.serve(async (request) => {
       "",
     );
     const { data: { user } } = await db.auth.getUser(jwt);
-    if (!user) return json({ error: "Sign in to open a private chat." }, 401);
+    if (!user) return json({ error: "Sign in to chat." }, 401);
     const body = await request.json();
     const listingId = String(body?.listing_id ?? "").trim();
     const phone = normalizePhoneNumber(String(body?.phone_number ?? ""));
@@ -57,7 +57,6 @@ Deno.serve(async (request) => {
       db.rpc("paid_chat_unlock_price"),
     ]);
     if (settingsError) throw new Error(settingsError.message);
-    if (priceError) throw new Error(priceError.message);
     if (enabled === false) {
       const free=await db.rpc("ensure_free_listing_chat_access",{p_listing_id:listingId,p_customer_id:user.id});
       if (free.error) throw new Error("Chat access is temporarily unavailable");
@@ -66,15 +65,13 @@ Deno.serve(async (request) => {
     }
     if (enabled !== true) return json({error:"Chat settings are temporarily unavailable"},503);
 
-    if (phone.length < 12) {
-      return json({ error: "Enter a valid mobile-money phone number." }, 400);
-    }
-    const { data: access } = await db.from("listing_chat_access").select(
+    const { data: access, error: accessError } = await db.from("listing_chat_access").select(
       "expires_at",
-    ).eq("listing_id", listingId).eq("customer_id", user.id).is("revoked_at", null).gt(
+    ).eq("listing_id", listingId).eq("customer_id", user.id).eq("agent_id", listing.agent_id).is("revoked_at", null).gt(
       "expires_at",
       new Date().toISOString(),
     ).maybeSingle();
+    if (accessError) throw new Error("Chat access could not be checked. Please try again.");
     if (access) {
       return json({
         success: true,
@@ -83,12 +80,19 @@ Deno.serve(async (request) => {
         expiresAt: access.expires_at,
       });
     }
+    if (priceError) throw new Error(priceError.message);
     const amount = Number(configuredAmount);
     if (!Number.isSafeInteger(amount) || amount <= 0) {
       return json(
         { error: "Paid chat price is not configured correctly." },
         503,
       );
+    }
+    if (phone.length < 12) {
+      return json({ error: "Enter a valid mobile-money phone number." }, 400);
+    }
+    if (body?.expected_amount !== undefined && Number(body.expected_amount) !== amount) {
+      return json({error:"The chat fee has changed. Review the current amount before continuing."},409);
     }
     const sonic = useSonicPesa();
     if (sonic && amount < sonicMinimumAmount()) {

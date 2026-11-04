@@ -96,6 +96,8 @@ class FixtureRepository extends CustomerPublicRepository {
   }
 
   @override
+  Future<JsonMap> fetchContactQuote(String id) async => {'paymentRequired':true,'amount':1500,'currency':'TZS'};
+  @override
   JsonMap? savedContactAccess(String id) => saved;
   @override
   Future<JsonMap> checkListingContactPayment(String id) async {

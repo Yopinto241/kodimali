@@ -179,7 +179,7 @@ Deno.serve(async (request) => {
         success: true,
         paymentStatus: "paid",
         message:
-          "Payments are off right now. The agent phone number is available.",
+          "Contact the agent by phone or WhatsApp.",
         phoneNumber: agentPhoneNumber,
         agentDisplayName: displayName,
       });
@@ -227,7 +227,7 @@ Deno.serve(async (request) => {
           success: false,
           paymentStatus: "expired",
           message:
-            "Your 24-hour phone access has expired. Pay again to unlock it.",
+            "Your contact access has ended. Review the current options to continue.",
           accessExpiresAt: expiresAt.toISOString(),
         });
       }

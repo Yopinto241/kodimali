@@ -122,3 +122,45 @@ Deno.test("existing protected checksum SECRET name is supported with explicit KE
     assertEquals(readClickPesaConfig(options).checksumKey,null);
   } finally {for(const [name,value] of previous) {if(value===undefined) Deno.env.delete(name);else Deno.env.set(name,value);}}
 });
+
+Deno.test("contact quote and free access require no personal details and never create orders",async()=>{
+  for(const enabled of [false,true]) {
+    await fixture("create-listing-contact-payment",url=>{
+      if(url.pathname.endsWith("/listings")) return {id:"listing",agent_id:"agent",asset_categories:{slug:"house"}};
+      if(url.pathname.endsWith("/agents")) return {id:"agent",phone_number:"255700000000"};
+      if(url.pathname.endsWith("/contact_payments_enabled")) return enabled;
+      if(url.pathname.endsWith("/is_listing_public")) return true;
+      throw new Error("Quote/free contact attempted a payment or unrelated database operation");
+    },async handler=>{
+      const response=await handler(new Request("https://fixture.invalid",{method:"POST",body:JSON.stringify({listing_id:"listing",quote_only:true})}));
+      assertEquals(response.status,200);const body=await response.json();
+      assertEquals(body.paymentRequired,enabled);
+      assertEquals(body.phoneNumber,enabled?undefined:"255700000000");
+      if(enabled) assertEquals(body.amount>0,true);
+    });
+  }
+});
+Deno.test("contact fee change rejects before saving or sending a payment",async()=>{
+  await fixture("create-listing-contact-payment",url=>{
+    if(url.pathname.endsWith("/listings")) return {id:"listing",agent_id:"agent",asset_categories:{slug:"house"}};
+    if(url.pathname.endsWith("/agents")) return {id:"agent",phone_number:"255700000000"};
+    if(url.pathname.endsWith("/contact_payments_enabled")) return true;
+    if(url.pathname.endsWith("/is_listing_public")) return true;
+    throw new Error("Changed quote attempted an order");
+  },async handler=>{
+    const response=await handler(new Request("https://fixture.invalid",{method:"POST",body:JSON.stringify({listing_id:"listing",customer_name:"Test User",customer_phone_number:"255700000000",expected_amount:1})}));assertEquals(response.status,409);
+  });
+});
+Deno.test("existing chat access bypasses phone validation and never creates another order",async()=>{
+  await fixture("create-listing-chat-payment",url=>{
+    if(url.pathname.endsWith("/user")) return {id:"customer"};
+    if(url.pathname.endsWith("/listings")) return {id:"listing",agent_id:"agent"};
+    if(url.pathname.endsWith("/is_listing_public")) return true;
+    if(url.pathname.endsWith("/chat_payments_enabled")) return true;
+    if(url.pathname.endsWith("/paid_chat_unlock_price")) return 1000;
+    if(url.pathname.endsWith("/listing_chat_access")) return {expires_at:"2099-01-01T00:00:00Z"};
+    throw new Error("Existing access attempted another payment");
+  },async handler=>{
+    const response=await handler(new Request("https://fixture.invalid",{method:"POST",headers:{Authorization:"Bearer fixture"},body:JSON.stringify({listing_id:"listing",phone_number:""})}));assertEquals(response.status,200);assertEquals((await response.json()).paymentRequired,false);
+  });
+});

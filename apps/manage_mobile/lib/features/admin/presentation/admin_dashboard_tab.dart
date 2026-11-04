@@ -521,7 +521,7 @@ class _ContactPaymentSettingsPanelState
       feature: 'private listing chat',
       enablePayment: enabled,
       paidWarning:
-          'Customers will be charged TSh $chatPrice to open seven-day private chat access.',
+          'Customers will be charged TSh $chatPrice to open seven-day chat access.',
       freeWarning:
           'Customers will open private listing chats without payment. KODIMALI will receive no chat-access revenue.',
     );

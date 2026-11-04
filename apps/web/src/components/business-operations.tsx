@@ -19,7 +19,7 @@ const switches = [
   },
   {
     key: "chat_payments_enabled",
-    label: "Private chat",
+    label: "Chat",
     on: "Payment required",
     off: "Free access",
   },

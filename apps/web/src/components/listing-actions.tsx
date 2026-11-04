@@ -1,4 +1,5 @@
 "use client";
+import { whatsAppUrl } from "@/lib/whatsapp";
 import { safeUserMessage } from "@/lib/user-message";
 import { UiButton, UiText } from "@/components/ui-text";
 import { browserPreferences, readStoredIds } from "@/lib/browser-preferences";
@@ -100,12 +101,24 @@ export function ListingActions({
     );
   }
 
+  async function openWhatsApp() {
+    setMessage("");
+    try {
+      const response=await fetch("/api/listing-contact-payment",{method:"POST",cache:"no-store",headers:{"Content-Type":"application/json"},body:JSON.stringify({listing_id:listingId,quote_only:true})});
+      const quote=await response.json();
+      if(!response.ok) throw new Error("Contact access is temporarily unavailable.");
+      const destination=quote.paymentRequired===false?whatsAppUrl(quote.phoneNumber):null;
+      if(destination) window.location.assign(destination);
+      else navigate(`/listing/${listingId}/contact?intent=whatsapp`);
+    } catch(error) {setMessage(safeUserMessage(error));}
+  }
+
   return (
     <div onClick={(event) => event.stopPropagation()}>
       <div className="flex flex-wrap gap-2">
-        {hasWhatsApp && <Link href={`/listing/${listingId}/contact?intent=whatsapp`} className="listing-icon-action listing-whatsapp-action" aria-label={sw ? "Fungua WhatsApp ya wakala" : "Unlock agent WhatsApp"} title={sw ? "Fungua WhatsApp ya wakala" : "Unlock agent WhatsApp"}>
+        {hasWhatsApp && <button type="button" onClick={() => void openWhatsApp()} className="listing-icon-action listing-whatsapp-action" aria-label={sw ? "Fungua WhatsApp ya wakala" : "WhatsApp agent"} title={sw ? "Fungua WhatsApp ya wakala" : "WhatsApp agent"}>
           <svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><path d="M20 11.7a8 8 0 0 1-11.8 7L4 20l1.3-4.1A8 8 0 1 1 20 11.7Z" stroke="currentColor" strokeWidth="1.8"/><path d="M9 7.8c-.6 0-1 .8-1 1.4 0 2.5 3.3 5.8 5.8 5.8.7 0 1.5-.4 1.5-1l-2-1-1 1c-1.1-.5-2.6-2-3.1-3.1l1-1-1.2-2.1Z" fill="currentColor"/></svg>
-        </Link>}
+        </button>}
         {bookingHref ? (
           <Link
             href={bookingHref}

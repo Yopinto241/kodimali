@@ -1,175 +1,66 @@
 "use client";
-import { safeUserMessage } from "@/lib/user-message";
-import { UiInput, UiText } from "@/components/ui-text";
-
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useNavigate } from "@/components/navigation-progress";
-import { FormEvent, useEffect, useState } from "react";
-import { getBrowserSupabase } from "@/lib/supabase-browser";
 import { useLanguage } from "@/components/language-provider";
+import { getBrowserSupabase } from "@/lib/supabase-browser";
+import { listingAccessRpc, useListingAccess } from "@/lib/listing-access";
+import { safeUserMessage } from "@/lib/user-message";
 
 type Row = Record<string, unknown>;
-
-export function ListingChatCard({ listingId }: { listingId: string }) {
-  const supabase = getBrowserSupabase();
-  const { language } = useLanguage();
-  const sw = language === "sw";
-  const navigate = useNavigate();
-  const [signedIn, setSignedIn] = useState<boolean | null>(null);
-  const [phone, setPhone] = useState("");
-  const [paymentId, setPaymentId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [chatPrice, setChatPrice] = useState<number | null>(null);
-  const [notice, setNotice] = useState("Chat directly with the listing agent.");
-
-  useEffect(() => {
-    void Promise.all([
-      supabase.auth.getUser(),
-      supabase.rpc("paid_chat_unlock_price"),
-    ]).then(([auth, price]) => {
-      const priceResult = price as unknown as {
-        data: unknown;
-        error: unknown;
-      };
-      setSignedIn(Boolean(auth.data.user));
-      if (!priceResult.error && typeof priceResult.data === "number") {
-        setChatPrice(priceResult.data);
-      }
-    });
-  }, [supabase]);
-
-  async function openConversation() {
-    const { data, error } = await supabase.rpc(
-      "get_or_create_listing_conversation",
-      {
-        p_listing_id: listingId,
-      } as never,
-    );
-    if (error) throw error;
-    const row = (Array.isArray(data) ? data[0] : data) as Row | null;
-    if (!row?.id) throw new Error("The chat could not be opened.");
+export function ListingChatCard({listingId}:{listingId:string}) {
+  const {language}=useLanguage(); const sw=language==="sw";
+  const {access,error,refresh}=useListingAccess(listingId);
+  const navigate=useNavigate(); const attempted=useRef(false);
+  const [phone,setPhone]=useState(""); const [paymentId,setPaymentId]=useState<string|null>(null);
+  const [busy,setBusy]=useState(false); const [notice,setNotice]=useState("");
+  const open=useCallback(async()=>{
+    const {data,error}=await listingAccessRpc<Row|Row[]>("get_or_create_listing_conversation",{p_listing_id:listingId});
+    if(error) throw error;
+    const row=(Array.isArray(data)?data[0]:data) as Row|null;
+    if(!row?.id) throw new Error("The chat could not be opened.");
     navigate(`/account/chat/${String(row.id)}`);
-  }
-
-  async function start(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setBusy(true);
+  },[listingId,navigate]);
+  const start=useCallback(async()=>{
+    if(!access || !access.signedIn) return;
+    setBusy(true); setNotice("");
     try {
-      const { data, error } = await supabase.functions.invoke(
-        "create-listing-chat-payment",
-        {
-          body: { listing_id: listingId, phone_number: phone.trim() },
-        },
-      );
-      if (error) throw error;
-      const result = (data ?? {}) as Row;
-      if (result.paymentRequired === false || result.paymentStatus === "paid") {
-        await openConversation();
-        return;
-      }
-      setPaymentId(String(result.paymentId));
-      setNotice(
-        "Payment request sent. Approve it on your phone, then check the status.",
-      );
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function check() {
-    if (!paymentId) return;
-    setBusy(true);
+      const {data,error}=await getBrowserSupabase().functions.invoke("create-listing-chat-payment",{body:{listing_id:listingId,phone_number:phone.trim(),...(access.chatAvailable?{}:{expected_amount:access.chatPrice})}});
+      if(error) throw error;
+      if(data?.paymentRequired===false || data?.paymentStatus==="paid") {await open();return;}
+      if(!data?.paymentId) throw new Error("Payment could not be started.");
+      setPaymentId(String(data.paymentId)); setNotice(sw?"Thibitisha ombi la malipo kwenye simu yako.":"Approve the payment request on your phone. Chat will open after confirmation.");
+    } catch(error) {setNotice(safeUserMessage(error));refresh();}
+    finally {setBusy(false);}
+  },[access,listingId,open,phone,refresh,sw]);
+  useEffect(()=>{
+    if(!access?.signedIn || !access.chatAvailable || attempted.current) return;
+    attempted.current=true; void start();
+  },[access,start]);
+  const check=useCallback(async()=>{
+    if(!paymentId) return;
     try {
-      const { data, error } = await supabase.functions.invoke(
-        "check-listing-chat-payment",
-        {
-          body: { payment_id: paymentId },
-        },
-      );
-      if (error) throw error;
-      const result = (data ?? {}) as Row;
-      if (result.paymentStatus === "paid") {
-        await openConversation();
-      } else {
-        setNotice(
-          `Payment status: ${String(result.paymentStatus ?? "pending")}.`,
-        );
+      const {data,error}=await getBrowserSupabase().functions.invoke("check-listing-chat-payment",{body:{payment_id:paymentId}});
+      if(error) throw error;
+      if(data?.paymentStatus==="paid") {await open();return;}
+      if(["failed","expired","cancelled"].includes(data?.paymentStatus)) {
+        setPaymentId(null);setNotice(sw?"Malipo hayajakamilika. Unaweza kujaribu tena.":"Payment was not completed. You can try again.");refresh();
       }
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <section className="overflow-hidden rounded-[22px] border border-[#075e54]/20 bg-[#f7faf8] shadow-[0_18px_45px_rgba(7,94,84,.12)]">
-      <div className="flex items-center gap-3 bg-gradient-to-r from-[#075e54] to-[#087f6d] px-5 py-4 text-white">
-        <span className="grid size-11 place-items-center rounded-full bg-[#d9fdd3] text-[#075e54]">
-          <svg className="size-6 fill-none stroke-current stroke-2" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18.5 3.5 21l1-4A8 8 0 1 1 7 18.5Z" /><path d="M8 10h8M8 14h5" /></svg>
-        </span>
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[.13em] text-white/70"><UiText text={sw ? "Mazungumzo ya faragha" : "Private chat"} /></p>
-          <h2 className="mt-0.5 text-xl font-bold"><UiText text={sw ? "Zungumza na wakala" : "Chat with the agent"} /></h2>
-        </div>
-      </div>
-      <div className="p-5 sm:p-6">
-      <p className="text-sm leading-6 text-[#3b4a54]">
-        <UiText text={sw
-          ? "Namba yako hubaki siri. Lipa mara moja, kisha zungumza na wakala kwa siku 7."
-          : "Your number stays private. Pay once, then chat with the agent for 7 days."} />
-      </p>
-      <p className="mt-3 rounded-xl bg-[#e7f7f1] px-3 py-2 text-sm text-[#075e54]" role="status">
-        <UiText text={notice} />
-      </p>
-      {chatPrice !== null ? (
-        <p className="mt-3 text-lg font-extrabold text-[#075e54]">
-          <UiText text={sw
-            ? `Ada ya chat: TZS ${chatPrice.toLocaleString()}`
-            : `Chat fee: TZS ${chatPrice.toLocaleString()}`} />
-        </p>
-      ) : null}
-      {signedIn === false ? (
-        <Link
-          className="btn btn-success mt-5"
-          href={`/login?next=/listing/${listingId}/chat`}
-        >
-          <UiText text={sw ? "Ingia ili ku-chat" : "Sign in to chat"} />
-        </Link>
-      ) : signedIn ? (
-        paymentId ? (
-          <button
-            className="btn btn-success mt-5"
-            type="button"
-            disabled={busy}
-            onClick={() => void check()}
-          >
-            <UiText text={busy ? "Checking..." : "Check payment and open chat"} />
-          </button>
-        ) : (
-          <form className="mt-5 grid gap-3" onSubmit={start}>
-            <label className="grid gap-2 text-sm font-semibold"><UiText text={"Mobile-money number"} /><UiInput
-                className="field-input"
-                inputMode="tel"
-                placeholder="2557XXXXXXXX"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                required
-              />
-            </label>
-            <button className="btn border-0 bg-[#00a884] text-white hover:bg-[#008f72]" disabled={busy}>
-              <UiText text={busy ? "Starting..." : "Continue to chat"} />
-            </button>
-          </form>
-        )
-      ) : null}
-      </div>
-    </section>
-  );
-}
-
-function readError(error: unknown) {
-  return safeUserMessage(error);
+    } catch(error) {setNotice(safeUserMessage(error));}
+  },[paymentId,open,refresh,sw]);
+  useEffect(()=>{if(!paymentId) return; const timer=window.setInterval(()=>void check(),6000);return()=>window.clearInterval(timer);},[paymentId,check]);
+  return <section className="surface-card rounded-[20px] p-5 sm:p-6" aria-busy={busy}>
+    <h2 className="font-heading text-xl font-semibold">{sw?"Zungumza na wakala":"Chat with the agent"}</h2>
+    <p className="mt-2 text-sm text-muted">{sw?"Uliza kuhusu mali hii na upange hatua inayofuata na wakala.":"Ask about this listing and make arrangements with the agent."}</p>
+    {!access ? <div className="mt-5" role="status">{error?<><p>{sw?"Imeshindikana kuangalia ruhusa kwa sasa.":"Access could not be checked right now."}</p><button className="btn btn-outline mt-3" onClick={refresh}>{sw?"Jaribu tena":"Try again"}</button></>:<p>{sw?"Inaangalia ruhusa...":"Checking access..."}</p>}</div>:
+      !access.signedIn?<Link className="btn btn-success mt-5" href={`/login?next=${encodeURIComponent(`/listing/${listingId}/chat`)}`}>{sw?"Ingia ili kuzungumza":"Sign in to chat"}</Link>:
+      access.chatAvailable?<button className="btn btn-success mt-5" disabled={busy} onClick={()=>void start()}>{busy?(sw?"Inafungua...":"Opening chat..."):(sw?"Zungumza hapa":"Chat here")}</button>:
+      paymentId?<div className="mt-5"><p className="text-sm">{sw?"Inasubiri uthibitisho wa malipo.":"Waiting for payment confirmation."}</p><button className="btn btn-outline mt-3" onClick={()=>void check()}>{sw?"Angalia hali":"Check status"}</button></div>:
+      <form className="mt-5 grid gap-4" onSubmit={event=>{event.preventDefault();void start();}}>
+        <p className="font-semibold">TZS {access.chatPrice?.toLocaleString()} <span className="text-sm font-normal text-muted">{sw?"kwa siku 7":"for 7 days"}</span></p>
+        <label className="grid gap-2 text-sm font-semibold">{sw?"Namba ya malipo ya simu":"Mobile-money number"}<input className="field-input" type="tel" autoComplete="tel" placeholder="2557XXXXXXXX" value={phone} onChange={event=>setPhone(event.target.value)} required /></label>
+        <button className="btn btn-success" disabled={busy}>{busy?(sw?"Inatuma ombi...":"Sending request..."):(sw?`Lipa TZS ${access.chatPrice?.toLocaleString()} na uendelee`:`Pay TZS ${access.chatPrice?.toLocaleString()} and continue`)}</button>
+      </form>}
+    {notice?<p className="mt-4 text-sm text-muted" role="status">{notice}</p>:null}
+  </section>;
 }

@@ -83,7 +83,7 @@ export function PublicListingCard({
       <ListingActions
         listingId={listing.listing_id}
         bookingHref={
-          canBook ? `/listing/${listing.listing_id}#booking` : undefined
+          canBook ? `/listing/${listing.listing_id}/book` : undefined
         }
         bookingMode={bookingMode}
         hasWhatsApp={listing.has_whatsapp}

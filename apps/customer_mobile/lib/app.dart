@@ -67,49 +67,7 @@ Future<void> _offerListingChat(
   final CustomerAccountRepository account = CustomerAccountRepository(
     Supabase.instance.client,
   );
-  bool paymentsEnabled = true;
-  try {
-    paymentsEnabled = await account.fetchChatPaymentsEnabled();
-  } catch (_) {}
   if (!context.mounted) return;
-  final String? action = await showDialog<String>(
-    context: context,
-    builder: (BuildContext context) => AlertDialog(
-      title: Text(
-        context.isSwahili
-            ? 'Uzungumze na wakala huyu?'
-            : 'Chat with this agent?',
-      ),
-      content: Text(
-        paymentsEnabled
-            ? (context.isSwahili
-                  ? 'Unaweza kusoma maelezo ya mali kwanza, au kulipa TSh 1,000 kuzungumza na wakala kwa faragha kwa siku 7.'
-                  : 'View the listing first, or pay TSh 1,000 to chat privately with the agent for 7 days.')
-            : (context.isSwahili
-                  ? 'Unaweza kusoma maelezo yote ya mali kwanza, au kufungua mazungumzo ya faragha bila malipo. Ruhusa itadumu siku 7.'
-                  : 'You can view all listing details first, or open a free private chat with this agent. Access lasts 7 days.'),
-      ),
-      actions: <Widget>[
-        TextButton(
-          onPressed: () => Navigator.pop(context, 'details'),
-          child: Text(context.isSwahili ? 'Angalia maelezo' : 'View details'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, 'chat'),
-          child: Text(
-            paymentsEnabled
-                ? (context.isSwahili ? 'Lipa kuzungumza' : 'Pay to chat')
-                : (context.isSwahili ? 'Fungua mazungumzo' : 'Open free chat'),
-          ),
-        ),
-      ],
-    ),
-  );
-  if (!context.mounted || action == null) return;
-  if (action == 'details') {
-    _openListingDetails(context, repository: repository, listingId: listingId);
-    return;
-  }
   await Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => CustomerListingChatGate(
@@ -154,7 +112,10 @@ class _CustomerAppState extends State<CustomerApp> {
   }
 
   void _openNotification(Map<String, dynamic> data) {
-    if (!pushBelongsToUser(data, Supabase.instance.client.auth.currentUser?.id)) {
+    if (!pushBelongsToUser(
+      data,
+      Supabase.instance.client.auth.currentUser?.id,
+    )) {
       return;
     }
     final String route = data['route']?.toString() ?? '';
@@ -3661,12 +3622,11 @@ class PublicListingCard extends StatelessWidget {
                               color: const Color(0xff125f58),
                               shape: const CircleBorder(),
                               child: IconButton(
-                                tooltip: mobileUi(
-                                  context,
-                                  'Unlock agent WhatsApp',
-                                ),
+                                tooltip: mobileUi(context, 'WhatsApp agent'),
                                 color: Colors.white,
-                                icon: const WhatsAppIcon(),
+                                icon: const WhatsAppIcon(
+                                  color: Color(0xFF25D366),
+                                ),
                                 onPressed: () => _openWhatsApp(context),
                               ),
                             ),
@@ -6329,7 +6289,9 @@ class _AgentSummaryCard extends StatefulWidget {
   State<_AgentSummaryCard> createState() => _AgentSummaryCardState();
 }
 
-class _AgentSummaryCardState extends State<_AgentSummaryCard> {
+class _AgentSummaryCardState extends State<_AgentSummaryCard>
+    with WidgetsBindingObserver {
+  bool _contactReady = false;
   String? _unlockedPhoneNumber;
   String? _statusMessage;
 
@@ -6362,34 +6324,65 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard> {
     }
   }
 
+  Future<void> _refreshContact() async {
+    try {
+      final quote = await widget.repository.fetchContactQuote(widget.listingId);
+      String? phone = quote['phoneNumber'] as String?;
+      final saved = widget.repository.savedContactAccess(widget.listingId);
+      if (quote['paymentRequired'] == true && saved?['payment_id'] != null) {
+        final verified = await widget.repository.checkListingContactPayment(
+          widget.listingId,
+        );
+        phone = _validSavedPhone(verified);
+      }
+      if (mounted) {
+        setState(() {
+          _unlockedPhoneNumber = phone;
+          _contactReady = true;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _contactReady = false;
+          _statusMessage = _readableErrorMessage(error);
+        });
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    final Map<String, dynamic>? saved = widget.repository.savedContactAccess(
-      widget.listingId,
-    );
-    _unlockedPhoneNumber =
-        _validSavedPhone(saved) ??
-        (widget.agentSummary["phone_number"] as String?);
-    _statusMessage = saved?["message"] as String?;
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_refreshContact());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_refreshContact());
   }
 
   @override
   void didUpdateWidget(covariant _AgentSummaryCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final Map<String, dynamic>? saved = widget.repository.savedContactAccess(
-      widget.listingId,
-    );
-    final String? paidPhoneNumber = _validSavedPhone(saved);
-    final String? publicPhoneNumber =
-        widget.agentSummary["phone_number"] as String?;
-    _unlockedPhoneNumber = paidPhoneNumber?.trim().isNotEmpty == true
-        ? paidPhoneNumber
-        : publicPhoneNumber;
-    _statusMessage = saved?["message"] as String?;
+    if (oldWidget.listingId != widget.listingId) {
+      _contactReady = false;
+      _unlockedPhoneNumber = null;
+    }
+    unawaited(_refreshContact());
   }
 
-  Future<void> _openUnlockFlow(String displayName) async {
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Future<void> _openUnlockFlow(
+    String displayName, {
+    bool whatsapp = false,
+  }) async {
     final String? unlockedPhone = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -6409,7 +6402,11 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard> {
     setState(() {
       _unlockedPhoneNumber = unlockedPhone ?? saved?["phone_number"] as String?;
       _statusMessage = saved?["message"] as String?;
+      _contactReady = true;
     });
+    if (whatsapp && _unlockedPhoneNumber != null) {
+      await _whatsApp(_unlockedPhoneNumber!);
+    }
   }
 
   @override
@@ -6429,8 +6426,9 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard> {
         (agentSummary["verification_status"] as String?) == "approved";
     final String? profilePhotoUrl =
         agentSummary["profile_photo_url"] as String?;
-    final String? visiblePhoneNumber =
-        _unlockedPhoneNumber ?? (agentSummary["phone_number"] as String?);
+    final String? visiblePhoneNumber = _contactReady
+        ? _unlockedPhoneNumber
+        : null;
 
     return Card(
       child: Padding(
@@ -6497,19 +6495,15 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard> {
                               icon: const Icon(Icons.call_rounded),
                             ),
                             Expanded(
-                              child: Text(
-                                visiblePhoneNumber,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.primary,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                              child: TextButton(
+                                onPressed: () => _whatsApp(visiblePhoneNumber),
+                                child: Text(visiblePhoneNumber),
                               ),
                             ),
                             IconButton(
                               onPressed: () => _whatsApp(visiblePhoneNumber),
                               tooltip: mobileUi(context, 'WhatsApp'),
-                              icon: const Icon(
-                                Icons.chat_rounded,
+                              icon: const WhatsAppIcon(
                                 color: Color(0xFF25D366),
                               ),
                             ),
@@ -6605,8 +6599,8 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () => _openUnlockFlow(displayName),
-                  child: Text(context.tr("agent.unlockCta")),
+                  onPressed: () => _openUnlockFlow(displayName, whatsapp: true),
+                  child: const LocalizedUiText('WhatsApp'),
                 ),
               ),
             ],
@@ -6644,6 +6638,8 @@ class _ListingContactUnlockScreenState
   bool _submitting = false;
   bool _checking = false;
   String? _message;
+  Map<String, dynamic>? _quote;
+  bool _quoteFailed = false;
 
   @override
   void initState() {
@@ -6652,6 +6648,29 @@ class _ListingContactUnlockScreenState
     _session = widget.repository.savedContactAccess(widget.listingId);
     _message = _session?["message"] as String?;
     _refreshPaymentMonitoring();
+    unawaited(_loadQuote());
+  }
+
+  Future<void> _loadQuote() async {
+    try {
+      final quote = await widget.repository.fetchContactQuote(widget.listingId);
+      if (!mounted) return;
+      setState(() {
+        _quote = quote;
+        _quoteFailed = false;
+      });
+      final phone = quote['phoneNumber']?.toString() ?? '';
+      if (quote['paymentRequired'] == false && phone.isNotEmpty) {
+        _handleUnlockedPhone(phone);
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _quoteFailed = true;
+          _message = _readableErrorMessage(error);
+        });
+      }
+    }
   }
 
   @override
@@ -6665,6 +6684,9 @@ class _ListingContactUnlockScreenState
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _session == null) {
+      unawaited(_loadQuote());
+    }
     if (state == AppLifecycleState.resumed &&
         _shouldMonitorPayment(_session) &&
         !_checking) {
@@ -6715,6 +6737,7 @@ class _ListingContactUnlockScreenState
             listingId: widget.listingId,
             customerName: _nameController.text.trim(),
             customerPhoneNumber: _phoneController.text.trim(),
+            expectedAmount: _quote?["amount"] as num?,
           );
       if (!mounted) {
         return;
@@ -6842,7 +6865,13 @@ class _ListingContactUnlockScreenState
                     ),
                     const SizedBox(height: KodimaliSpacing.xs),
                     Text(
-                      context.tr("agent.unlockBody"),
+                      _quote == null
+                          ? (context.isSwahili
+                                ? 'Inaangalia mawasiliano...'
+                                : 'Checking contact access...')
+                          : (context.isSwahili
+                                ? 'Ada ya mara moja: TZS ${_quote?["amount"]}. Endelea kwa simu au WhatsApp.'
+                                : 'One-time fee: TZS ${_quote?["amount"]}. Continue by phone or WhatsApp.'),
                       style: theme.textTheme.bodyMedium,
                     ),
                   ],
@@ -6850,7 +6879,16 @@ class _ListingContactUnlockScreenState
               ),
             ),
             const SizedBox(height: KodimaliSpacing.md),
-            if (session == null)
+            if (_quote == null)
+              Center(
+                child: _quoteFailed
+                    ? TextButton(
+                        onPressed: _loadQuote,
+                        child: const LocalizedUiText('Retry'),
+                      )
+                    : const CircularProgressIndicator(),
+              )
+            else if (session == null)
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(KodimaliSpacing.md),
@@ -6888,7 +6926,9 @@ class _ListingContactUnlockScreenState
                             child: Text(
                               _submitting
                                   ? context.tr("request.submitting")
-                                  : context.tr("agent.paymentContinue"),
+                                  : (context.isSwahili
+                                        ? 'Lipa TZS ${_quote?["amount"]} na uendelee'
+                                        : 'Pay TZS ${_quote?["amount"]} and continue'),
                             ),
                           ),
                         ),

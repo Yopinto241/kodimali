@@ -852,14 +852,43 @@ class CustomerAccountRepository {
         .toList();
   }
 
+  Future<bool> hasListingChatAccess(String listingId) async {
+    if (!isSignedIn) return false;
+    final detail = await _client.rpc(
+      'get_public_listing_detail',
+      params: {'p_listing_id': listingId},
+    );
+    final agent = (detail as List).firstOrNull?['agent_id'];
+    final rows = await _client
+        .from('listing_chat_access')
+        .select('expires_at,revoked_at,agent_id')
+        .eq('listing_id', listingId)
+        .eq('customer_id', currentUser!.id);
+    return rows.any(
+      (row) =>
+          row['agent_id'] == agent &&
+          row['revoked_at'] == null &&
+          (DateTime.tryParse(
+                row['expires_at'].toString(),
+              )?.isAfter(DateTime.now()) ??
+              false),
+    );
+  }
+
   Future<bool> fetchChatPaymentsEnabled() async {
     final dynamic response = await _client.rpc('chat_payments_enabled');
-    return response as bool? ?? true;
+    if (response is! bool) {
+      throw StateError('Chat access could not be checked.');
+    }
+    return response;
   }
 
   Future<int> fetchPaidChatUnlockPrice() async {
     final dynamic response = await _client.rpc('paid_chat_unlock_price');
-    return (response as num?)?.toInt() ?? 1000;
+    if (response is! num || response <= 0) {
+      throw StateError('Chat price could not be checked.');
+    }
+    return response.toInt();
   }
 
   Future<void> markListingChatRead(String conversationId) async {
@@ -925,6 +954,7 @@ class CustomerAccountRepository {
   Future<CustomerJson> createListingChatPayment({
     required String listingId,
     required String phoneNumber,
+    int? expectedAmount,
   }) async {
     _requireUser();
     final FunctionResponse response = await _client.functions.invoke(
@@ -932,6 +962,7 @@ class CustomerAccountRepository {
       body: <String, dynamic>{
         'listing_id': listingId,
         'phone_number': phoneNumber.trim(),
+        'expected_amount': ?expectedAmount,
       },
     );
     if (response.status >= 400) {

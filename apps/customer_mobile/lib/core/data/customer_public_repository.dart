@@ -1141,17 +1141,34 @@ class CustomerPublicRepository {
     return CustomerSnapshotStore.clearContactAccess(listingId);
   }
 
+  Future<JsonMap> fetchContactQuote(String listingId) async {
+    final response = await _client.functions
+        .invoke(
+          'create-listing-contact-payment',
+          body: {'listing_id': listingId, 'quote_only': true},
+        )
+        .timeout(const Duration(seconds: 20));
+    if (response.status >= 400) {
+      throw StateError(
+        'Contact access could not be checked. Please try again.',
+      );
+    }
+    return JsonMap.from(response.data as Map);
+  }
+
   Future<JsonMap> createListingContactPayment({
     required String listingId,
     required String customerName,
     required String customerPhoneNumber,
     String? customerEmail,
+    num? expectedAmount,
   }) async {
     try {
       final FunctionResponse response = await _client.functions.invoke(
         "create-listing-contact-payment",
         body: <String, dynamic>{
           "listing_id": listingId,
+          "expected_amount": ?expectedAmount,
           "customer_name": customerName,
           "customer_phone_number": customerPhoneNumber,
           if (customerEmail != null && customerEmail.trim().isNotEmpty)
@@ -1180,7 +1197,7 @@ class CustomerPublicRepository {
         "sender_name": payload["senderName"],
         "message": payload["message"],
         "customer_phone_number": customerPhoneNumber.trim(),
-        "phone_number": null,
+        "phone_number": payload["phoneNumber"],
         "updated_at": DateTime.now().toIso8601String(),
       };
       await CustomerSnapshotStore.saveContactAccess(listingId, cached);

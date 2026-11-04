@@ -154,16 +154,6 @@ Deno.serve(async (request) => {
     if (!listingId) {
       return json({ error: "Choose a listing first." }, 400);
     }
-    if (customerName.length < 2) {
-      return json({ error: "Enter your full name before continuing." }, 400);
-    }
-    if (customerPhoneNumber.length < 12) {
-      return json(
-        { error: "Enter a valid phone number with the correct country code." },
-        400,
-      );
-    }
-
     const { data: listing, error: listingError } = await supabase
       .from("listings")
       .select("id, title, agent_id, asset_categories!inner(slug)")
@@ -220,7 +210,7 @@ Deno.serve(async (request) => {
         paymentRequired: false,
         paymentStatus: "paid",
         message:
-          "Payments are off right now. The agent phone number is available.",
+          "Contact the agent by phone or WhatsApp.",
         phoneNumber: agent.phone_number,
         agentDisplayName: displayName,
       });
@@ -237,13 +227,27 @@ Deno.serve(async (request) => {
       ? category["slug"] as string
       : "";
     const sonic = useSonicPesa();
-    const config = sonic ? null : contactPaymentConfig();
     const amount = sonic
       ? Math.max(
         paymentAmountTzs(categorySlug),
         readAmountEnv("SONICPESA_MIN_TZS", 1000),
       )
       : paymentAmountTzs(categorySlug);
+    if (body?.quote_only === true) return json({success:true,paymentRequired:true,amount,currency:"TZS"});
+    if (body?.expected_amount !== undefined && Number(body.expected_amount) !== amount) {
+      return json({error:"The contact fee has changed. Review the current amount before continuing."},409);
+    }
+    if (customerName.length < 2) {
+      return json({ error: "Enter your full name before continuing." }, 400);
+    }
+    if (customerPhoneNumber.length < 12) {
+      return json(
+        { error: "Enter a valid phone number with the correct country code." },
+        400,
+      );
+    }
+
+    const config = sonic ? null : contactPaymentConfig();
     const orderReference = createOrderReference();
     const accessToken = crypto.randomUUID();
     const previewPayload: Record<string, unknown> = {

@@ -1,3 +1,4 @@
+import { AgentContactCard } from "@/components/agent-contact-card";
 import { UiNav, UiText } from "@/components/ui-text";
 import { notFound } from "next/navigation";
 import { pageMetadata, summary, isPublicId, breadcrumbs, serviceSchema } from "@/lib/seo";
@@ -19,6 +20,7 @@ import { PromotionStrip } from "@/components/promotion-strip";
 import { StatusPill } from "@/components/status-pill";
 import {
   fetchListingDetail,
+  fetchListingBookingCapability,
   fetchPromotions,
   fetchPublicListings,
 } from "@/lib/supabase-public";
@@ -126,6 +128,7 @@ export default async function ListingPage({
   ]);
 
   if (!listing) notFound();
+  const booking = await fetchListingBookingCapability(id);
 
   const attributes = (listing.listing_attributes ?? {}) as Record<
     string,
@@ -284,21 +287,10 @@ export default async function ListingPage({
         </section>
 
         <aside className="listing-detail-sidebar space-y-5 lg:sticky lg:top-24 lg:self-start">
-          <UiNav aria-label={sw ? "Hatua za listing" : "Listing actions"} className="surface-card rounded-[20px] p-5 sm:p-6">
-            <h2 className="font-heading text-xl font-semibold"><UiText text={sw ? "Hatua inayofuata" : "Next steps"} /></h2>
-            <p className="mt-2 text-sm text-muted"><UiText text={sw ? "Chagua huduma ili kuendelea kwenye ukurasa wake." : "Choose a service to continue on its own page."} /></p>
-            <div className="mt-5 grid gap-3">
-              {[
-                { path: "contact", title: sw ? "Lipa na fungua namba" : "Pay and unlock number", description: sw ? "Angalia ada na upate mawasiliano ya wakala." : "Review the fee and access the agent's contact number." },
-                { path: "chat", title: sw ? "Mazungumzo ya faragha" : "Private chat", description: sw ? "Fungua mazungumzo na wakala wa mali hii." : "Open a private conversation with this listing's agent." },
-                { path: "book", title: sw ? "Weka nafasi" : "Book this listing", description: sw ? "Angalia chaguo na utume ombi lako." : "Review booking options and send your request." },
-              ].map((action) => (
-                <Link key={action.path} href={`/listing/${id}/${action.path}`} className="group rounded-2xl border border-brand-border p-4 transition-colors hover:bg-brand-green-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-navy">
-                  <span className="flex items-center justify-between gap-3 font-semibold text-brand-ink">{action.title}<span aria-hidden="true">&rarr;</span></span>
-                  <span className="mt-1 block text-sm text-muted">{action.description}</span>
-                </Link>
-              ))}
-            </div>
+          <AgentContactCard listingId={id} agentSummary={{...listing.agent_summary,phone_number:null} as never} />
+          <UiNav aria-label={sw ? "Huduma za mali" : "Listing actions"} className="surface-card grid gap-3 rounded-[20px] p-5">
+            <Link href={`/listing/${id}/chat`} className="btn btn-success">{sw ? "Zungumza hapa" : "Chat here"}</Link>
+            {booking.effective_mode !== "not_bookable" && <Link href={`/listing/${id}/book`} className="btn btn-outline">{sw ? "Omba nafasi" : "Request a booking"}</Link>}
           </UiNav>
           <PromotionStrip promotions={promotions as never} />
           <GoogleAdSlot
