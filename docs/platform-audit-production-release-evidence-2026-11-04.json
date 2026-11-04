@@ -1,30 +1,112 @@
 {
   "date": "2026-11-04",
-  "status": "Deployment blocked before changes",
-  "candidate_commit": "1c394fdc230e404e966627172ff0ed5128243804",
+  "updated_at_utc": "2026-11-04T18:31:53.678971+00:00",
+  "status": "Partially deployed; remaining steps documented",
+  "backend_and_web_deployed": true,
+  "mobile_release_distributed": false,
+  "candidate_commit": "2861f37bab17fbf377d5186bfbd8f4ef399ae6b5",
+  "reviewed_repair_commit": "1c394fdc230e404e966627172ff0ed5128243804",
   "branch": "feature/kodimali-events",
   "supabase_project": "tlhoajedyaeaaqtrjqqh",
-  "production_mutations_performed": false,
-  "backup_gate": {
+  "production_mutations_performed": true,
+  "backup_capabilities_initially_observed": {
     "backups": null,
     "physical_backup_data": {},
     "pitr_enabled": false,
     "region": "eu-north-1",
     "walg_enabled": true
   },
+  "recovery": {
+    "encrypted_roundtrip_members": 11,
+    "paid_backup_required": false,
+    "original_data_preserved": true,
+    "encrypted_archive_sha256": "0C534B53D12A9A057D01F83C1E5CCEE5DFC9172772AF62CD1B23C0958A673A4C",
+    "restore_tables_verified": 173,
+    "migration_trial_passed": 9,
+    "secure_acl": true,
+    "verified_at_utc": "2026-11-04T18:29:41.8183162Z",
+    "backup_run_started_at_utc": "2026-11-04T14:45:43Z",
+    "location": "Outside repository in user-restricted Kodimali-Recovery directory",
+    "encryption": "Windows DPAPI CurrentUser; current Windows profile and entropy file required",
+    "consistent_snapshot": true,
+    "archive_format": "PostgreSQL custom archive",
+    "archive_sha256": "1bb5324ef4d8779f22b7f983ee3914804a74061b6c9b65388cb44ec6ba5f1a2b",
+    "scoped_tables_restored": 173,
+    "all_scoped_counts_match": true,
+    "candidate_migrations_trial_passed": 9,
+    "original_table_contents_preserved_in_trial": true,
+    "every_existing_chat_access_row_preserved_in_trial": true,
+    "managed_runtimes_stubbed_only_locally": [
+      "pg_cron",
+      "pg_net",
+      "supabase_vault"
+    ],
+    "original_extension_metadata_and_data_in_backup": true,
+    "role_passwords_excluded": true,
+    "existing_edge_secret_values_not_exported": true,
+    "new_worker_credential_encrypted_in_recovery_package": true,
+    "storage_object_binary_backup_included": false,
+    "isolated_restore_server_stopped": true
+  },
   "reviewed_source_hashes_match": true,
   "historical_migrations_modified": false,
-  "pending_migrations": [
-    "supabase/migrations/20261104080000_permission_boundaries.sql",
-    "supabase/migrations/20261104081000_payment_integrity_and_chat_grants.sql",
-    "supabase/migrations/20261104082000_private_worker_and_device_lifecycle.sql",
-    "supabase/migrations/20261104083000_payment_control_enforcement.sql",
-    "supabase/migrations/20261104084000_event_provider_area_ownership.sql",
-    "supabase/migrations/20261104085000_owner_booking_read_boundary.sql",
-    "supabase/migrations/20261104090000_booking_rpc_active_agent.sql",
-    "supabase/migrations/20261104091000_event_operations_task_and_dispute_boundaries.sql",
-    "supabase/migrations/20261104092000_free_chat_preserves_paid_and_revoked_access.sql"
+  "migrations": [
+    {
+      "file": "20261104080000_permission_boundaries.sql",
+      "version": "20261104080000",
+      "sha256": "26a3a92509ec0eb2d830edb13485213eaccb414b7ed887541020dc542a90224d",
+      "production_status": "applied"
+    },
+    {
+      "file": "20261104081000_payment_integrity_and_chat_grants.sql",
+      "version": "20261104081000",
+      "sha256": "494ceac2de34e0a3f7dd3e90ad4de9957831b28254aa875cf484c4dcdf058b41",
+      "production_status": "applied"
+    },
+    {
+      "file": "20261104082000_private_worker_and_device_lifecycle.sql",
+      "version": "20261104082000",
+      "sha256": "ce21fa3d627489971d6624bf415272b5530daa4e727f6a6770eacc40a16c2ba6",
+      "production_status": "applied"
+    },
+    {
+      "file": "20261104083000_payment_control_enforcement.sql",
+      "version": "20261104083000",
+      "sha256": "d9416eaec6e26d418f537fa50dd8df008da4936a80d38cbed868d84f6c82993b",
+      "production_status": "applied"
+    },
+    {
+      "file": "20261104084000_event_provider_area_ownership.sql",
+      "version": "20261104084000",
+      "sha256": "ce7d7ce42741a9e2afcff6e10a8a4dcd122b481841263d065af514c72296b447",
+      "production_status": "applied"
+    },
+    {
+      "file": "20261104085000_owner_booking_read_boundary.sql",
+      "version": "20261104085000",
+      "sha256": "905cdeb715d8ef660f9fb719b6e7d9420087419626b0ee9431ff7f26a9dfe560",
+      "production_status": "applied"
+    },
+    {
+      "file": "20261104090000_booking_rpc_active_agent.sql",
+      "version": "20261104090000",
+      "sha256": "2163ebe70bcea1c871b033e3a70930eba14f06b6aa18de1551e9186999e16804",
+      "production_status": "applied"
+    },
+    {
+      "file": "20261104091000_event_operations_task_and_dispute_boundaries.sql",
+      "version": "20261104091000",
+      "sha256": "33e34cdd32db95ab0fc716fd18c0078141145f9654a5aa2a76c2a7de3bd1b868",
+      "production_status": "applied"
+    },
+    {
+      "file": "20261104092000_free_chat_preserves_paid_and_revoked_access.sql",
+      "version": "20261104092000",
+      "sha256": "4fe35ba3f479583ddad640193204ae7e252e99365fa56c93b904e499c08339fb",
+      "production_status": "applied"
+    }
   ],
+  "pending_migrations": [],
   "database_before": {
     "atomic_payment_rpc_present": false,
     "grant_executable_anon": true,
@@ -50,148 +132,489 @@
     "vault_worker_secret_present": false,
     "worker_cron_callers": []
   },
-  "edge_versions_before_and_after": [
+  "database_after": {
+    "atomic_payment_rpc_present": true,
+    "grant_executable_anon": false,
+    "grant_executable_authenticated": false,
+    "migration_count": 157,
+    "new_entitlement_ledger_present": true,
+    "new_evidence_ledger_present": true,
+    "notification_outbox": [
+      {
+        "status": "skipped",
+        "total": 7
+      },
+      {
+        "status": "sent",
+        "total": 24
+      }
+    ],
+    "public_rls_tables": 137,
+    "public_tables_without_rls": 0,
+    "reconciliation_queue": [],
+    "repair_versions_applied": [
+      "20261104080000",
+      "20261104081000",
+      "20261104082000",
+      "20261104083000",
+      "20261104084000",
+      "20261104085000",
+      "20261104090000",
+      "20261104091000",
+      "20261104092000"
+    ],
+    "session_bound_registration_present": true,
+    "vault_worker_secret_present": true,
+    "worker_cron_callers": []
+  },
+  "live_data_preservation": {
+    "verified_at_utc": "2026-11-04T18:22:21.918661+00:00",
+    "original_tables_compared": 172,
+    "tables_differing_from_migration_trial": [
+      "auth.refresh_tokens",
+      "auth.users",
+      "auth.sessions"
+    ],
+    "entitlements_match_trial": true,
+    "customer_values_emitted": false,
+    "auth_user_trigger_names": [
+      "handle_auth_user_created",
+      "handle_auth_user_updated",
+      "on_auth_user_created",
+      "zz_handle_owner_self_registration"
+    ]
+  },
+  "edge_versions": [
     {
       "slug": "admin-delete-listing",
-      "version": 17,
-      "verify_jwt": true
+      "before_version": 17,
+      "version": 19,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "approve-listing",
-      "version": 16,
-      "verify_jwt": true
+      "before_version": 16,
+      "version": 18,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "check-agent-commercial-payment",
-      "version": 13,
-      "verify_jwt": true
+      "before_version": 13,
+      "version": 15,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "check-agent-listing-payment",
-      "version": 17,
-      "verify_jwt": false
+      "before_version": 17,
+      "version": 19,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "check-availability",
-      "version": 19,
-      "verify_jwt": false
+      "before_version": 19,
+      "version": 21,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "check-listing-chat-payment",
-      "version": 14,
-      "verify_jwt": true
+      "before_version": 14,
+      "version": 16,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "check-listing-contact-payment",
-      "version": 22,
-      "verify_jwt": false
+      "before_version": 22,
+      "version": 24,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "check-platform-payment",
-      "version": 5,
-      "verify_jwt": false
+      "before_version": 5,
+      "version": 7,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "clickpesa-payment-webhook",
-      "version": 28,
-      "verify_jwt": false
+      "before_version": 28,
+      "version": 30,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "clickpesa-return-page",
-      "version": 14,
-      "verify_jwt": false
+      "before_version": 14,
+      "version": 16,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "create-agent-account",
-      "version": 19,
-      "verify_jwt": true
+      "before_version": 19,
+      "version": 21,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "create-agent-commercial-payment",
-      "version": 15,
-      "verify_jwt": true
+      "before_version": 15,
+      "version": 17,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "create-agent-listing-payment",
-      "version": 21,
-      "verify_jwt": false
+      "before_version": 21,
+      "version": 23,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "create-booking-payment",
-      "version": 3,
-      "verify_jwt": true
+      "before_version": 3,
+      "version": 5,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "create-booking-request",
-      "version": 27,
-      "verify_jwt": false
+      "before_version": 27,
+      "version": 29,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "create-guest-booking-request",
-      "version": 24,
-      "verify_jwt": false
+      "before_version": 24,
+      "version": 26,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "create-listing-chat-payment",
-      "version": 21,
-      "verify_jwt": true
+      "before_version": 21,
+      "version": 23,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "create-listing-contact-payment",
-      "version": 31,
-      "verify_jwt": false
+      "before_version": 31,
+      "version": 33,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "create-platform-payment",
-      "version": 5,
-      "verify_jwt": false
+      "before_version": 5,
+      "version": 7,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "delete-empty-listing",
-      "version": 15,
-      "verify_jwt": true
+      "before_version": 15,
+      "version": 17,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "dispatch-push-notifications",
-      "version": 12,
-      "verify_jwt": false
+      "before_version": 12,
+      "version": 14,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "mark-agent-delayed",
-      "version": 14,
-      "verify_jwt": true
+      "before_version": 14,
+      "version": 16,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "notify-agent",
-      "version": 14,
-      "verify_jwt": true
+      "before_version": 14,
+      "version": 16,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "sonicpesa-payment-webhook",
-      "version": 3,
-      "verify_jwt": false
+      "before_version": 3,
+      "version": 5,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "update-booking-status",
-      "version": 14,
-      "verify_jwt": true
+      "before_version": 14,
+      "version": 16,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     },
     {
       "slug": "verify-agent",
-      "version": 17,
-      "verify_jwt": true
+      "before_version": 17,
+      "version": 19,
+      "verify_jwt": false,
+      "status": "ACTIVE"
     }
   ],
-  "cloudflare_existing_deployment": {
-    "id": "eadf8d2d-6d6a-4b7a-adcc-deea46af7ebf",
-    "created_on": "2026-11-02T07:55:09.330654Z",
-    "versions": [
+  "worker_provisioning": {
+    "verified_at_utc": "2026-11-04T18:18:25.602155+00:00",
+    "vault_name": "kodimali_worker_secret",
+    "edge_name": "KODIMALI_WORKER_SECRET",
+    "same_credential": true,
+    "minimum_32_characters": true,
+    "statement_and_parameter_logging_disabled": true,
+    "provider_secrets_unchanged": true
+  },
+  "worker_positive_verification": {
+    "verified_at_utc": "2026-11-04T18:29:16.307316+00:00",
+    "checks": [
       {
-        "version_id": "a6b9d0a8-bb2f-4174-8662-34d218b35be8",
-        "percentage": 100
+        "slug": "notify-agent",
+        "valid_credential_accepted_before_missing_input_rejection": true,
+        "status": 400,
+        "business_action_performed": false
+      },
+      {
+        "slug": "mark-agent-delayed",
+        "valid_credential_accepted_before_missing_input_rejection": true,
+        "status": 400,
+        "business_action_performed": false
       }
     ],
-    "source": "wrangler"
+    "dispatch_not_invoked": true
+  },
+  "live_edge_security": {
+    "verified_at_utc": "2026-11-04T18:20:58.621730+00:00",
+    "checks": [
+      {
+        "slug": "dispatch-push-notifications",
+        "credential_case": "absent",
+        "status": 401,
+        "expected": 401
+      },
+      {
+        "slug": "dispatch-push-notifications",
+        "credential_case": "invalid",
+        "status": 401,
+        "expected": 401
+      },
+      {
+        "slug": "notify-agent",
+        "credential_case": "absent",
+        "status": 401,
+        "expected": 401
+      },
+      {
+        "slug": "notify-agent",
+        "credential_case": "invalid",
+        "status": 401,
+        "expected": 401
+      },
+      {
+        "slug": "mark-agent-delayed",
+        "credential_case": "absent",
+        "status": 401,
+        "expected": 401
+      },
+      {
+        "slug": "mark-agent-delayed",
+        "credential_case": "invalid",
+        "status": 401,
+        "expected": 401
+      },
+      {
+        "slug": "sonicpesa-payment-webhook",
+        "credential_case": "absent",
+        "status": 401,
+        "expected": 401
+      },
+      {
+        "slug": "clickpesa-payment-webhook",
+        "credential_case": "absent",
+        "status": 401,
+        "expected": 401
+      },
+      {
+        "slug": "create-listing-chat-payment",
+        "credential_case": "absent",
+        "status": 401,
+        "expected": 401
+      },
+      {
+        "slug": "check-listing-chat-payment",
+        "credential_case": "absent",
+        "status": 401,
+        "expected": 401
+      },
+      {
+        "slug": "create-booking-payment",
+        "credential_case": "absent",
+        "status": 401,
+        "expected": 401
+      },
+      {
+        "slug": "create-agent-account",
+        "credential_case": "absent",
+        "status": 401,
+        "expected": 401
+      },
+      {
+        "slug": "verify-agent",
+        "credential_case": "absent",
+        "status": 401,
+        "expected": 401
+      },
+      {
+        "slug": "update-booking-status",
+        "credential_case": "absent",
+        "status": 401,
+        "expected": 401
+      },
+      {
+        "slug": "clickpesa-payment-webhook",
+        "credential_case": "absent",
+        "status": 401,
+        "expected": 401
+      },
+      {
+        "slug": "sonicpesa-payment-webhook",
+        "credential_case": "invalid",
+        "status": 401,
+        "expected": 401
+      }
+    ],
+    "customer_or_financial_payloads_submitted": false
+  },
+  "live_es256_roles": {
+    "verified_at_utc": "2026-11-04T18:28:19.407684+00:00",
+    "checks": [
+      {
+        "check": "real ES256 session accepted by Auth",
+        "status": 200
+      },
+      {
+        "check": "ES256 handler accepted session and found no test payment",
+        "status": 404
+      },
+      {
+        "actor": "customer",
+        "booking_permission_matches_expected": true,
+        "booking_rls_scope_verified": true,
+        "public_entitlement_grant_denied": true
+      },
+      {
+        "actor": "agent",
+        "booking_permission_matches_expected": true,
+        "booking_rls_scope_verified": true,
+        "public_entitlement_grant_denied": true
+      },
+      {
+        "actor": "owner",
+        "booking_permission_matches_expected": true,
+        "booking_rls_scope_verified": true,
+        "public_entitlement_grant_denied": true
+      },
+      {
+        "actor": "analyst",
+        "booking_permission_matches_expected": true,
+        "booking_rls_scope_verified": true,
+        "public_entitlement_grant_denied": true
+      },
+      {
+        "actor": "marketing",
+        "booking_permission_matches_expected": true,
+        "booking_rls_scope_verified": true,
+        "public_entitlement_grant_denied": true
+      },
+      {
+        "actor": "finance",
+        "booking_permission_matches_expected": true,
+        "booking_rls_scope_verified": true,
+        "public_entitlement_grant_denied": true
+      },
+      {
+        "actor": "support",
+        "booking_permission_matches_expected": true,
+        "booking_rls_scope_verified": true,
+        "public_entitlement_grant_denied": true
+      },
+      {
+        "actor": "superadmin",
+        "booking_permission_matches_expected": true,
+        "booking_rls_scope_verified": true,
+        "public_entitlement_grant_denied": true
+      },
+      {
+        "check": "generated recovery link retains approved redirect without sending email",
+        "passed": true
+      }
+    ],
+    "temporary_identity_removed": true,
+    "customer_rows_read": false,
+    "emails_sent": false,
+    "payment_orders_created": false
+  },
+  "live_es256_events_device": {
+    "verified_at_utc": "2026-11-04T18:29:06.141438+00:00",
+    "checks": [
+      {
+        "check": "real ES256 session accepted by Auth",
+        "status": 200
+      },
+      {
+        "check": "ES256 handler accepted session and found no test payment",
+        "status": 404
+      },
+      {
+        "actor": "events",
+        "booking_permission_matches_expected": true,
+        "booking_rls_scope_verified": true,
+        "public_entitlement_grant_denied": true
+      },
+      {
+        "check": "real session device binding, wrong capability rejection, offline unregister, re-register and revoked session ineligibility",
+        "passed": true,
+        "notification_dispatch_invoked": false
+      },
+      {
+        "check": "generated recovery link retains approved redirect without sending email",
+        "passed": true
+      }
+    ],
+    "temporary_identity_removed": true,
+    "customer_rows_read": false,
+    "emails_sent": false,
+    "payment_orders_created": false
+  },
+  "supervisor_live_scope": "No temporary appointment made: production guard rejects service-role appointment without Super Admin and registered agent. Local full-schema scope tests passed. Existing supervisor records untouched.",
+  "auth_redirect": {
+    "approved_url": "https://kodimali.com/account?mode=recovery",
+    "existing_redirects_preserved": true,
+    "only_declared_update": "auth.additional_redirect_urls",
+    "post_diff_has_no_pending_update": true
+  },
+  "cloudflare_deployment": {
+    "id": "595b6c12-41f1-43e8-aba7-a3dde79d6b39",
+    "created_on": "2026-11-04T18:25:31.172239Z",
+    "source": "wrangler",
+    "versions": [
+      {
+        "version_id": "4053b32d-9ceb-4405-9c4b-07c1053a7e42",
+        "percentage": 100
+      }
+    ]
   },
   "local_test_results": [
     {
@@ -220,11 +643,6 @@
       "evidence": "00:02 +8: All tests passed!"
     },
     {
-      "check": "edge-tests.log",
-      "status": "passed",
-      "evidence": "ok | 18 passed | 0 failed (1s)"
-    },
-    {
       "check": "web-unit.log",
       "status": "passed",
       "evidence": "\u2139 pass 29"
@@ -246,77 +664,107 @@
     {
       "check": "web-lint.log",
       "status": "passed"
+    },
+    {
+      "check": "edge-combined-current.log",
+      "status": "passed",
+      "evidence": "19 passed; 0 failed"
     }
   ],
+  "edge_entrypoints_typechecked": 26,
+  "live_frontend_browser_checks": 6,
+  "live_browser_backend_mode": "Auth/PostgREST intercepted fixtures; deployed production frontend assets",
+  "live_http_after": {
+    "verified_at_utc": "2026-11-04T18:27:47.786863+00:00",
+    "checks": [
+      {
+        "path": "/",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/listings",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/events",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/events/plan",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/toa-taarifa",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/login",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/account?mode=recovery",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/manage",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/api/health",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/manage/events-provider/services",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/manage/events-coordinator/plans",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/.well-known/assetlinks.json",
+        "status": 503,
+        "expected": 503,
+        "passed": true
+      },
+      {
+        "path": "/.well-known/apple-app-site-association",
+        "status": 503,
+        "expected": 503,
+        "passed": true
+      }
+    ]
+  },
   "administrative_controls_unchanged": true,
-  "controls_snapshot_sha256": "f42420a2881e976a4c7a9f30376f6a458db09acd7fc223842fb029045ad47bfe",
-  "live_http_baseline": [
-    {
-      "path": "/",
-      "status": 200,
-      "content_type": "text/html; charset=utf-8",
-      "title": "KODIMALI | Nyumba, Magari na Huduma za Kukodisha Tanzania"
-    },
-    {
-      "path": "/listings",
-      "status": 200,
-      "content_type": "text/html; charset=utf-8",
-      "title": "Mali za kukodisha Tanzania | KODIMALI"
-    },
-    {
-      "path": "/events",
-      "status": 200,
-      "content_type": "text/html; charset=utf-8",
-      "title": "Sherehe na Matukio Tanzania | KODIMALI"
-    },
-    {
-      "path": "/events/plan",
-      "status": 200,
-      "content_type": "text/html; charset=utf-8",
-      "title": "Panga Tukio | KODIMALI"
-    },
-    {
-      "path": "/toa-taarifa",
-      "status": 200,
-      "content_type": "text/html; charset=utf-8",
-      "title": "Toa Taarifa ya Mali | KODIMALI"
-    },
-    {
-      "path": "/login",
-      "status": 200,
-      "content_type": "text/html; charset=utf-8",
-      "title": "Ingia | KODIMALI"
-    },
-    {
-      "path": "/account?mode=recovery",
-      "status": 200,
-      "content_type": "text/html; charset=utf-8",
-      "title": "KODIMALI | Nyumba, Magari na Huduma za Kukodisha Tanzania"
-    },
-    {
-      "path": "/manage",
-      "status": 200,
-      "content_type": "text/html; charset=utf-8",
-      "title": "Manage KODIMALI | KODIMALI"
-    },
-    {
-      "path": "/.well-known/assetlinks.json",
-      "status": 404
-    },
-    {
-      "path": "/.well-known/apple-app-site-association",
-      "status": 404
-    },
-    {
-      "path": "/api/health",
-      "status": 200,
-      "content_type": "application/json",
-      "title": null
-    }
-  ],
+  "controls_snapshot_sha256": "366107ac815b13166d75074cbd48ba9e2c6e275378e003a02bf76578d7235910",
   "limits": [
-    "No available backup/recovery point was exposed; PITR disabled; no restore test performed.",
-    "No production deployment, privileged exploit probe, payment, notification send, or account mutation performed.",
-    "No real ES256 role acceptance, provider round-trip or physical-device certification."
+    "Production-signed Customer/Manage artifacts and installed physical-device acceptance pending; no store publication.",
+    "Authentic Android certificate fingerprints/Apple team identity unavailable locally; both association endpoints safely return uncached 503.",
+    "Provider sandbox round trips, signed provider callbacks and live financial transition certification not performed; no real charges, payouts or refunds.",
+    "Supervisor live assignment journey not exercised; protected guard preserved.",
+    "Recovery redirect and generated link verified without sending email; delivered-email and password-change journey pending.",
+    "No long-duration error-rate monitoring or recovery cutover to a second Supabase project; isolated managed extension runtimes were substituted only locally."
   ]
 }
