@@ -1,3 +1,4 @@
+import { readClickPesaConfig } from "../supabase/functions/_shared/clickpesa.ts";
 // Repair regressions. All network access is intercepted; no production calls.
 import { assertEquals } from "jsr:@std/assert@1";
 
@@ -105,4 +106,19 @@ Deno.test("disabled booking and event collections cannot create an order",async(
       }
     });
   }
+});
+
+Deno.test("existing protected checksum SECRET name is supported with explicit KEY precedence",()=>{
+  const names=["CLICKPESA_COLLECTION_CLIENT_ID","CLICKPESA_COLLECTION_API_KEY","CLICKPESA_COLLECTION_CHECKSUM_KEY","CLICKPESA_COLLECTION_CHECKSUM_SECRET"];
+  const previous=new Map(names.map(name=>[name,Deno.env.get(name)]));
+  try {
+    Deno.env.set(names[0],"fixture-client");Deno.env.set(names[1],"fixture-api");
+    Deno.env.delete(names[2]);Deno.env.set(names[3],"fixture-existing-checksum");
+    const options={clientIdEnv:names[0],apiKeyEnv:names[1],checksumKeyEnv:names[2]};
+    assertEquals(readClickPesaConfig(options).checksumKey,"fixture-existing-checksum");
+    Deno.env.set(names[2],"fixture-explicit-checksum");
+    assertEquals(readClickPesaConfig(options).checksumKey,"fixture-explicit-checksum");
+    Deno.env.delete(names[2]);Deno.env.delete(names[3]);
+    assertEquals(readClickPesaConfig(options).checksumKey,null);
+  } finally {for(const [name,value] of previous) {if(value===undefined) Deno.env.delete(name);else Deno.env.set(name,value);}}
 });

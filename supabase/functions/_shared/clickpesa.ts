@@ -94,9 +94,11 @@ export function readClickPesaConfig(
   const apiKey = (
     Deno.env.get(options.apiKeyEnv ?? "CLICKPESA_API_KEY") ?? ""
   ).trim();
-  const checksumKey = (
-    Deno.env.get(options.checksumKeyEnv ?? "CLICKPESA_CHECKSUM_KEY") ?? ""
-  ).trim();
+  const checksumKeyEnv = options.checksumKeyEnv ?? "CLICKPESA_CHECKSUM_KEY";
+  // Existing production configuration uses CHECKSUM_SECRET. Accept that name
+  // without copying or rotating its value; verification remains mandatory.
+  const checksumKey = (Deno.env.get(checksumKeyEnv) ?? "").trim() ||
+    (Deno.env.get(checksumKeyEnv.replace(/_CHECKSUM_KEY$/, "_CHECKSUM_SECRET")) ?? "").trim();
   const apiBaseUrl = (
     Deno.env.get(options.apiBaseUrlEnv ?? "CLICKPESA_API_BASE_URL") ??
       "https://api.clickpesa.com/third-parties"
