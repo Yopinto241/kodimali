@@ -1,0 +1,229 @@
+{
+  "verified_at_utc": "2026-11-05T09:51:10.369359+00:00",
+  "source_commit": "9f1a4465beb07eae1bfbb6e5cde5f9ff0ec97f49",
+  "audit_only_no_production_changes": true,
+  "test_pushes_sent": false,
+  "firebase_app_configuration": [
+    {
+      "app": "customer_mobile",
+      "android_project": "kodimali",
+      "dart_android_project_matches": true,
+      "android_package_names": [
+        "co.kodimali.customer_mobile"
+      ],
+      "dart_android_app_id_registered": true,
+      "ios_project": "kodimali",
+      "dart_ios_project_matches": true,
+      "ios_bundle": "co.kodimali.customerMobile",
+      "dart_ios_bundle_matches": true,
+      "ios_background_modes": [
+        "remote-notification"
+      ],
+      "ios_team_configured_in_project": false,
+      "ios_aps_environment_defined_in_project": false
+    },
+    {
+      "app": "manage_mobile",
+      "android_project": "kodimali",
+      "dart_android_project_matches": true,
+      "android_package_names": [
+        "co.kodimali.manage_mobile"
+      ],
+      "dart_android_app_id_registered": true,
+      "ios_project": "kodimali",
+      "dart_ios_project_matches": true,
+      "ios_bundle": "co.kodimali.agentMobile",
+      "dart_ios_bundle_matches": true,
+      "ios_background_modes": [
+        "remote-notification"
+      ],
+      "ios_team_configured_in_project": false,
+      "ios_aps_environment_defined_in_project": false
+    }
+  ],
+  "outbox_status": [
+    {
+      "status": "skipped",
+      "count": 7,
+      "max_attempts": 1
+    },
+    {
+      "status": "sent",
+      "count": 24,
+      "max_attempts": 2
+    }
+  ],
+  "registered_installations": [
+    {
+      "app": "customer",
+      "platform": "android",
+      "enabled": true,
+      "count": 2
+    },
+    {
+      "app": "manage",
+      "platform": "android",
+      "enabled": true,
+      "count": 2
+    },
+    {
+      "app": "manage",
+      "platform": "android",
+      "enabled": false,
+      "count": 1
+    }
+  ],
+  "scheduler_recent_runs": [
+    {
+      "status": "succeeded",
+      "time": "2026-11-05T09:51:00.018353+00:00"
+    },
+    {
+      "status": "succeeded",
+      "time": "2026-11-05T09:50:00.033779+00:00"
+    },
+    {
+      "status": "succeeded",
+      "time": "2026-11-05T09:49:00.015380+00:00"
+    },
+    {
+      "status": "succeeded",
+      "time": "2026-11-05T09:48:00.190498+00:00"
+    },
+    {
+      "status": "succeeded",
+      "time": "2026-11-05T09:47:00.014908+00:00"
+    }
+  ],
+  "configured_jobs": [
+    {
+      "name": "expire-booking-holds",
+      "schedule": "*/2 * * * *",
+      "active": true,
+      "owner": "postgres"
+    },
+    {
+      "name": "expire-growth-products",
+      "schedule": "*/10 * * * *",
+      "active": true,
+      "owner": "postgres"
+    },
+    {
+      "name": "expire-growth-products-hourly",
+      "schedule": "5 * * * *",
+      "active": true,
+      "owner": "postgres"
+    },
+    {
+      "name": "kodimali-push-retry",
+      "schedule": "* * * * *",
+      "active": true,
+      "owner": "postgres"
+    }
+  ],
+  "notification_triggers": [
+    {
+      "table": "notifications",
+      "trigger": "dispatch_queued_push_notification",
+      "function": "dispatch_queued_push_notification"
+    },
+    {
+      "table": "notifications",
+      "trigger": "guard_notification_update",
+      "function": "guard_notification_update"
+    },
+    {
+      "table": "notifications",
+      "trigger": "queue_notification_for_push",
+      "function": "queue_notification_for_push"
+    },
+    {
+      "table": "booking_messages",
+      "trigger": "notify_booking_message_recipient",
+      "function": "notify_booking_message_recipient"
+    },
+    {
+      "table": "viewing_appointments",
+      "trigger": "notify_viewing_appointment_participant",
+      "function": "notify_viewing_appointment_participant"
+    },
+    {
+      "table": "reviews",
+      "trigger": "notify_agent_of_verified_review",
+      "function": "notify_agent_of_verified_review"
+    },
+    {
+      "table": "agent_listing_payments",
+      "trigger": "notify_agent_listing_payment_result",
+      "function": "notify_agent_listing_payment_result"
+    },
+    {
+      "table": "device_tokens",
+      "trigger": "retry_recent_push_after_device_registration",
+      "function": "retry_recent_push_after_device_registration"
+    },
+    {
+      "table": "listings",
+      "trigger": "notify_listing_price_drop",
+      "function": "notify_price_drop"
+    },
+    {
+      "table": "listing_chat_payments",
+      "trigger": "notify_chat_payment_result",
+      "function": "notify_chat_payment_result"
+    },
+    {
+      "table": "listing_chat_messages",
+      "trigger": "notify_listing_chat_participant",
+      "function": "notify_listing_chat_participant"
+    },
+    {
+      "table": "booking_payment_transactions",
+      "trigger": "after_verified_booking_payment",
+      "function": "after_verified_booking_payment"
+    },
+    {
+      "table": "rental_information_submissions",
+      "trigger": "notify_information_workflow",
+      "function": "notify_information_workflow"
+    },
+    {
+      "table": "booking_requests",
+      "trigger": "create_guest_booking_notification",
+      "function": "create_guest_booking_notification"
+    },
+    {
+      "table": "booking_requests",
+      "trigger": "notify_customer_booking_progress",
+      "function": "notify_customer_booking_progress"
+    },
+    {
+      "table": "event_plan_items",
+      "trigger": "notify_event_item_status",
+      "function": "notify_event_item_status"
+    },
+    {
+      "table": "event_plan_items",
+      "trigger": "notify_event_plan_item_provider",
+      "function": "notify_event_plan_item_provider"
+    }
+  ],
+  "saved_search_processors_found": [],
+  "reminder_function_names_found": [],
+  "price_alert_legacy_payload_confirmed": true,
+  "gaps": [
+    "Saved-search subscriptions have no deployed matcher or new-listing notification processor.",
+    "Notification preferences use substring classification: booking message_received events fall into requests; chat_payment events fall into chat; price alerts can require both promotions and requests.",
+    "Price-drop payloads use legacy listing_id and no route/eventType; dispatcher omits this ID so taps cannot reliably open the listing.",
+    "No configured viewing/SLA reminder scheduler was found; appointment-change notifications are distinct from timed reminders.",
+    "quiet_hours_start/end exist in preferences but dispatcher does not read or enforce them.",
+    "Customer exposes five preference switches; Manage has no equivalent in-app preference screen.",
+    "OS notification permission result is requested but not surfaced as a health status; FCM acceptance is not proof of displayed delivery.",
+    "Dispatcher selects all enabled devices for the user without app_surface targeting.",
+    "Customer drops a notification tap when signed out instead of preserving it across sign-in; Manage preserves a pending tap.",
+    "Manage notification inbox routes booking-related records but does not universally route chat/listing/event notifications.",
+    "iOS Firebase app IDs match but Apple team, APS_ENVIRONMENT resolution, APNs upload and real-device delivery remain unverified.",
+    "Guest requests do not register a recipient identity for personal app pushes; guest booking availability does not imply guest notification delivery."
+  ],
+  "private_customer_values_or_tokens_emitted": false
+}
