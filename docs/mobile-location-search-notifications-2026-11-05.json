@@ -1,0 +1,106 @@
+{
+  "verified_at_utc": "2026-11-05T09:41:48.036897+00:00",
+  "mobile_apk_or_aab_generated": false,
+  "mobile_installation_or_store_publication": false,
+  "database_migrations_deployed": [
+    "20261105210000_mobile_discovery_and_directories.sql",
+    "20261105213000_notification_retry_schedule.sql"
+  ],
+  "edge_functions_deployed": [
+    "dispatch-push-notifications"
+  ],
+  "backup": {
+    "outside_repository": true,
+    "full_database_roles_configuration_captured": true,
+    "consistent_snapshot": true,
+    "isolated_restore_table_counts_matched": 175,
+    "encrypted_archive_components_verified": 9
+  },
+  "isolated_migration_checks": {
+    "restored_tables": 175,
+    "existing_table_contents_preserved": true,
+    "search_cases_passed": 7,
+    "anonymous_directory_access_denied": true,
+    "authenticated_directory_writes_denied": true,
+    "agent_view_rls_matches_base_table": true,
+    "staff_location_assignment_and_permissions_verified": true,
+    "migration_sha256": "82ddd9467c452be35d423946f19a5f49cd4babb4b5e231c20e6d988542fe33f3"
+  },
+  "live_http_checks": [
+    {
+      "check": "directory relationships resolve through PostgREST",
+      "status": 200
+    },
+    {
+      "check": "region filtering applied before pagination",
+      "status": 200
+    },
+    {
+      "check": "anonymous management directory denied",
+      "status": 401
+    },
+    {
+      "check": "public location suggestions",
+      "status": 200,
+      "suggestion_count": 8
+    },
+    {
+      "check": "public search nyumba",
+      "status": 200,
+      "returned_count": 4
+    },
+    {
+      "check": "public search house",
+      "status": 200,
+      "returned_count": 4
+    },
+    {
+      "check": "public search arusha",
+      "status": 200,
+      "returned_count": 0
+    },
+    {
+      "check": "notification worker rejects unauthorized invocation",
+      "status": 401
+    }
+  ],
+  "live_database": {
+    "migration_registered": true,
+    "security_invoker_view": true,
+    "original_tables_compared": 174,
+    "tables_changed_since_backup": [
+      "auth.refresh_tokens",
+      "auth.users",
+      "auth.sessions"
+    ],
+    "notification_cron_jobs": [
+      {
+        "name": "kodimali-push-retry",
+        "schedule": "* * * * *",
+        "active": true,
+        "owner": "postgres"
+      }
+    ],
+    "scheduler_recent_runs": [
+      "succeeded",
+      "succeeded"
+    ],
+    "firebase_service_account_configured": true,
+    "firebase_project_configured": true
+  },
+  "verification": {
+    "customer_tests_passed": 33,
+    "manage_tests_passed": 49,
+    "shared_push_tests_passed": 5,
+    "edge_push_tests_passed": 2,
+    "customer_analysis": "No issues found",
+    "manage_analysis": "No issues found",
+    "post_repair_migration_names_checked": 132,
+    "physical_device_push_delivery_tested": false,
+    "test_notifications_sent_to_customers": false
+  },
+  "migration_sha256": {
+    "20261105210000_mobile_discovery_and_directories.sql": "02707768d6e645f73248711ff81ebc3374741c352d085746e3daa94e78798bd6",
+    "20261105213000_notification_retry_schedule.sql": "45c09b361d05295e583a35a0331503e5f067ab3dd274f80863be17c78205fe57"
+  }
+}

@@ -1,3 +1,4 @@
+import '../../../core/widgets/location_directory.dart';
 import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +23,7 @@ class _AdminGrowthOperationsScreenState
   late Future<List<dynamic>> future;
   final bookingFilter = TextEditingController();
   final providerFilter = TextEditingController();
+  String? _staffLocationId;
   DateTimeRange? reportDates;
   String? reportProduct;
   String? reportStatus;
@@ -65,7 +67,7 @@ class _AdminGrowthOperationsScreenState
           ? r.fetchAdminRoleDefinitions()
           : Future.value(<Map<String, dynamic>>[]),
       access.roles
-          ? r.fetchAdminRoleDirectory()
+          ? r.fetchAdminRoleDirectory(directoryLocationId: _staffLocationId)
           : Future.value(<Map<String, dynamic>>[]),
       access.wallets
           ? r.fetchAdminAgentWallets()
@@ -104,6 +106,41 @@ class _AdminGrowthOperationsScreenState
           ? r.fetchFinancialReconciliationCases()
           : Future.value(<Map<String, dynamic>>[]),
     ]);
+  }
+
+  Future<void> _assignStaffLocation(Map<String, dynamic> staff) async {
+    final location = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: 0.85,
+        child: SingleChildScrollView(
+          child: LocationDirectory(
+            label: 'Assign this location',
+            allowAllLocations: false,
+            onView: (location) {
+              if (location == null) return;
+              Navigator.of(sheetContext).pop(location);
+            },
+          ),
+        ),
+      ),
+    );
+    if (location == null || !mounted) return;
+    try {
+      await AppScope.of(context).repository.setAdminWorkLocation(
+        staff['user_id'].toString(),
+        location['id'].toString(),
+      );
+      if (mounted) await refresh();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(userFacingError(error))));
+      }
+    }
   }
 
   Future<void> refresh() async {
@@ -680,6 +717,14 @@ class _AdminGrowthOperationsScreenState
             ),
           const SizedBox(height: 16),
           if (access.roles)
+            LocationDirectory(
+              label: 'View staff here',
+              onView: (location) {
+                _staffLocationId = location?['id'] as String?;
+                refresh();
+              },
+            ),
+          if (access.roles)
             _panel(
               'Administrative roles',
               'Only Super Admins can assign roles. The final Super Admin cannot remove their own access.',
@@ -690,12 +735,20 @@ class _AdminGrowthOperationsScreenState
                     admin['full_name']?.toString() ?? 'Administrator',
                   ),
                   subtitle: Text(
-                    ((admin['roles'] as List?) ?? const <dynamic>[])
-                        .whereType<Map>()
-                        .map((r) => r['name'])
-                        .join(' · '),
+                    "${admin['location_label'] ?? 'Unassigned location'} - ${((admin['roles'] as List?) ?? const <dynamic>[]).whereType<Map>().map((r) => r['name']).join(', ')}",
                   ),
-                  trailing: const Icon(Icons.manage_accounts_outlined),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if ((admin['roles'] as List? ?? []).isNotEmpty)
+                        IconButton(
+                          tooltip: mobileUi(context, 'Assign staff location'),
+                          icon: const Icon(Icons.edit_location_alt_outlined),
+                          onPressed: () => _assignStaffLocation(admin),
+                        ),
+                      const Icon(Icons.manage_accounts_outlined),
+                    ],
+                  ),
                   onTap: () => _editRoles(admin, definitions),
                 ),
               ),

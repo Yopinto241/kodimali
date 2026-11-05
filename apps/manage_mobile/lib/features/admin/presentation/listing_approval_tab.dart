@@ -1,3 +1,4 @@
+import '../../../core/widgets/location_directory.dart';
 import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
@@ -10,7 +11,9 @@ import '../../../core/widgets/kodimali_status_chip.dart';
 import '../../../core/widgets/manage_ui.dart';
 
 class ListingApprovalTab extends StatefulWidget {
-  const ListingApprovalTab({super.key});
+  const ListingApprovalTab({super.key, this.agentId, this.agentName});
+  final String? agentId;
+  final String? agentName;
 
   @override
   State<ListingApprovalTab> createState() => _ListingApprovalTabState();
@@ -29,6 +32,8 @@ class _ListingApprovalTabState extends State<ListingApprovalTab> {
   }
 
   int _page = 0;
+  Map<String, dynamic>? _directoryLocation;
+  bool _viewListings = false;
   @override
   void dispose() {
     _search.dispose();
@@ -44,11 +49,16 @@ class _ListingApprovalTabState extends State<ListingApprovalTab> {
       return;
     }
     _initialized = true;
+    _viewListings = widget.agentId != null;
     _future = _bootstrap();
   }
 
   Future<List<Map<String, dynamic>>> _load() {
+    if (!_viewListings) return Future.value(<Map<String, dynamic>>[]);
     return AppScope.of(context).repository.fetchListingsForModeration(
+      agentId: widget.agentId,
+      directoryLocationId: _directoryLocation?["id"] as String?,
+      directoryLocationType: _directoryLocation?["location_type"] as String?,
       search: _search.text,
       status: _status,
       categoryId: _category,
@@ -187,300 +197,338 @@ class _ListingApprovalTabState extends State<ListingApprovalTab> {
   Widget build(BuildContext context) {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _future,
-      builder:
-          (
-            BuildContext context,
-            AsyncSnapshot<List<Map<String, dynamic>>> snapshot,
-          ) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return KodimaliLoading(label: mobileUi(context, 'Loading...'));
-            }
-            if (snapshot.hasError) {
-              return Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(userMessage(context, snapshot.error)),
-                    TextButton(
-                      onPressed: _refresh,
-                      child: const LocalizedUiText('Retry'),
-                    ),
-                  ],
+      builder: (BuildContext context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return KodimaliLoading(label: mobileUi(context, 'Loading...'));
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(userMessage(context, snapshot.error)),
+                TextButton(
+                  onPressed: _refresh,
+                  child: const LocalizedUiText('Retry'),
                 ),
-              );
-            }
-            final List<Map<String, dynamic>> listings =
-                snapshot.data ?? <Map<String, dynamic>>[];
-            return ManagePageScrollView(
-              onRefresh: _refresh,
-              children: <Widget>[
-                TextField(
-                  controller: _search,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) {
-                    _page = 0;
-                    _refresh();
-                  },
-                  decoration: InputDecoration(
-                    labelText: mobileUi(context, 'Search listings'),
-                    suffixIcon: IconButton(
-                      tooltip: mobileUi(context, 'Search'),
-                      onPressed: () {
+              ],
+            ),
+          );
+        }
+        final List<Map<String, dynamic>> listings =
+            snapshot.data ?? <Map<String, dynamic>>[];
+        return ManagePageScrollView(
+          onRefresh: _refresh,
+          children: <Widget>[
+            if (widget.agentId != null)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  widget.agentName ?? mobileUi(context, 'Agent listings'),
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
+            LocationDirectory(
+              onView: (location) {
+                _directoryLocation = location;
+                _viewListings = true;
+                _page = 0;
+                _refresh();
+              },
+            ),
+            if (_viewListings)
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final entry in const {
+                    '': 'All statuses',
+                    'active': 'Active',
+                    'parked': 'Parked / not on market',
+                  }.entries)
+                    ChoiceChip(
+                      label: LocalizedUiText(entry.value),
+                      selected: (_status ?? '') == entry.key,
+                      onSelected: (_) {
+                        _status = entry.key.isEmpty ? null : entry.key;
                         _page = 0;
                         _refresh();
                       },
-                      icon: const Icon(Icons.search),
                     ),
-                  ),
+                ],
+              ),
+            if (_viewListings)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  _directoryLocation == null
+                      ? mobileUi(context, 'All locations')
+                      : '${_directoryLocation!["name"]}',
                 ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _status ?? '',
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    labelText: mobileUi(context, 'Status'),
-                  ),
-                  items:
-                      [
-                            '',
-                            'draft',
-                            'active',
-                            'inactive',
-                            'expired',
-                            'suspended',
-                          ]
-                          .map(
-                            (value) => DropdownMenuItem(
-                              value: value,
-                              child: Text(
-                                mobileUi(
-                                  context,
-                                  value.isEmpty ? 'All statuses' : value,
-                                ),
-                              ),
+              ),
+            if (!_viewListings)
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: LocalizedUiText(
+                  'Choose a region, district or ward, then view listings at that level.',
+                ),
+              ),
+
+            TextField(
+              controller: _search,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) {
+                _page = 0;
+                _refresh();
+              },
+              decoration: InputDecoration(
+                labelText: mobileUi(context, 'Search listings'),
+                suffixIcon: IconButton(
+                  tooltip: mobileUi(context, 'Search'),
+                  onPressed: () {
+                    _page = 0;
+                    _refresh();
+                  },
+                  icon: const Icon(Icons.search),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              key: ValueKey(_status),
+              initialValue: _status ?? '',
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: mobileUi(context, 'Status'),
+              ),
+              items:
+                  [
+                        '',
+                        'parked',
+                        'draft',
+                        'active',
+                        'inactive',
+                        'expired',
+                        'suspended',
+                      ]
+                      .map(
+                        (value) => DropdownMenuItem(
+                          value: value,
+                          child: Text(
+                            mobileUi(
+                              context,
+                              value.isEmpty ? 'All statuses' : value,
                             ),
-                          )
-                          .toList(),
-                  onChanged: (value) {
-                    _status = value;
-                    _page = 0;
-                    _refresh();
-                  },
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: _category ?? '',
-                  isExpanded: true,
-                  decoration: InputDecoration(
-                    labelText: mobileUi(context, 'Category'),
-                  ),
-                  items: [
-                    DropdownMenuItem(
-                      value: '',
-                      child: LocalizedUiText('All categories'),
-                    ),
-                    ..._categories.map(
-                      (row) => DropdownMenuItem(
-                        value: row['id'].toString(),
-                        child: Text(
-                          row['name'].toString(),
-                          overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    _category = value;
-                    _page = 0;
-                    _refresh();
-                  },
+                      )
+                      .toList(),
+              onChanged: (value) {
+                _status = value;
+                _page = 0;
+                _refresh();
+              },
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: _category ?? '',
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: mobileUi(context, 'Category'),
+              ),
+              items: [
+                DropdownMenuItem(
+                  value: '',
+                  child: LocalizedUiText('All categories'),
                 ),
-                const SizedBox(height: 16),
-                if (listings.isEmpty)
-                  KodimaliEmptyState(
-                    title: mobileUi(context, 'No listings available.'),
-                    message: mobileUi(context, 'Try another search.'),
+                ..._categories.map(
+                  (row) => DropdownMenuItem(
+                    value: row['id'].toString(),
+                    child: Text(
+                      row['name'].toString(),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ...listings.map((Map<String, dynamic> listing) {
-                  final String status = listing["status"] as String? ?? "-";
-                  final String reviewStatus =
-                      listing["publication_review_status"] as String? ??
-                      "pending";
-                  final Map<String, dynamic>? agent =
-                      listing["agents"] as Map<String, dynamic>?;
-                  final bool verifiedAgent =
-                      agent?["verification_status"] == "approved" &&
-                      agent?["account_status"] == "active";
-                  final bool updating = _updatingListingIds.contains(
-                    listing["id"],
-                  );
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: ManagePanel(
-                      child: Column(
+                ),
+              ],
+              onChanged: (value) {
+                _category = value;
+                _page = 0;
+                _refresh();
+              },
+            ),
+            const SizedBox(height: 16),
+            if (listings.isEmpty)
+              KodimaliEmptyState(
+                title: mobileUi(context, 'No listings available.'),
+                message: mobileUi(context, 'Try another search.'),
+              ),
+            ...listings.map((Map<String, dynamic> listing) {
+              final String status = listing["status"] as String? ?? "-";
+              final String reviewStatus =
+                  listing["publication_review_status"] as String? ?? "pending";
+              final Map<String, dynamic>? agent =
+                  listing["agents"] as Map<String, dynamic>?;
+              final bool verifiedAgent =
+                  agent?["verification_status"] == "approved" &&
+                  agent?["account_status"] == "active";
+              final bool updating = _updatingListingIds.contains(listing["id"]);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: ManagePanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      if (listing['preview_url'] != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              listing['preview_url'].toString(),
+                              height: 160,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              semanticLabel: listing['title']?.toString(),
+                              errorBuilder: (_, error, stack) =>
+                                  const SizedBox.shrink(),
+                            ),
+                          ),
+                        ),
+                      Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          if (listing['preview_url'] != null)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.network(
-                                  listing['preview_url'].toString(),
-                                  height: 160,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
-                                  semanticLabel: listing['title']?.toString(),
-                                  errorBuilder: (_, error, stack) =>
-                                      const SizedBox.shrink(),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  listing["title"] as String? ?? "-",
+                                  style: Theme.of(context).textTheme.titleLarge,
                                 ),
-                              ),
+                                const SizedBox(height: 8),
+                                Text(_categoryLabel(listing)),
+                                const SizedBox(height: 6),
+                                Text(
+                                  listing["public_location_label"] as String? ??
+                                      "-",
+                                ),
+                              ],
                             ),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: <Widget>[
-                                    Text(
-                                      listing["title"] as String? ?? "-",
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleLarge,
+                          ),
+                          KodimaliStatusChip(label: status, highlight: true),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        'TZS ${listing['price_amount'] ?? 0} / ${mobileUi(context, listing['price_period']?.toString() ?? '')}',
+                      ),
+                      const SizedBox(height: 8),
+                      ManageMetaWrap(
+                        items: <String>[
+                          mobileUiFormat(context, 'Inquiries: {0}', [
+                            listing['inquiry_count'] ?? 0,
+                          ]),
+                          verifiedAgent
+                              ? "Verified agent · direct publication"
+                              : "Unverified agent · admin approval required",
+                          '${mobileUi(context, 'Review')}: ${mobileUi(context, reviewStatus.replaceAll('_', ' '))}',
+                          if (listing["publication_requested"] == true)
+                            "Waiting for publication requirement",
+                          if (listing["removed_reason"] != null)
+                            "Reason: ${listing["removed_reason"]}",
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: <Widget>[
+                          OutlinedButton(
+                            onPressed: () => Navigator.of(context)
+                                .push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => ListingDetailScreen(
+                                      listingId: listing['id'].toString(),
+                                      adminMode: true,
                                     ),
-                                    const SizedBox(height: 8),
-                                    Text(_categoryLabel(listing)),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      listing["public_location_label"]
-                                              as String? ??
-                                          "-",
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              KodimaliStatusChip(
-                                label: status,
-                                highlight: true,
-                              ),
-                            ],
+                                  ),
+                                )
+                                .then((_) {
+                                  if (mounted) _refresh();
+                                }),
+                            child: const LocalizedUiText('View details'),
                           ),
-                          const SizedBox(height: 14),
-                          Text(
-                            'TZS ${listing['price_amount'] ?? 0} / ${mobileUi(context, listing['price_period']?.toString() ?? '')}',
+                          FilledButton(
+                            onPressed: status == "active" || updating
+                                ? null
+                                : () => _moderate(
+                                    listingId: listing["id"] as String,
+                                    status: "active",
+                                  ),
+                            child: Text(
+                              updating
+                                  ? mobileUi(context, "Updating...")
+                                  : reviewStatus == "pending"
+                                  ? mobileUi(context, "Approve and activate")
+                                  : mobileUi(context, "Reactivate"),
+                            ),
                           ),
-                          const SizedBox(height: 8),
-                          ManageMetaWrap(
-                            items: <String>[
-                              mobileUiFormat(context, 'Inquiries: {0}', [
-                                listing['inquiry_count'] ?? 0,
-                              ]),
-                              verifiedAgent
-                                  ? "Verified agent · direct publication"
-                                  : "Unverified agent · admin approval required",
-                              '${mobileUi(context, 'Review')}: ${mobileUi(context, reviewStatus.replaceAll('_', ' '))}',
-                              if (listing["publication_requested"] == true)
-                                "Waiting for publication requirement",
-                              if (listing["removed_reason"] != null)
-                                "Reason: ${listing["removed_reason"]}",
-                            ],
+                          OutlinedButton(
+                            onPressed: status == "inactive"
+                                ? null
+                                : () => _moderate(
+                                    listingId: listing["id"] as String,
+                                    status: "inactive",
+                                    removedReason: "admin_removed",
+                                  ),
+                            child: const LocalizedUiText("Remove"),
                           ),
-                          const SizedBox(height: 14),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: <Widget>[
-                              OutlinedButton(
-                                onPressed: () => Navigator.of(context)
-                                    .push(
-                                      MaterialPageRoute<void>(
-                                        builder: (_) => ListingDetailScreen(
-                                          listingId: listing['id'].toString(),
-                                          adminMode: true,
-                                        ),
-                                      ),
-                                    )
-                                    .then((_) {
-                                      if (mounted) _refresh();
-                                    }),
-                                child: const LocalizedUiText('View details'),
-                              ),
-                              FilledButton(
-                                onPressed: status == "active" || updating
-                                    ? null
-                                    : () => _moderate(
-                                        listingId: listing["id"] as String,
-                                        status: "active",
-                                      ),
-                                child: Text(
-                                  updating
-                                      ? mobileUi(context, "Updating...")
-                                      : reviewStatus == "pending"
-                                      ? mobileUi(
-                                          context,
-                                          "Approve and activate",
-                                        )
-                                      : mobileUi(context, "Reactivate"),
-                                ),
-                              ),
-                              OutlinedButton(
-                                onPressed: status == "inactive"
-                                    ? null
-                                    : () => _moderate(
-                                        listingId: listing["id"] as String,
-                                        status: "inactive",
-                                        removedReason: "admin_removed",
-                                      ),
-                                child: const LocalizedUiText("Remove"),
-                              ),
-                              OutlinedButton(
-                                onPressed: () => _moderate(
-                                  listingId: listing["id"] as String,
-                                  status: "inactive",
-                                  removedReason: "rented",
-                                ),
-                                child: const LocalizedUiText("Mark rented"),
-                              ),
-                              TextButton(
-                                onPressed: () => _deletePermanently(listing),
-                                child: const LocalizedUiText(
-                                  "Delete permanently",
-                                ),
-                              ),
-                            ],
+                          OutlinedButton(
+                            onPressed: () => _moderate(
+                              listingId: listing["id"] as String,
+                              status: "inactive",
+                              removedReason: "rented",
+                            ),
+                            child: const LocalizedUiText("Mark rented"),
+                          ),
+                          TextButton(
+                            onPressed: () => _deletePermanently(listing),
+                            child: const LocalizedUiText("Delete permanently"),
                           ),
                         ],
                       ),
-                    ),
-                  );
-                }),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    TextButton(
-                      onPressed: _page == 0
-                          ? null
-                          : () {
-                              _page--;
-                              _refresh();
-                            },
-                      child: const LocalizedUiText('Previous'),
-                    ),
-                    TextButton(
-                      onPressed: listings.length < 20
-                          ? null
-                          : () {
-                              _page++;
-                              _refresh();
-                            },
-                      child: const LocalizedUiText('Next'),
-                    ),
-                  ],
+                    ],
+                  ),
+                ),
+              );
+            }),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(
+                  onPressed: _page == 0
+                      ? null
+                      : () {
+                          _page--;
+                          _refresh();
+                        },
+                  child: const LocalizedUiText('Previous'),
+                ),
+                TextButton(
+                  onPressed: listings.length < 20
+                      ? null
+                      : () {
+                          _page++;
+                          _refresh();
+                        },
+                  child: const LocalizedUiText('Next'),
                 ),
               ],
-            );
-          },
+            ),
+          ],
+        );
+      },
     );
   }
 }

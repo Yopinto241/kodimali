@@ -820,6 +820,21 @@ class CustomerPublicRepository {
     }
   }
 
+  Future<List<JsonMap>> suggestLocations(String query) async {
+    if (query.trim().length < 2) return [];
+    try {
+      return (await _client.rpc(
+        'suggest_marketplace_locations',
+        params: {'p_query': query.trim()},
+      )).cast<JsonMap>();
+    } on PostgrestException catch (error) {
+      if (_isMissingRpcSignature(error)) {
+        return []; // During a rolling deployment.
+      }
+      rethrow;
+    }
+  }
+
   Future<List<JsonMap>> fetchLocations({
     required String? parentId,
     required String locationType,

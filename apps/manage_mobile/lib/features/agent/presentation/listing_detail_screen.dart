@@ -1,3 +1,4 @@
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
@@ -354,6 +355,37 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     Navigator.of(context).pop();
   }
 
+  Future<void> _contactOwner({bool whatsapp = false}) async {
+    final phone = _ownerPhone.text.trim();
+    var digits = phone.replaceAll(RegExp(r'\D'), '');
+    if (digits.startsWith('00')) digits = digits.substring(2);
+    if (digits.length == 10 && digits.startsWith('0')) {
+      digits = '255${digits.substring(1)}';
+    }
+    final uri = whatsapp
+        ? Uri.https('wa.me', '/$digits')
+        : Uri(scheme: 'tel', path: '+$digits');
+    try {
+      if (digits.length < 8 ||
+          !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        throw StateError('Contact app unavailable');
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              mobileUi(
+                context,
+                'Could not open contact app. Copy the phone number and try again.',
+              ),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -452,19 +484,8 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                 ),
                 const SizedBox(height: 16),
                 ManagePanel(
-                  title: mobileUi(context, "Category listing fields"),
-                  subtitle: mobileUi(
-                    context,
-                    "These fields are configured by the administrator for this listing category.",
-                  ),
-                  child: _attributeSchema.isEmpty
-                      ? const LocalizedUiText(
-                          "No extra fields configured for this category.",
-                        )
-                      : Column(children: _buildAttributeFields()),
-                ),
-                const SizedBox(height: 16),
-                ManagePanel(
+                  collapsible: true,
+                  initiallyExpanded: true,
                   title: mobileUi(context, "Pricing and rules"),
                   subtitle: mobileUi(
                     context,
@@ -584,6 +605,23 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                 ),
                 const SizedBox(height: 16),
                 ManagePanel(
+                  collapsible: true,
+                  initiallyExpanded: false,
+                  title: mobileUi(context, "Category listing fields"),
+                  subtitle: mobileUi(
+                    context,
+                    "These fields are configured by the administrator for this listing category.",
+                  ),
+                  child: _attributeSchema.isEmpty
+                      ? const LocalizedUiText(
+                          "No extra fields configured for this category.",
+                        )
+                      : Column(children: _buildAttributeFields()),
+                ),
+                const SizedBox(height: 16),
+                ManagePanel(
+                  collapsible: true,
+                  initiallyExpanded: false,
                   title: mobileUi(context, 'Private owner contact (optional)'),
                   subtitle: mobileUi(
                     context,
@@ -622,6 +660,28 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                               )
                             : null,
                       ),
+                      ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: _ownerPhone,
+                        builder: (context, value, _) =>
+                            value.text.trim().isEmpty
+                            ? const SizedBox.shrink()
+                            : Wrap(
+                                spacing: 12,
+                                children: [
+                                  OutlinedButton.icon(
+                                    onPressed: () => _contactOwner(),
+                                    icon: const Icon(Icons.call_outlined),
+                                    label: const LocalizedUiText('Call owner'),
+                                  ),
+                                  OutlinedButton.icon(
+                                    onPressed: () =>
+                                        _contactOwner(whatsapp: true),
+                                    icon: const Icon(Icons.open_in_new),
+                                    label: const LocalizedUiText('WhatsApp'),
+                                  ),
+                                ],
+                              ),
+                      ),
                       TextFormField(
                         controller: _ownerNotes,
                         decoration: InputDecoration(
@@ -633,6 +693,8 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                 ),
                 const SizedBox(height: 16),
                 ManagePanel(
+                  collapsible: true,
+                  initiallyExpanded: false,
                   title: mobileUi(context, "Media records"),
                   subtitle: mobileUi(
                     context,

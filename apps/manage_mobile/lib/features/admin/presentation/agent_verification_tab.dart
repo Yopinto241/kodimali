@@ -1,3 +1,5 @@
+import 'listing_approval_tab.dart';
+import '../../../core/widgets/location_directory.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
 
@@ -37,8 +39,10 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
   int _totalCount = 0;
   bool _loading = false;
   bool _loadingMore = false;
+  int _agentRequestSequence = 0;
   String? _loadError;
   String _searchText = "";
+  String? _directoryLocationId;
   String? _accountStatusFilter;
   String? _verificationStatusFilter;
 
@@ -64,9 +68,10 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
   }
 
   Future<void> _loadAgents({required bool reset}) async {
-    if (_loading || _loadingMore) {
+    if (!reset && (_loading || _loadingMore)) {
       return;
     }
+    final request = ++_agentRequestSequence;
     final bool append = !reset && _agents.isNotEmpty;
     setState(() {
       if (append) {
@@ -81,17 +86,18 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
         _supervisorScope = await AppScope.of(
           context,
         ).repository.fetchMySupervisorContext();
-        if (!mounted) return;
+        if (!mounted || request != _agentRequestSequence) return;
       }
       final Map<String, dynamic> payload = await AppScope.of(context).repository
           .fetchAdminAgents(
+            directoryLocationId: _directoryLocationId,
             searchText: _searchText,
             accountStatus: _accountStatusFilter,
             verificationStatus: _verificationStatusFilter,
             limit: _pageSize,
             offset: append ? _agents.length : 0,
           );
-      if (!mounted) {
+      if (!mounted || request != _agentRequestSequence) {
         return;
       }
       final List<Map<String, dynamic>> items =
@@ -107,14 +113,14 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
         _loadError = null;
       });
     } catch (error) {
-      if (!mounted) {
+      if (!mounted || request != _agentRequestSequence) {
         return;
       }
       setState(() {
         _loadError = userFacingError(error);
       });
     } finally {
-      if (mounted) {
+      if (mounted && request == _agentRequestSequence) {
         setState(() {
           _loading = false;
           _loadingMore = false;
@@ -1070,29 +1076,6 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading && _agents.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_loadError != null && _agents.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text(_loadError!, textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              FilledButton(
-                onPressed: () => unawaited(_loadAgents(reset: true)),
-                child: const LocalizedUiText("Retry"),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     final List<Map<String, dynamic>> agents = _agents;
     final int activeCount = _countAccountStatus("active");
     final int pendingVerificationCount = _countVerificationStatus("pending");
@@ -1101,6 +1084,15 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
     return ManagePageScrollView(
       onRefresh: _refresh,
       children: <Widget>[
+        LocationDirectory(
+          label: 'View agents here',
+          onView: (location) {
+            _directoryLocationId = location?['id'] as String?;
+            unawaited(_loadAgents(reset: true));
+          },
+        ),
+        const SizedBox(height: 16),
+
         if (widget.scopedSupervisor)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
@@ -1290,7 +1282,7 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
           ),
         ),
         const SizedBox(height: 16),
-        if (agents.isEmpty)
+        if (agents.isEmpty && !_loading)
           Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1355,6 +1347,22 @@ class _AgentVerificationTabState extends State<AgentVerificationTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
+                    if (!widget.scopedSupervisor)
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.home_work_outlined),
+                        label: const LocalizedUiText('View agent listings'),
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => Scaffold(
+                              appBar: AppBar(title: Text(displayName)),
+                              body: ListingApprovalTab(
+                                agentId: agent['id'].toString(),
+                                agentName: displayName,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     if (widget.canAssignSupervisors)
                       AgentSupervisorAssignment(
                         agentId: agent["id"].toString(),

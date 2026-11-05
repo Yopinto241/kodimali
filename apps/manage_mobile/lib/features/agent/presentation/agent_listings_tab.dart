@@ -1,3 +1,4 @@
+import '../../../core/widgets/location_directory.dart';
 import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
@@ -30,6 +31,8 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
   late Future<List<Map<String, dynamic>>> _future;
   bool _initialized = false;
   int _page = 0;
+  Map<String, dynamic>? _directoryLocation;
+  bool _viewListings = false;
 
   @override
   void didChangeDependencies() {
@@ -55,7 +58,10 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
   }
 
   Future<List<Map<String, dynamic>>> _load() {
+    if (!_viewListings) return Future.value(<Map<String, dynamic>>[]);
     return AppScope.of(context).repository.fetchMyListings(
+      directoryLocationId: _directoryLocation?["id"] as String?,
+      directoryLocationType: _directoryLocation?["location_type"] as String?,
       search: _searchController.text.trim(),
       category: _selectedCategoryId,
       status: _selectedStatus,
@@ -101,7 +107,8 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _future,
       builder: (BuildContext context, AsyncSnapshot<List<Map<String, dynamic>>> snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
           return KodimaliLoading(label: mobileUi(context, 'Loading...'));
         }
         if (snapshot.hasError) {
@@ -113,6 +120,51 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
         return ManagePageScrollView(
           onRefresh: _refresh,
           children: <Widget>[
+            LocationDirectory(
+              onView: (location) {
+                _directoryLocation = location;
+                _viewListings = true;
+                _page = 0;
+                _refresh();
+              },
+            ),
+            if (_viewListings)
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final entry in const {
+                    '': 'All statuses',
+                    'active': 'Active',
+                    'parked': 'Parked / not on market',
+                  }.entries)
+                    ChoiceChip(
+                      label: LocalizedUiText(entry.value),
+                      selected: (_selectedStatus ?? '') == entry.key,
+                      onSelected: (_) {
+                        _selectedStatus = entry.key.isEmpty ? null : entry.key;
+                        _page = 0;
+                        _refresh();
+                      },
+                    ),
+                ],
+              ),
+            if (_viewListings)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  _directoryLocation == null
+                      ? mobileUi(context, 'All locations')
+                      : '${_directoryLocation!["name"]}',
+                ),
+              ),
+            if (!_viewListings)
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: LocalizedUiText(
+                  'Choose a region, district or ward, then view listings at that level.',
+                ),
+              ),
+
             ManageHeroCard(
               title: mobileUi(context, "My listings"),
               subtitle: mobileUi(
@@ -133,6 +185,7 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
             ),
             const SizedBox(height: 18),
             ManagePanel(
+              collapsible: true,
               title: mobileUi(context, "Filter listings"),
               subtitle: mobileUi(
                 context,
@@ -239,6 +292,7 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                               DropdownButtonFormField<String>(
                                 isExpanded: true,
                                 menuMaxHeight: _menuMaxHeight,
+                                key: ValueKey(_selectedStatus),
                                 initialValue: _selectedStatus,
                                 decoration: InputDecoration(
                                   labelText: mobileUi(context, "Status"),
@@ -251,6 +305,12 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                                   DropdownMenuItem(
                                     value: "active",
                                     child: LocalizedUiText("Active"),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: "parked",
+                                    child: LocalizedUiText(
+                                      "Parked / not on market",
+                                    ),
                                   ),
                                   DropdownMenuItem(
                                     value: "inactive",

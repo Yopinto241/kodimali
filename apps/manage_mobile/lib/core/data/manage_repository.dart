@@ -1367,6 +1367,8 @@ class ManageRepository {
   }
 
   Future<List<JsonMap>> fetchMyListings({
+    String? directoryLocationId,
+    String? directoryLocationType,
     String search = "",
     String? category,
     String? status,
@@ -1378,18 +1380,42 @@ class ManageRepository {
   }) async {
     final JsonMap agent = await _currentAgent();
     dynamic query = _client
-        .from("listings")
+        .from(
+          directoryLocationId == null ? "listings" : "manage_listing_directory",
+        )
         .select(
           "id, title, category_id, public_location_label, price_amount, price_period, status, availability_status, removed_from_market_at, removed_reason, created_at, listing_media(storage_path,media_type,display_order), asset_categories(id, name, slug)",
         )
         .eq("agent_id", agent["id"] as String);
-    if (search.isNotEmpty) {
-      query = query.ilike("title", "%$search%");
+    if (directoryLocationId != null) {
+      final column =
+          const [
+            'region',
+            'district',
+            'ward',
+            'area',
+          ].contains(directoryLocationType)
+          ? 'directory_${directoryLocationType}_id'
+          : 'location_id';
+      query = query.eq(column, directoryLocationId);
+    }
+    final safeSearch = search
+        .trim()
+        .replaceAll(RegExp(r'[^\p{L}\p{N}\s-]', unicode: true), ' ')
+        .trim();
+    if (safeSearch.isNotEmpty) {
+      query = query.or(
+        'title.ilike.%$safeSearch%,public_location_label.ilike.%$safeSearch%',
+      );
     }
     if (category != null && category.isNotEmpty) {
       query = query.eq("category_id", category);
     }
-    if (status != null && status.isNotEmpty) {
+    if (status == 'parked') {
+      query = query.or(
+        'status.neq.active,removed_from_market_at.not.is.null,availability_status.neq.available',
+      );
+    } else if (status != null && status.isNotEmpty) {
       query = query.eq("status", status);
     }
     if (minPrice != null) {
@@ -2914,6 +2940,7 @@ class ManageRepository {
   }
 
   Future<JsonMap> fetchAdminAgents({
+    String? directoryLocationId,
     String searchText = "",
     String? accountStatus,
     String? verificationStatus,
@@ -2931,8 +2958,11 @@ class ManageRepository {
     try {
       final List<JsonMap> rows = await _decodeListRows(
         _client.rpc(
-          "search_admin_agents",
+          directoryLocationId == null
+              ? "search_admin_agents"
+              : "search_admin_agents_by_location",
           params: <String, dynamic>{
+            "p_location_id": ?directoryLocationId,
             "p_search_text": normalizedSearch.isEmpty ? null : normalizedSearch,
             "p_account_status": normalizedAccountStatus,
             "p_verification_status": normalizedVerificationStatus,
@@ -2993,6 +3023,9 @@ class ManageRepository {
         rethrow;
       }
 
+      if (directoryLocationId != null) {
+        rethrow; // Never broaden a scoped query on compatibility failure.
+      }
       final List<JsonMap> fallbackAgents = await fetchPendingAgents();
       final List<JsonMap> filtered = fallbackAgents.where((JsonMap agent) {
         final String nextAccountStatus =
@@ -3619,6 +3652,9 @@ class ManageRepository {
   }
 
   Future<List<JsonMap>> fetchListingsForModeration({
+    String? directoryLocationId,
+    String? directoryLocationType,
+    String? agentId,
     String search = '',
     String? status,
     String? categoryId,
@@ -3626,17 +3662,41 @@ class ManageRepository {
     int limit = 20,
   }) async {
     dynamic query = _client
-        .from('listings')
+        .from(
+          directoryLocationId == null ? 'listings' : 'manage_listing_directory',
+        )
         .select(
           'id,title,category_id,public_location_label,price_amount,price_period,status,availability_status,publication_review_status,publication_requested,removed_from_market_at,removed_reason,created_at,agent_id,listing_media(storage_path,media_type,display_order),asset_categories(id,name,slug),agents(verification_status,account_status)',
         );
-    if (search.trim().isNotEmpty) {
-      query = query.ilike(
-        'title',
-        '%${search.trim().replaceAll(RegExp(r'[%_]'), '')}%',
+    if (directoryLocationId != null) {
+      final column =
+          const [
+            'region',
+            'district',
+            'ward',
+            'area',
+          ].contains(directoryLocationType)
+          ? 'directory_${directoryLocationType}_id'
+          : 'location_id';
+      query = query.eq(column, directoryLocationId);
+    }
+    if (agentId != null) query = query.eq("agent_id", agentId);
+    final safeSearch = search
+        .trim()
+        .replaceAll(RegExp(r'[^\p{L}\p{N}\s-]', unicode: true), ' ')
+        .trim();
+    if (safeSearch.isNotEmpty) {
+      query = query.or(
+        'title.ilike.%$safeSearch%,public_location_label.ilike.%$safeSearch%',
       );
     }
-    if (status != null && status.isNotEmpty) query = query.eq('status', status);
+    if (status == 'parked') {
+      query = query.or(
+        'status.neq.active,removed_from_market_at.not.is.null,availability_status.neq.available',
+      );
+    } else if (status != null && status.isNotEmpty) {
+      query = query.eq('status', status);
+    }
     if (categoryId != null && categoryId.isNotEmpty) {
       query = query.eq('category_id', categoryId);
     }
@@ -4729,8 +4789,21 @@ class ManageRepository {
         .order('rank', ascending: false),
   );
 
-  Future<List<JsonMap>> fetchAdminRoleDirectory() =>
-      _decodeListRows(_client.rpc('get_admin_role_directory'));
+  Future<void> setAdminWorkLocation(String userId, String? locationId) async {
+    await _client.rpc(
+      'set_admin_work_location',
+      params: {'p_user_id': userId, 'p_location_id': locationId},
+    );
+  }
+
+  Future<List<JsonMap>> fetchAdminRoleDirectory({
+    String? directoryLocationId,
+  }) => _decodeListRows(
+    _client.rpc(
+      'get_admin_role_directory_by_location',
+      params: {'p_location_id': directoryLocationId},
+    ),
+  );
 
   Future<void> assignAdminRole(String userId, String roleId, bool assign) =>
       _client.rpc(

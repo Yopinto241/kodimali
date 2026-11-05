@@ -1,3 +1,7 @@
+import {
+  deliveryComplete,
+  isUnregisteredDevice,
+} from "../_shared/push-delivery.ts";
 import { trustedWorker } from "../_shared/worker-auth.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -60,6 +64,7 @@ async function accessToken() {
   );
   const response = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
+    signal: AbortSignal.timeout(15000),
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
@@ -79,7 +84,9 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") {
     return json({ error: "Method not allowed" }, 405);
   }
-  if (!trustedWorker(request)) return json({ error: "Worker authorization required" }, 401);
+  if (!trustedWorker(request)) {
+    return json({ error: "Worker authorization required" }, 401);
+  }
   const db = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
@@ -106,7 +113,9 @@ Deno.serve(async (request) => {
     );
 
     const { data: jobs, error } = await db.from("notification_delivery_outbox")
-      .select("id,notification_id,user_id,attempt_count")
+      .select(
+        "id,notification_id,user_id,attempt_count,delivered_device_ids,firebase_message_ids",
+      )
       .in("status", ["pending", "failed"])
       .is("terminal_at", null)
       .lt("attempt_count", MAX_ATTEMPTS)
@@ -191,12 +200,21 @@ Deno.serve(async (request) => {
           continue;
         }
 
-        const messageIds: string[] = [];
+        const messageIds: string[] = [...(job.firebase_message_ids ?? [])];
+        const deliveredDevices: string[] = [
+          ...(job.delivered_device_ids ?? []),
+        ];
         const transientErrors: string[] = [];
         for (const device of devices) {
+          if (deliveredDevices.includes(device.id)) continue;
           if (device.session_id) {
-            const active = await db.rpc("push_registration_has_active_session", { p_device_id: device.id });
-            if (active.error) throw new Error("Device session validation unavailable");
+            const active = await db.rpc(
+              "push_registration_has_active_session",
+              { p_device_id: device.id },
+            );
+            if (active.error) {
+              throw new Error("Device session validation unavailable");
+            }
             if (active.data !== true) continue;
           }
           const data: Record<string, string> = {
@@ -204,7 +222,18 @@ Deno.serve(async (request) => {
             userId: job.user_id,
           };
           for (const [key, value] of Object.entries(payload)) {
-            if (!["route","eventType","bookingId","listingId","eventPlanId","paymentId","conversationId","agreementId"].includes(key)) continue;
+            if (
+              ![
+                "route",
+                "eventType",
+                "bookingId",
+                "listingId",
+                "eventPlanId",
+                "paymentId",
+                "conversationId",
+                "agreementId",
+              ].includes(key)
+            ) continue;
             data[key] = typeof value === "string"
               ? value
               : JSON.stringify(value);
@@ -215,6 +244,7 @@ Deno.serve(async (request) => {
             }/messages:send`,
             {
               method: "POST",
+              signal: AbortSignal.timeout(15000),
               headers: {
                 Authorization: `Bearer ${token}`,
                 "Content-Type": "application/json",
@@ -224,7 +254,8 @@ Deno.serve(async (request) => {
                   token: device.device_token,
                   notification: {
                     title: "KODIMALI",
-                    body: "You have a new update. Open KODIMALI to view it. / Una taarifa mpya. Fungua KODIMALI kuiona.",
+                    body:
+                      "You have a new update. Open KODIMALI to view it. / Una taarifa mpya. Fungua KODIMALI kuiona.",
                   },
                   data,
                   android: {
@@ -248,7 +279,17 @@ Deno.serve(async (request) => {
           const firebasePayload = await response.json();
           if (response.ok && firebasePayload.name) {
             messageIds.push(firebasePayload.name);
-          } else if (response.status === 400 || response.status === 404) {
+            deliveredDevices.push(device.id);
+            const savedDelivery = await db.from("notification_delivery_outbox")
+              .update({
+                delivered_device_ids: deliveredDevices,
+                firebase_message_ids: messageIds,
+                updated_at: new Date().toISOString(),
+              }).eq("id", job.id);
+            if (savedDelivery.error) {
+              throw new Error("Could not save device delivery receipt");
+            }
+          } else if (isUnregisteredDevice(firebasePayload)) {
             await db.from("device_tokens").update({ is_enabled: false }).eq(
               "id",
               device.id,
@@ -259,7 +300,7 @@ Deno.serve(async (request) => {
         }
 
         const updateTime = new Date().toISOString();
-        if (messageIds.length) {
+        if (deliveryComplete(messageIds, transientErrors)) {
           await db.from("notification_delivery_outbox").update({
             status: "sent",
             firebase_message_ids: messageIds,
@@ -275,6 +316,8 @@ Deno.serve(async (request) => {
           const exhausted = attempt >= MAX_ATTEMPTS;
           await db.from("notification_delivery_outbox").update({
             status: "failed",
+            delivered_device_ids: deliveredDevices,
+            firebase_message_ids: messageIds,
             last_error: transientErrors.join("; ") ||
               "Firebase rejected every device",
             next_attempt_at: retryAt(attempt),

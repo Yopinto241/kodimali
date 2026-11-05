@@ -254,11 +254,15 @@ class ManagePanel extends StatelessWidget {
     super.key,
     required this.child,
     this.title,
+    this.collapsible = false,
+    this.initiallyExpanded = false,
     this.subtitle,
     this.action,
     this.padding = const EdgeInsets.all(KodimaliSpacing.md),
   });
 
+  final bool collapsible;
+  final bool initiallyExpanded;
   final Widget child;
   final String? title;
   final String? subtitle;
@@ -268,6 +272,19 @@ class ManagePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    if (collapsible) {
+      return Card(
+        child: ExpansionTile(
+          key: PageStorageKey(title),
+          maintainState: true,
+          initiallyExpanded: initiallyExpanded,
+          title: Text(title ?? '', style: theme.textTheme.titleMedium),
+          subtitle: subtitle == null ? null : Text(subtitle!),
+          childrenPadding: padding,
+          children: [?action, child],
+        ),
+      );
+    }
     return Card(
       child: Padding(
         padding: padding,

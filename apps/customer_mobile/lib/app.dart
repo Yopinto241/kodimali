@@ -118,9 +118,17 @@ class _CustomerAppState extends State<CustomerApp> {
     )) {
       return;
     }
-    final String route = data['route']?.toString() ?? '';
+    final String route = (data['route']?.toString() ?? '').replaceFirst(
+      RegExp(r'^/'),
+      '',
+    );
     final navigator = customerNavigatorKey.currentState;
-    if (navigator == null) return;
+    if (navigator == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openNotification(data);
+      });
+      return;
+    }
     if (route.startsWith('chat/')) {
       final id = route.substring(5);
       navigator.push(
@@ -140,6 +148,45 @@ class _CustomerAppState extends State<CustomerApp> {
           builder: (_) => ListingDetailScreen(
             repository: CustomerPublicRepository(Supabase.instance.client),
             listingId: id,
+          ),
+        ),
+      );
+      return;
+    }
+    void openListing(String id) => navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => ListingDetailScreen(
+          repository: CustomerPublicRepository(Supabase.instance.client),
+          listingId: id,
+        ),
+      ),
+    );
+    final bookingId =
+        data['bookingId']?.toString() ??
+        (RegExp(r'^(booking|bookings|request|requests)/').hasMatch(route)
+            ? route.split('/').last
+            : '');
+    if (RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(bookingId)) {
+      navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => CustomerRequestDetailScreen(
+            bookingRequestId: bookingId,
+            repository: CustomerAccountRepository(Supabase.instance.client),
+            onOpenListing: openListing,
+          ),
+        ),
+      );
+    } else {
+      navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => CustomerAccountScreen(
+            accountRepository: CustomerAccountRepository(
+              Supabase.instance.client,
+            ),
+            publicRepository: CustomerPublicRepository(
+              Supabase.instance.client,
+            ),
+            onOpenListing: openListing,
           ),
         ),
       );
@@ -1798,6 +1845,11 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
   List<Map<String, dynamic>> _promotions = <Map<String, dynamic>>[];
   bool _isLoading = true;
   bool _isSearching = false;
+  List<Map<String, dynamic>> _locationSuggestions = [];
+  String? _selectedLocationLabel;
+  bool _loadingMore = false;
+  bool _hasMoreResults = false;
+  int _resultPage = 0;
   String? _errorMessage;
   int _requestSequence = 0;
   late double? _searchLatitude = widget.latitude;
@@ -1848,9 +1900,13 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
 
   String get _normalizedQuery => _searchController.text.trim();
 
-  Future<List<Map<String, dynamic>>> _loadResults(String query) {
+  Future<List<Map<String, dynamic>>> _loadResults(
+    String query, {
+    int page = 0,
+  }) {
     return widget.repository.fetchPublicListings(
-      limit: 20,
+      limit: 40,
+      page: page,
       searchText: query.isEmpty ? null : query,
       regionId: _searchRegionId,
       districtId: _searchDistrictId,
@@ -1905,6 +1961,7 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
     if (mounted) {
       setState(() {
         _errorMessage = null;
+        _loadingMore = false;
         if (hasVisibleContent) {
           _isSearching = true;
         } else {
@@ -1923,6 +1980,9 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
       final List<dynamic> loaded = await Future.wait<dynamic>(<Future<dynamic>>[
         resultsFuture,
         promotionsFuture,
+        widget.repository
+            .suggestLocations(query)
+            .catchError((Object _) => <Map<String, dynamic>>[]),
       ]);
       if (!mounted || requestId != _requestSequence) {
         return;
@@ -1933,7 +1993,11 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
       final List<Map<String, dynamic>> promotions = (loaded[1] as List)
           .cast<Map<String, dynamic>>();
       setState(() {
+        _locationSuggestions = (loaded[2] as List).cast<Map<String, dynamic>>();
         _results = results;
+        _resultPage = 0;
+        _loadingMore = false;
+        _hasMoreResults = results.length == 40;
         _suggestions = query.isEmpty
             ? <Map<String, dynamic>>[]
             : results.take(5).toList();
@@ -1951,6 +2015,67 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
         _isSearching = false;
       });
     }
+  }
+
+  Future<void> _loadMoreResults() async {
+    if (_loadingMore || _isSearching || _isLoading || !_hasMoreResults) return;
+    final request = _requestSequence;
+    setState(() {
+      _loadingMore = true;
+    });
+    try {
+      final next = await _loadResults(
+        _normalizedQuery.toLowerCase(),
+        page: _resultPage + 1,
+      );
+      if (!mounted || request != _requestSequence) return;
+      final seen = _results.map((row) => row['listing_id']).toSet();
+      setState(() {
+        _results = [
+          ..._results,
+          ...next.where((row) => seen.add(row['listing_id'])),
+        ];
+        _resultPage++;
+        _hasMoreResults = next.length == 40;
+      });
+    } catch (error) {
+      if (mounted && request == _requestSequence) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_readableErrorMessage(error))));
+      }
+    } finally {
+      if (mounted && request == _requestSequence) {
+        setState(() {
+          _loadingMore = false;
+        });
+      }
+    }
+  }
+
+  void _selectSearchLocation(Map<String, dynamic>? location) {
+    _searchDebounce?.cancel();
+    _searchLatitude = null;
+    _searchLongitude = null;
+    _searchRegionId = null;
+    _searchDistrictId = null;
+    _searchWardId = null;
+    _searchAreaId = null;
+    final id = location?['location_id']?.toString();
+    switch (location?['location_type']) {
+      case 'region':
+        _searchRegionId = id;
+      case 'district':
+        _searchDistrictId = id;
+      case 'ward':
+        _searchWardId = id;
+      case 'area':
+        _searchAreaId = id;
+    }
+    _selectedLocationLabel = location?['label']?.toString();
+    if (location != null) _searchController.clear();
+    FocusScope.of(context).unfocus();
+    unawaited(_refreshSearch(refreshPromotions: true));
   }
 
   void _submitSearch() {
@@ -2115,6 +2240,41 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
   Widget build(BuildContext context) {
     final String query = _normalizedQuery;
     final List<Widget> listChildren = <Widget>[
+      Wrap(
+        spacing: 8,
+        children: [
+          if (_selectedLocationLabel != null)
+            InputChip(
+              label: Text(_selectedLocationLabel!),
+              onDeleted: () => _selectSearchLocation(null),
+            ),
+          ActionChip(
+            avatar: const Icon(Icons.public, size: 18),
+            label: const LocalizedUiText('Search all Tanzania'),
+            onPressed: () => _selectSearchLocation(null),
+          ),
+        ],
+      ),
+      if (_locationSuggestions.isNotEmpty && !_isSearching) ...[
+        const SizedBox(height: 12),
+        const LocalizedUiText(
+          'Locations',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        ..._locationSuggestions.map(
+          (location) => ListTile(
+            leading: const Icon(Icons.place_outlined),
+            title: Text(location['label']?.toString() ?? ''),
+            subtitle: LocalizedUiText(
+              location['location_type']?.toString() ?? '',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _selectSearchLocation(location),
+          ),
+        ),
+        const Divider(),
+      ],
+
       Row(
         children: <Widget>[
           Expanded(
@@ -2166,6 +2326,24 @@ class _PublicSearchScreenState extends State<PublicSearchScreen> {
       );
     }
 
+    if (_hasMoreResults && !_isLoading) {
+      listChildren.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: OutlinedButton.icon(
+            onPressed: _loadingMore || _isSearching ? null : _loadMoreResults,
+            icon: _loadingMore
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.expand_more),
+            label: const LocalizedUiText('Load more results'),
+          ),
+        ),
+      );
+    }
     if (!_isLoading && _results.isEmpty) {
       listChildren.add(_SponsoredRemainder(promotions: _promotions));
     }
@@ -4095,16 +4273,137 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                     "TZS ${listing["price_amount"] ?? "-"} / ${listing["price_period"] ?? "-"}",
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  const SizedBox(height: KodimaliSpacing.xs),
-                  Text(
-                    listing["description"] as String? ?? "-",
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: KodimaliSpacing.md),
+          Text(
+            mobileUi(context, 'About this listing'),
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: KodimaliSpacing.sm),
+          SelectableText(
+            listing['description']?.toString() ?? '-',
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          if ((category?["slug"] as String?) == "farms") ...<Widget>[
+            const SizedBox(height: KodimaliSpacing.md),
+            _FarmHighlights(
+              categorySlug: category?["slug"] as String?,
+              attributes: attributes,
+            ),
+          ],
+          if (categorySlug == "apartment" && apartmentServices.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: KodimaliSpacing.md),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(KodimaliSpacing.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        context.tr("apartment.servicesTitle"),
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: KodimaliSpacing.sm),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: apartmentServices
+                            .map(
+                              (Map<String, String> option) =>
+                                  Chip(label: Text(option["label"] ?? "-")),
+                            )
+                            .toList(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          if (detailItems.isNotEmpty) ...<Widget>[
+            const SizedBox(height: KodimaliSpacing.md),
+            Text(
+              context.tr("listing.additionalDetails"),
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: KodimaliSpacing.sm),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(KodimaliSpacing.md),
+                child: Column(
+                  children: detailItems
+                      .map(
+                        (item) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  item.label,
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Flexible(
+                                child: Text(
+                                  item.value,
+                                  textAlign: TextAlign.end,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: KodimaliSpacing.lg),
+          Text(
+            mobileUi(context, 'Contact and booking'),
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: KodimaliSpacing.sm),
+          _AgentSummaryCard(
+            repository: widget.repository,
+            listingId: widget.listingId,
+            agentSummary: agentSummary,
+          ),
+          const SizedBox(height: KodimaliSpacing.sm),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => CustomerListingChatGate(
+                    repository: CustomerAccountRepository(
+                      Supabase.instance.client,
+                    ),
+                    listingId: widget.listingId,
+                    listingTitle: listing['title']?.toString() ?? 'Listing',
+                    onAuthenticate: (bool createAccount) =>
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => CustomerAuthScreen(
+                              repository: CustomerAccountRepository(
+                                Supabase.instance.client,
+                              ),
+                              createAccountInitially: createAccount,
+                            ),
+                          ),
+                        ),
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.chat_bubble_outline_rounded),
+              label: const LocalizedUiText('Chat'),
+            ),
+          ),
           if (bookingMode != 'not_bookable')
             SizedBox(
               width: double.infinity,
@@ -4156,114 +4455,6 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
             ],
           ),
           const SizedBox(height: KodimaliSpacing.md),
-          _AgentSummaryCard(
-            repository: widget.repository,
-            listingId: widget.listingId,
-            agentSummary: agentSummary,
-          ),
-          const SizedBox(height: KodimaliSpacing.sm),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => CustomerListingChatGate(
-                    repository: CustomerAccountRepository(
-                      Supabase.instance.client,
-                    ),
-                    listingId: widget.listingId,
-                    listingTitle: listing['title']?.toString() ?? 'Listing',
-                    onAuthenticate: (bool createAccount) =>
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => CustomerAuthScreen(
-                              repository: CustomerAccountRepository(
-                                Supabase.instance.client,
-                              ),
-                              createAccountInitially: createAccount,
-                            ),
-                          ),
-                        ),
-                  ),
-                ),
-              ),
-              icon: const Icon(Icons.chat_bubble_outline_rounded),
-              label: const LocalizedUiText('Chat with agent • 7-day access'),
-            ),
-          ),
-          if ((category?["slug"] as String?) == "farms") ...<Widget>[
-            const SizedBox(height: KodimaliSpacing.md),
-            _FarmHighlights(
-              categorySlug: category?["slug"] as String?,
-              attributes: attributes,
-            ),
-          ],
-          if (categorySlug == "apartment" && apartmentServices.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: KodimaliSpacing.md),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(KodimaliSpacing.md),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        context.tr("apartment.servicesTitle"),
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: KodimaliSpacing.sm),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: apartmentServices
-                            .map(
-                              (Map<String, String> option) =>
-                                  Chip(label: Text(option["label"] ?? "-")),
-                            )
-                            .toList(),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          if (detailItems.isNotEmpty) ...<Widget>[
-            const SizedBox(height: KodimaliSpacing.md),
-            Text(
-              context.tr("listing.additionalDetails"),
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: KodimaliSpacing.sm),
-            ...detailItems.map(
-              (_ListingAttributeItem item) => Padding(
-                padding: const EdgeInsets.only(bottom: KodimaliSpacing.xs),
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(KodimaliSpacing.md),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            item.label,
-                            style: Theme.of(context).textTheme.titleSmall,
-                          ),
-                        ),
-                        const SizedBox(width: KodimaliSpacing.sm),
-                        Expanded(
-                          child: Text(
-                            item.value,
-                            textAlign: TextAlign.right,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
           FutureBuilder<List<Map<String, dynamic>>>(
             future: widget.repository.fetchPromotions(
               surface: "customer_app",
@@ -6292,6 +6483,7 @@ class _AgentSummaryCard extends StatefulWidget {
 class _AgentSummaryCardState extends State<_AgentSummaryCard>
     with WidgetsBindingObserver {
   bool _contactReady = false;
+  bool _contactLoading = false;
   String? _unlockedPhoneNumber;
   String? _statusMessage;
 
@@ -6304,10 +6496,26 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard>
   }
 
   Future<void> _call(String phone) async {
-    await launchUrl(
-      Uri(scheme: 'tel', path: phone),
-      mode: LaunchMode.externalApplication,
-    );
+    try {
+      final opened = await launchUrl(
+        Uri(scheme: 'tel', path: phone),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened) throw StateError('Phone app unavailable');
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              mobileUi(
+                context,
+                'Phone app unavailable. Copy the displayed number to call.',
+              ),
+            ),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _whatsApp(String phone) async {
@@ -6325,6 +6533,8 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard>
   }
 
   Future<void> _refreshContact() async {
+    if (_contactLoading) return;
+    _contactLoading = true;
     try {
       final quote = await widget.repository.fetchContactQuote(widget.listingId);
       String? phone = quote['phoneNumber'] as String?;
@@ -6338,6 +6548,7 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard>
       if (mounted) {
         setState(() {
           _unlockedPhoneNumber = phone;
+          _statusMessage = null;
           _contactReady = true;
         });
       }
@@ -6348,6 +6559,8 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard>
           _statusMessage = _readableErrorMessage(error);
         });
       }
+    } finally {
+      _contactLoading = false;
     }
   }
 
@@ -6382,6 +6595,7 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard>
   Future<void> _openUnlockFlow(
     String displayName, {
     bool whatsapp = false,
+    bool call = false,
   }) async {
     final String? unlockedPhone = await showModalBottomSheet<String>(
       context: context,
@@ -6400,10 +6614,13 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard>
       widget.listingId,
     );
     setState(() {
-      _unlockedPhoneNumber = unlockedPhone ?? saved?["phone_number"] as String?;
+      _unlockedPhoneNumber = unlockedPhone ?? _validSavedPhone(saved);
       _statusMessage = saved?["message"] as String?;
       _contactReady = true;
     });
+    if (call && _unlockedPhoneNumber != null) {
+      await _call(_unlockedPhoneNumber!);
+    }
     if (whatsapp && _unlockedPhoneNumber != null) {
       await _whatsApp(_unlockedPhoneNumber!);
     }
@@ -6495,9 +6712,13 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard>
                               icon: const Icon(Icons.call_rounded),
                             ),
                             Expanded(
-                              child: TextButton(
-                                onPressed: () => _whatsApp(visiblePhoneNumber),
-                                child: Text(visiblePhoneNumber),
+                              child: SelectableText(
+                                visiblePhoneNumber,
+                                onTap: () => _whatsApp(visiblePhoneNumber),
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                  decoration: TextDecoration.underline,
+                                ),
                               ),
                             ),
                             IconButton(
@@ -6513,14 +6734,21 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard>
                         Row(
                           children: <Widget>[
                             Icon(
-                              Icons.lock_outline_rounded,
+                              _contactReady
+                                  ? Icons.lock_outline_rounded
+                                  : Icons.phone_outlined,
                               size: 18,
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                context.tr("agent.phoneHidden"),
+                                _contactReady
+                                    ? context.tr("agent.phoneHidden")
+                                    : mobileUi(
+                                        context,
+                                        "Checking contact access...",
+                                      ),
                                 style: theme.textTheme.bodyMedium,
                               ),
                             ),
@@ -6593,15 +6821,34 @@ class _AgentSummaryCardState extends State<_AgentSummaryCard>
                 ),
               ),
             ],
-            if (visiblePhoneNumber == null ||
-                visiblePhoneNumber.trim().isEmpty) ...<Widget>[
+            if (!_contactReady && _statusMessage == null)
+              const LinearProgressIndicator(),
+            if (!_contactReady && _statusMessage != null)
+              TextButton.icon(
+                onPressed: _refreshContact,
+                icon: const Icon(Icons.refresh),
+                label: const LocalizedUiText('Retry contact access'),
+              ),
+            if (_contactReady &&
+                (visiblePhoneNumber == null ||
+                    visiblePhoneNumber.trim().isEmpty)) ...[
               const SizedBox(height: KodimaliSpacing.sm),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () => _openUnlockFlow(displayName, whatsapp: true),
-                  child: const LocalizedUiText('WhatsApp'),
-                ),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _openUnlockFlow(displayName, call: true),
+                    icon: const Icon(Icons.call_outlined),
+                    label: const LocalizedUiText('Call / View number'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: () =>
+                        _openUnlockFlow(displayName, whatsapp: true),
+                    icon: const WhatsAppIcon(),
+                    label: const LocalizedUiText('WhatsApp'),
+                  ),
+                ],
               ),
             ],
           ],

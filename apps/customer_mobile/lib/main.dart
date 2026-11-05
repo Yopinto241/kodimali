@@ -23,7 +23,20 @@ Future<void> main() async {
     runApp(const CustomerApp());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(CustomerAdMobController.instance.initialize());
-      unawaited(PushNotificationService.instance.initialize());
+      unawaited(
+        PushNotificationService.instance.initialize().catchError((
+          Object error,
+          StackTrace stack,
+        ) {
+          FlutterError.reportError(
+            FlutterErrorDetails(
+              exception: error,
+              stack: stack,
+              library: 'notifications',
+            ),
+          );
+        }),
+      );
     });
   } catch (error, stackTrace) {
     FlutterError.reportError(

@@ -1,3 +1,4 @@
+import 'package:manage_mobile/core/widgets/location_directory.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_design_system/flutter_design_system.dart';
@@ -65,6 +66,7 @@ class SupervisorFixture extends fixtures.FixtureLocations {
   };
   @override
   Future<JsonMap> fetchAdminAgents({
+    String? directoryLocationId,
     String searchText = '',
     String? accountStatus,
     String? verificationStatus,
@@ -121,7 +123,10 @@ void main() {
       final repo = SupervisorFixture(client);
       await pump(tester, repo, const SupervisorManagementScreen());
       expect(find.text('Registered agent email'), findsOneWidget);
-      expect(find.textContaining('Register as an agent first.'), findsOneWidget);
+      expect(
+        find.textContaining('Register as an agent first.'),
+        findsOneWidget,
+      );
       await tester.tap(find.byType(DropdownButtonFormField<String>));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Tanzania').last);
@@ -196,6 +201,7 @@ void main() {
       await tester.scrollUntilVisible(
         find.widgetWithText(OutlinedButton, 'Create account'),
         350,
+        scrollable: find.byType(Scrollable).first,
       );
       await tester.pumpAndSettle();
       final button = tester.widget<OutlinedButton>(
@@ -204,6 +210,37 @@ void main() {
       expect(button.onPressed, isNull);
       expect(find.text('Add agent'), findsNothing);
       expect(find.text('Supervisors and territories'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'location directory supports region and ward result scopes with breadcrumbs',
+    (tester) async {
+      final repo = SupervisorFixture(client);
+      final views = <JsonMap?>[];
+      await pump(
+        tester,
+        repo,
+        Scaffold(
+          body: SingleChildScrollView(
+            child: LocationDirectory(onView: views.add),
+          ),
+        ),
+      );
+      expect(find.widgetWithText(ListTile, 'Arusha'), findsOneWidget);
+      await tester.tap(find.widgetWithText(ListTile, 'Arusha'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'View listings here'));
+      expect(views.last?['id'], 'region');
+      await tester.tap(find.widgetWithText(ListTile, 'Arusha District'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, 'Sokoni'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'View listings here'));
+      expect(views.last?['id'], 'ward');
+      await tester.tap(find.widgetWithText(TextButton, 'Arusha'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(ListTile, 'Arusha District'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

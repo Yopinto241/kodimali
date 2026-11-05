@@ -1,3 +1,5 @@
+import 'package:flutter/widgets.dart';
+import 'package:flutter_core/push_tap_inbox.dart';
 import 'package:flutter_core/push_payload.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,16 +20,20 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 }
 
-class PushNotificationService {
+class PushNotificationService with WidgetsBindingObserver {
   PushNotificationService._();
   static final PushNotificationService instance = PushNotificationService._();
   final FlutterLocalNotificationsPlugin _local =
       FlutterLocalNotificationsPlugin();
-  final StreamController<Map<String, dynamic>> _taps =
-      StreamController.broadcast();
+  final PushTapInbox _taps = PushTapInbox();
   StreamSubscription<String>? _tokenRefresh;
   StreamSubscription<AuthState>? _authChanges;
   bool _initialized = false;
+  Future<void>? _initializing;
+  StreamSubscription<RemoteMessage>? _messages, _opened;
+  Timer? _retryTimer;
+  bool _observing = false;
+  bool _registering = false;
   Stream<Map<String, dynamic>> get notificationTaps => _taps.stream;
 
   late final PushDeviceLifecycle deviceLifecycle = PushDeviceLifecycle(
@@ -65,8 +71,53 @@ class PushNotificationService {
 
   Future<void> initialize() async {
     if (!Platform.isAndroid && !Platform.isIOS) return;
+    if (!_observing) {
+      WidgetsBinding.instance.addObserver(this);
+      _observing = true;
+    }
     if (_initialized) return;
-    _initialized = true;
+    if (_initializing != null) return _initializing!;
+    final attempt = _initialize();
+    _initializing = attempt;
+    try {
+      await attempt;
+      _initialized = true;
+    } catch (_) {
+      await _messages?.cancel();
+      await _opened?.cancel();
+      await _tokenRefresh?.cancel();
+      await _authChanges?.cancel();
+      _retryTimer?.cancel();
+      _retryTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+        if (WidgetsBinding.instance.lifecycleState ==
+            AppLifecycleState.resumed) {
+          unawaited(_recover());
+        }
+      });
+      rethrow;
+    } finally {
+      _initializing = null;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    unawaited(_recover());
+  }
+
+  Future<void> _recover() async {
+    try {
+      await initialize();
+      await _registerWithRetry();
+    } catch (error) {
+      debugPrint(
+        'Notification setup will retry on resume: ${error.runtimeType}',
+      );
+    }
+  }
+
+  Future<void> _initialize() async {
     await deviceLifecycle.flush();
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -112,12 +163,12 @@ class PushNotificationService {
     );
     await FirebaseMessaging.instance
         .setForegroundNotificationPresentationOptions(
-          alert: true,
-          badge: true,
-          sound: true,
+          alert: false,
+          badge: false,
+          sound: false,
         );
-    FirebaseMessaging.onMessage.listen(_showForeground);
-    FirebaseMessaging.onMessageOpenedApp.listen(
+    _messages = FirebaseMessaging.onMessage.listen(_showForeground);
+    _opened = FirebaseMessaging.onMessageOpenedApp.listen(
       (message) => _taps.add(message.data),
     );
     final localLaunch = await _local.getNotificationAppLaunchDetails();
@@ -128,7 +179,7 @@ class PushNotificationService {
     final initial = await FirebaseMessaging.instance.getInitialMessage();
     if (initial != null) _taps.add(initial.data);
     _tokenRefresh = FirebaseMessaging.instance.onTokenRefresh.listen(
-      (token) => _register(token),
+      (token) => unawaited(_registerWithRetry(token: token)),
     );
     _authChanges = Supabase.instance.client.auth.onAuthStateChange.listen(
       (state) => unawaited(
@@ -138,19 +189,35 @@ class PushNotificationService {
       ),
     );
     await _registerWithRetry();
+    _retryTimer?.cancel();
+    _retryTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        unawaited(_registerWithRetry());
+      }
+    });
   }
 
-  Future<void> _registerWithRetry() async {
-    for (var attempt = 0; attempt < 3; attempt++) {
-      if (Supabase.instance.client.auth.currentUser == null) return;
-      try {
-        await registerCurrentDevice();
-        return;
-      } catch (_) {
-        if (attempt < 2) {
-          await Future<void>.delayed(Duration(seconds: attempt + 1));
+  Future<void> _registerWithRetry({String? token}) async {
+    if (_registering) return;
+    _registering = true;
+    try {
+      for (var attempt = 0; attempt < 3; attempt++) {
+        if (Supabase.instance.client.auth.currentUser == null) return;
+        try {
+          if (token == null) {
+            await registerCurrentDevice();
+          } else {
+            await _register(token);
+          }
+          return;
+        } catch (_) {
+          if (attempt < 2) {
+            await Future<void>.delayed(Duration(seconds: attempt + 1));
+          }
         }
       }
+    } finally {
+      _registering = false;
     }
   }
 
@@ -186,7 +253,8 @@ class PushNotificationService {
   Future<void> registerCurrentDevice() async {
     if (Supabase.instance.client.auth.currentUser == null) return;
     final token = await FirebaseMessaging.instance.getToken();
-    if (token != null) await _register(token);
+    if (token == null) throw StateError("Push token is not available yet");
+    await _register(token);
   }
 
   Future<void> _register(String token) => deviceLifecycle.synchronize(token);
@@ -214,6 +282,10 @@ class PushNotificationService {
   Future<void> dispose() async {
     await _tokenRefresh?.cancel();
     await _authChanges?.cancel();
+    await _messages?.cancel();
+    await _opened?.cancel();
+    _retryTimer?.cancel();
+    if (_observing) WidgetsBinding.instance.removeObserver(this);
     await _taps.close();
   }
 }
