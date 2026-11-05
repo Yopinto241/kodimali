@@ -1,3 +1,6 @@
+import java.io.File
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -10,10 +13,33 @@ val admobAndroidAppId =
         ?.takeIf { it.isNotBlank() }
         ?: "ca-app-pub-3940256099942544~3347511713"
 
-val releaseValues = listOf("KODIMALI_KEYSTORE_PATH", "KODIMALI_KEY_ALIAS", "KODIMALI_STORE_PASSWORD", "KODIMALI_KEY_PASSWORD").associateWith { System.getenv(it)?.takeIf(String::isNotBlank) }
+// Local signing credentials stay outside Git; CI environment values take precedence.
+val signingEnvFile = System.getenv("KODIMALI_SIGNING_ENV_FILE")
+    ?.takeIf(String::isNotBlank)?.let { file(it) }
+    ?: File(System.getProperty("user.home"), "Kodimali-Signing/android-production/.envy")
+val localSigningValues = Properties().apply {
+    if (signingEnvFile.isFile) signingEnvFile.inputStream().use { load(it) }
+}
+val signingFields = linkedMapOf(
+    "KODIMALI_KEYSTORE_PATH" to "MANAGE_KEYSTORE_FILE",
+    "KODIMALI_KEY_ALIAS" to "MANAGE_KEY_ALIAS",
+    "KODIMALI_STORE_PASSWORD" to "MANAGE_STORE_PASSWORD",
+    "KODIMALI_KEY_PASSWORD" to "MANAGE_KEY_PASSWORD",
+)
+// A partial environment must not silently mix identities with local credentials.
+val hasSigningEnvironment = signingFields.keys.any { !System.getenv(it).isNullOrBlank() }
+val releaseValues = signingFields.mapValues { (envName, localName) ->
+    if (hasSigningEnvironment) System.getenv(envName)?.takeIf(String::isNotBlank)
+    else localSigningValues.getProperty(localName)?.takeIf(String::isNotBlank)?.let { value ->
+        if (envName == "KODIMALI_KEYSTORE_PATH") {
+            val keyFile = File(value)
+            (if (keyFile.isAbsolute) keyFile else File(signingEnvFile.parentFile, value)).absolutePath
+        } else value
+    }
+}
 val releaseConfigured = releaseValues.values.all { it != null }
 if (gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) } && !releaseConfigured) {
-    throw GradleException("Production release signing is required. Configure the KODIMALI signing environment or use the protected mobile-release workflow.")
+    throw GradleException("Production release signing is required. Restore .envy and keystores to ~/Kodimali-Signing/android-production, set KODIMALI_SIGNING_ENV_FILE, or configure all four KODIMALI signing environment variables.")
 }
 
 android {

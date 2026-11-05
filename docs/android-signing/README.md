@@ -8,7 +8,7 @@ Open this folder in File Explorer:
 
 `C:\Users\user\Kodimali-Signing\android-production`
 
-- `.envy`: private passwords, aliases and relative keystore filenames. Open locally in Notepad to see the credentials. This file is deliberately not in the repository; it is not loaded automatically by Flutter.
+- `.envy`: private passwords, aliases and relative keystore filenames. Open locally in Notepad to see the credentials. This file is deliberately not in the repository. Both apps automatically load it from this private folder during Android Gradle configuration.
 - `customer_mobile.jks` and `manage_mobile.jks`: the private signing keys. Preserve both for future updates.
 - `customer_mobile-certificate.pem` and `manage_mobile-certificate.pem`: public certificates. You can open these as text; public copies are also in this documentation folder.
 - `signing-config.dpapi`: an additional configuration copy encrypted for this Windows user profile. This file alone is not portable to another laptop.
@@ -31,7 +31,7 @@ Its password is saved locally in:
 4. Confirm you have both JKS files, `.envy` and both public PEM certificates. The archive was decrypted and every restored file was verified against the originals; an incorrect password was also rejected. It does not depend on the old Windows profile.
 5. Use the restored `.envy` values when signing future releases. The filenames in `.envy` are relative so they work in the new folder. Keep the same keys, aliases and passwords; generating replacements changes the signing identity.
 
-For a future build, select the relevant `CUSTOMER_` or `MANAGE_` values from `.envy`. Existing Android Gradle configuration accepts these process environment variables: `KODIMALI_KEYSTORE_PATH` (full path to the restored JKS), `KODIMALI_KEY_ALIAS`, `KODIMALI_STORE_PASSWORD` and `KODIMALI_KEY_PASSWORD`. `.envy` is a credential reference, not an automatically imported environment file.
+For a future build, run `flutter build apk --release` or `flutter build appbundle --release` from the chosen app folder. Each app automatically selects its own `CUSTOMER_` or `MANAGE_` credentials from `~/Kodimali-Signing/android-production/.envy`. On another laptop, restore the files to this location under your new user profile. For a different location, set `KODIMALI_SIGNING_ENV_FILE` to the full path of `.envy`. CI can instead provide all four process environment variables: `KODIMALI_KEYSTORE_PATH` (full path to the restored JKS), `KODIMALI_KEY_ALIAS`, `KODIMALI_STORE_PASSWORD` and `KODIMALI_KEY_PASSWORD`. The four CI variables take precedence as a complete set; partial CI configuration fails instead of mixing local and CI identities. Local relative keystore paths resolve against the `.envy` folder. Passwords are never stored in tracked Gradle files.
 
 Public certificates identify a signing key but cannot sign an app by themselves. These are Android signing identities, not website HTTPS certificates or Apple distribution certificates. Any existing Google Play signing identity must be checked before publishing updates; Play ownership was not verified in this task. Previously inspected local APKs used a different Android debug certificate.
 
