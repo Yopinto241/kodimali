@@ -34,6 +34,15 @@ design-previews/edge-profile/
 # Release identities belong in protected CI secrets.
 *.jks
 *.keystore
+*.dpapi
+*.p12
+*.pfx
 **/key.properties
+**/signing-config.json
 **/release-certificate.txt
 __pycache__/
+
+# Private signing credentials and recovery passwords.
+.envy
+.envy.*
+*backup-password*

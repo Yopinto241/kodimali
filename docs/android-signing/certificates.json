@@ -1,0 +1,14 @@
+{
+  "manage_mobile": {
+    "certificate_sha256": "94:64:C5:BE:39:CC:AF:BB:82:3F:81:29:6D:51:57:C2:53:1A:F6:22:4F:1D:1E:1E:8A:70:9C:B1:93:D2:D7:9C",
+    "alias": "manage_mobile-production",
+    "key_algorithm": "RSA 3072",
+    "valid_until": "2056-10-27T21:48:04.0000000Z"
+  },
+  "customer_mobile": {
+    "certificate_sha256": "E1:CB:67:8F:53:50:EE:E4:11:9A:5F:65:31:CA:24:6A:19:58:FF:70:8A:AB:0F:F9:B1:93:A3:0D:7A:06:AF:CC",
+    "alias": "customer_mobile-production",
+    "key_algorithm": "RSA 3072",
+    "valid_until": "2056-10-27T21:47:37.0000000Z"
+  }
+}
