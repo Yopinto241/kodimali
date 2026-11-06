@@ -49,22 +49,22 @@ export function ListingMediaGallery({
       }}
     >
       {visibleMedia.map((item, index) => (
-        <div className="aspect-[16/10] w-full shrink-0 snap-center sm:aspect-[16/9]" key={`${item.signed_url}-${index}`}>
+        <div className="aspect-[4/5] w-full shrink-0 snap-center sm:aspect-[4/3]" key={`${item.signed_url}-${index}`}>
           {item.media_type === "video" ? (
-            index === selectedIndex ? <SquareMediaVideo src={item.signed_url!} controls /> : <div className="flex h-full w-full items-center justify-center bg-brand-navy text-white"><span className="rounded-full border border-white/30 px-4 py-2 text-sm font-bold">VIDEO {index + 1}</span></div>
+            index === selectedIndex ? <SquareMediaVideo src={item.signed_url!} controls wide /> : <div className="flex h-full w-full items-center justify-center bg-brand-navy text-white"><span className="rounded-full border border-white/30 px-4 py-2 text-sm font-bold">VIDEO {index + 1}</span></div>
           ) : (
             <button
               type="button"
               onClick={() => { setSelectedIndex(index); setFullscreenOpen(true); }}
               className="block h-full w-full cursor-zoom-in bg-transparent p-0"
             >
-              <DirectMediaImage
+              {Math.abs(index - selectedIndex) <= 1 ? <DirectMediaImage
                 src={item.signed_url!}
                 alt={`${title} media ${index + 1}`}
                 priority={index === 0}
-                sizes="(min-width: 1280px) 52vw, (min-width: 1024px) 58vw, 100vw"
-                className="h-full w-full object-cover"
-              />
+                sizes="(min-width: 1280px) 1200px, 100vw"
+                className="h-full w-full object-contain"
+              /> : null}
             </button>
           )}
         </div>

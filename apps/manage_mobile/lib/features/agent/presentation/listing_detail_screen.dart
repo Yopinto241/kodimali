@@ -1,3 +1,4 @@
+import '../../../core/widgets/listing_media_gallery.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
@@ -440,6 +441,10 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                   ),
                 ),
                 const SizedBox(height: 18),
+                if (media.isNotEmpty) ...[
+                  ManageListingMediaGallery(media: media),
+                  const SizedBox(height: 18),
+                ],
                 ManagePanel(
                   title: mobileUi(context, "Public details"),
                   subtitle: mobileUi(
@@ -690,102 +695,6 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 16),
-                ManagePanel(
-                  collapsible: true,
-                  initiallyExpanded: false,
-                  title: mobileUi(context, "Media records"),
-                  subtitle: mobileUi(
-                    context,
-                    "Current media already attached to this listing. Cover assets stay easy to audit here.",
-                  ),
-                  child: media.isEmpty
-                      ? const LocalizedUiText(
-                          "No media found for this listing yet.",
-                        )
-                      : Column(
-                          children: media.map((dynamic item) {
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 10),
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
-                                ),
-                                onTap:
-                                    item['media_type'] == 'image' &&
-                                        item['preview_url'] != null
-                                    ? () => showDialog<void>(
-                                        context: context,
-                                        builder: (context) => Dialog(
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Flexible(
-                                                child: InteractiveViewer(
-                                                  child: Image.network(
-                                                    item['preview_url']
-                                                        .toString(),
-                                                    errorBuilder:
-                                                        (
-                                                          _,
-                                                          error,
-                                                          stack,
-                                                        ) => const LocalizedUiText(
-                                                          'Image could not load',
-                                                        ),
-                                                  ),
-                                                ),
-                                              ),
-                                              TextButton(
-                                                onPressed: () =>
-                                                    Navigator.pop(context),
-                                                child: const LocalizedUiText(
-                                                  'Close',
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      )
-                                    : null,
-                                leading:
-                                    item['media_type'] == 'image' &&
-                                        item['preview_url'] != null
-                                    ? Image.network(
-                                        item['preview_url'].toString(),
-                                        width: 56,
-                                        height: 56,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, error, stack) =>
-                                            const Icon(
-                                              Icons
-                                                  .image_not_supported_outlined,
-                                            ),
-                                      )
-                                    : Icon(
-                                        item["media_type"] == "video"
-                                            ? Icons.videocam_outlined
-                                            : Icons.image_outlined,
-                                      ),
-                                title: Text(
-                                  mobileUi(
-                                    context,
-                                    item['media_type'] == 'video'
-                                        ? 'Video'
-                                        : 'Image',
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  item["is_cover"] == true
-                                      ? mobileUi(context, "Cover media")
-                                      : mobileUi(context, "Standard media"),
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
                 ),
                 const SizedBox(height: 16),
                 ManagePanel(

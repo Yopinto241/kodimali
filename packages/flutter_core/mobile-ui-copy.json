@@ -1238,7 +1238,7 @@
   "Locations": "Maeneo",
   "Load more results": "Onyesha matokeo zaidi",
   "About this listing": "Kuhusu mali hii",
-  "Contact and booking": "Mawasiliano na nafasi",
+  "Contact and booking": "Mawasiliano na booking",
   "Call / View number": "Piga simu / Ona namba",
   "Retry contact access": "Jaribu tena mawasiliano",
   "Call owner": "Piga simu kwa mmiliki",
@@ -1247,5 +1247,13 @@
   "Assign staff location": "Panga eneo la msimamizi",
   "Assign this location": "Panga eneo hili",
   "Checking contact access...": "Inakagua mawasiliano...",
-  "Phone app unavailable. Copy the displayed number to call.": "Programu ya simu haipatikani. Nakili namba iliyoonyeshwa ili kupiga simu."
+  "Phone app unavailable. Copy the displayed number to call.": "Programu ya simu haipatikani. Nakili namba iliyoonyeshwa ili kupiga simu.",
+  "Photos and videos": "Picha na video",
+  "Swipe to see more. Tap a photo to enlarge.": "Telezesha kuona zaidi. Gusa picha kuipanua.",
+  "Retry video": "Jaribu video tena",
+  "Photo": "Picha",
+  "Play video": "Cheza video",
+  "Pause video": "Sitisha video",
+  "Mute video": "Zima sauti ya video",
+  "Unmute video": "Washa sauti ya video"
 }

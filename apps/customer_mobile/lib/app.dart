@@ -1,12 +1,11 @@
+import 'package:flutter_core/listing_media.dart';
 import 'package:flutter_core/push_payload.dart';
 import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:app_links/app_links.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
@@ -3698,7 +3697,7 @@ class PublicListingCard extends StatelessWidget {
                     );
                   },
                   child: AspectRatio(
-                    aspectRatio: 1,
+                    aspectRatio: 4 / 5,
                     child: Stack(
                       fit: StackFit.expand,
                       children: <Widget>[
@@ -3717,6 +3716,7 @@ class PublicListingCard extends StatelessWidget {
                                 child: _AutoPlayListingVideo(
                                   videoUrl: coverUrl,
                                   cacheKey: coverStoragePath ?? coverUrl,
+                                  showControls: false,
                                 ),
                               )
                             : _NetworkMediaImage(
@@ -4122,7 +4122,7 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
     );
     final RenderBox? box = context.findRenderObject() as RenderBox?;
     await Share.share(
-      '$message\nhttps://kodimali.co.tz/listing/${widget.listingId}',
+      '$message\nhttps://kodimali.com/listing/${widget.listingId}',
       subject: title,
       sharePositionOrigin: box == null
           ? null
@@ -4528,9 +4528,8 @@ class _ListingMediaGalleryState extends State<_ListingMediaGallery> {
     if (visibleMedia.isEmpty) {
       return const SizedBox.shrink();
     }
-    final double galleryHeight = MediaQuery.sizeOf(
-      context,
-    ).width.clamp(320.0, 420.0).toDouble();
+    final double galleryHeight =
+        MediaQuery.sizeOf(context).width.clamp(320.0, 640.0).toDouble() * 1.2;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -4575,7 +4574,19 @@ class _ListingMediaGalleryState extends State<_ListingMediaGallery> {
                   ),
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: mediaItem["media_type"] == "video"
+                child:
+                    mediaItem["media_type"] == "video" && index != _currentIndex
+                    ? const ColoredBox(
+                        color: Colors.black,
+                        child: Center(
+                          child: Icon(
+                            Icons.play_circle_outline,
+                            color: Colors.white,
+                            size: 48,
+                          ),
+                        ),
+                      )
+                    : mediaItem["media_type"] == "video"
                     ? _AutoPlayListingVideo(
                         videoUrl: signedUrl,
                         cacheKey: cacheKey,
@@ -4657,167 +4668,22 @@ class _ListingMediaGalleryState extends State<_ListingMediaGallery> {
   }
 }
 
-class _AutoPlayListingVideo extends StatefulWidget {
-  const _AutoPlayListingVideo({required this.videoUrl, required this.cacheKey});
-
+class _AutoPlayListingVideo extends StatelessWidget {
+  const _AutoPlayListingVideo({
+    required this.videoUrl,
+    required this.cacheKey,
+    this.showControls = true,
+  });
   final String videoUrl;
   final String cacheKey;
-
+  final bool showControls;
   @override
-  State<_AutoPlayListingVideo> createState() => _AutoPlayListingVideoState();
-}
-
-class _AutoPlayListingVideoState extends State<_AutoPlayListingVideo> {
-  VideoPlayerController? _controller;
-  late final Future<void> _initialization;
-  bool _muted = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _initialization = _initialize();
-  }
-
-  Future<void> _initialize() async {
-    final File mediaFile = await CustomerMediaCacheManager.instance
-        .getSingleFile(widget.videoUrl, key: widget.cacheKey);
-    final VideoPlayerController controller = VideoPlayerController.file(
-      mediaFile,
-    );
-    _controller = controller;
-    await controller.initialize();
-    await controller.setLooping(true);
-    await controller.setVolume(0);
-    if (controller.value.duration > const Duration(milliseconds: 500)) {
-      await controller.seekTo(const Duration(milliseconds: 500));
-    }
-    await controller.play();
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  Future<void> _togglePlayPause() async {
-    final VideoPlayerController? controller = _controller;
-    if (controller == null) {
-      return;
-    }
-    if (controller.value.isPlaying) {
-      await controller.pause();
-    } else {
-      await controller.play();
-    }
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  Future<void> _toggleMuted() async {
-    _muted = !_muted;
-    await _controller?.setVolume(_muted ? 0 : 1);
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<void>(
-      future: _initialization,
-      builder: (BuildContext context, AsyncSnapshot<void> snapshot) {
-        final VideoPlayerController? controller = _controller;
-        if (snapshot.connectionState != ConnectionState.done) {
-          return DecoratedBox(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            ),
-            child: Center(child: Text(context.tr("media.loading"))),
-          );
-        }
-        if (snapshot.hasError || controller == null) {
-          return DecoratedBox(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            ),
-            child: const Center(child: Icon(Icons.videocam_off_outlined)),
-          );
-        }
-
-        return GestureDetector(
-          onTap: _togglePlayPause,
-          child: Stack(
-            fit: StackFit.expand,
-            children: <Widget>[
-              FittedBox(
-                fit: BoxFit.contain,
-                clipBehavior: Clip.hardEdge,
-                child: SizedBox(
-                  width: controller.value.size.width,
-                  height: controller.value.size.height,
-                  child: VideoPlayer(controller),
-                ),
-              ),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: <Color>[
-                      Colors.black.withValues(alpha: 0.12),
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.35),
-                    ],
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 16,
-                left: 16,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.55),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    context.tr("media.tapToPlay"),
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 16,
-                bottom: 16,
-                child: Row(
-                  children: <Widget>[
-                    _MediaActionButton(
-                      icon: _muted
-                          ? Icons.volume_off_rounded
-                          : Icons.volume_up_rounded,
-                      onTap: _toggleMuted,
-                    ),
-                    const SizedBox(width: 8),
-                    _MediaActionButton(
-                      icon: controller.value.isPlaying
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                      onTap: _togglePlayPause,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => ListingVideo(
+    key: ValueKey(cacheKey),
+    url: videoUrl,
+    autoPlay: true,
+    showControls: showControls,
+  );
 }
 
 class _MediaActionButton extends StatelessWidget {
@@ -4867,30 +4733,11 @@ class _NetworkMediaImage extends StatelessWidget {
       );
     }
 
-    final double devicePixels = MediaQuery.devicePixelRatioOf(context);
-    final int decodedWidth = (MediaQuery.sizeOf(context).width * devicePixels)
-        .round()
-        .clamp(720, 1600)
-        .toInt();
-    return CachedNetworkImage(
-      imageUrl: imageUrl!,
-      cacheManager: CustomerMediaCacheManager.instance,
+    return ListingImage(
+      url: imageUrl!,
       cacheKey: cacheKey,
+      cacheManager: CustomerMediaCacheManager.instance,
       fit: fit,
-      memCacheWidth: decodedWidth,
-      maxWidthDiskCache: 1600,
-      fadeInDuration: const Duration(milliseconds: 120),
-      placeholder: (BuildContext context, String _) => Container(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      ),
-      errorWidget: (BuildContext context, String _, Object error) => Container(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        alignment: Alignment.center,
-        child: Icon(
-          Icons.broken_image_outlined,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-      ),
     );
   }
 }

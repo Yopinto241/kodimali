@@ -25,7 +25,11 @@ export function DirectMediaImage({
       width={1200}
       height={1200}
       quality={72}
-      priority={priority}
+      // This deployment has no IMAGES binding. Its Next image proxy returns
+      // original bytes for every requested width; use the cached origin directly
+      // rather than adding a second fetch and duplicate width-specific copies.
+      unoptimized={src.includes(".supabase.co/storage/v1/")}
+      fetchPriority={priority ? "high" : undefined}
       loading={priority ? "eager" : "lazy"}
       sizes={sizes}
       onError={onError}

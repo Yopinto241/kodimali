@@ -1463,14 +1463,13 @@ class ManageRepository {
   Future<List<JsonMap>> _attachListingPreviews(List<JsonMap> rows) async {
     final paths = rows
         .expand((row) => (row['listing_media'] as List? ?? []).cast<JsonMap>())
-        .where((media) => media['media_type'] == 'image')
         .map((media) => media['storage_path'].toString());
     final urls = await signListingMediaPaths(paths);
     for (final row in rows) {
       final media = (row['listing_media'] as List? ?? [])
           .cast<JsonMap>()
-          .where((media) => media['media_type'] == 'image')
           .firstOrNull;
+      row['preview_media_type'] = media?['media_type'];
       row['preview_url'] = media == null ? null : urls[media['storage_path']];
     }
     return rows;

@@ -1,7 +1,7 @@
 name: flutter_design_system
 description: "Shared Flutter design system for KODIMALI"
 version: 0.0.1
-homepage: https://kodimali.co.tz
+homepage: https://kodimali.com
 
 environment:
   sdk: ^3.11.5

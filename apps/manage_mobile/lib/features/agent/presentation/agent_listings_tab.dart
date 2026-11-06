@@ -1,3 +1,4 @@
+import 'package:flutter_core/listing_media.dart';
 import '../../../core/widgets/location_directory.dart';
 import 'package:flutter_core/user_messages.dart';
 import 'package:flutter_core/localized_ui.dart';
@@ -421,14 +422,27 @@ class _AgentListingsTabState extends State<AgentListingsTab> {
                                 padding: const EdgeInsets.only(bottom: 12),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
-                                  child: Image.network(
-                                    listing['preview_url'].toString(),
-                                    height: 160,
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
-                                    semanticLabel: listing['title']?.toString(),
-                                    errorBuilder: (_, error, stack) =>
-                                        const SizedBox.shrink(),
+                                  child: AspectRatio(
+                                    aspectRatio: 4 / 5,
+                                    child:
+                                        listing['preview_media_type'] == 'video'
+                                        ? AbsorbPointer(
+                                            child: ListingVideo(
+                                              autoPlay: true,
+                                              showControls: false,
+                                              url: listing['preview_url']
+                                                  .toString(),
+                                            ),
+                                          )
+                                        : ListingImage(
+                                            url: listing['preview_url']
+                                                .toString(),
+                                            cacheKey:
+                                                (listing['listing_media']
+                                                        as List?)
+                                                    ?.firstOrNull?['storage_path']
+                                                    ?.toString(),
+                                          ),
                                   ),
                                 ),
                               ),

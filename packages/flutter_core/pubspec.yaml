@@ -1,13 +1,16 @@
 name: flutter_core
 description: "Shared Flutter core utilities for KODIMALI"
 version: 0.0.1
-homepage: https://kodimali.co.tz
+homepage: https://kodimali.com
 
 environment:
   sdk: ^3.11.5
   flutter: ">=1.17.0"
 
 dependencies:
+  cached_network_image: ^3.4.1
+  flutter_cache_manager: ^3.4.1
+  video_player: ^2.10.0
   flutter:
     sdk: flutter
 

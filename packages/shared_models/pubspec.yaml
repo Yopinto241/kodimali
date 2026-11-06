@@ -1,7 +1,7 @@
 name: shared_models
 description: "Shared data models for KODIMALI"
 version: 0.0.1
-homepage: https://kodimali.co.tz
+homepage: https://kodimali.com
 
 environment:
   sdk: ^3.11.5

@@ -1334,7 +1334,7 @@ class _PromotionsTabState extends State<PromotionsTab> {
                   }
                   final Uri? uri = Uri.tryParse(target);
                   if (uri == null || !uri.hasScheme) {
-                    return "Use a complete link such as https://kodimali.co.tz";
+                    return "Use a complete link such as https://kodimali.com";
                   }
                   return null;
                 },

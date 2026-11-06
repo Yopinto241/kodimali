@@ -52,12 +52,12 @@ export function PublicListingCard({
       <Link href={`/listing/${listing.listing_id}`} className="block">
         <div className="listing-card-media">
           {listing.cover_url && listing.cover_media_type === "video" ? (
-            <SquareMediaVideo src={listing.cover_url} controls={false} />
+            <SquareMediaVideo src={listing.cover_url} controls={false} autoPlay wide />
           ) : listing.cover_url ? (
             <DirectMediaImage
               src={listing.cover_url}
               alt={listing.title}
-              sizes="(min-width:1280px) 390px, (min-width:768px) 46vw, 92vw"
+              sizes="(min-width:1280px) 560px, (min-width:768px) 46vw, 92vw"
               className="listing-card-image"
               priority={priority}
             />
@@ -68,15 +68,16 @@ export function PublicListingCard({
           <div className="listing-card-badges">
             <span><UiText text={listing.category_name} /></span>
             {listing.featured ? <span><UiText text={"Featured"} /></span> : null}
+            {listing.cover_media_type === "video" ? <span><UiText text="Video" /></span> : null}
           </div>
           <span className="listing-card-price">
             TZS {formattedPrice} / <UiText text={listing.price_period} />
           </span>
+        </div>
           <div className="listing-card-copy">
             <h3>{listing.title}</h3>
             <p>{listing.public_location_label}</p>
           </div>
-        </div>
         <p className="listing-card-link"><UiText text={"Tazama mali"} /><span aria-hidden="true">→</span>
         </p>
       </Link>

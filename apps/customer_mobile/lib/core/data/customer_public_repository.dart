@@ -784,6 +784,9 @@ class CustomerPublicRepository {
                 capabilities[row['listing_id']
                     ?.toString()]?['effective_mode'] ??
                 'request_booking',
+            "cover_media_type": _isVideoPath(row['cover_storage_path'])
+                ? 'video'
+                : 'image',
             "cover_url": await _signListingMediaPath(
               row["cover_storage_path"] as String?,
             ),
@@ -1464,7 +1467,7 @@ class CustomerPublicRepository {
   }
 
   void _prefetchListingCovers(List<JsonMap> listings) {
-    for (final JsonMap listing in listings.take(8)) {
+    for (final JsonMap listing in listings.take(2)) {
       final String? url = listing["cover_url"] as String?;
       if (url == null || url.isEmpty) {
         continue;
@@ -1476,7 +1479,12 @@ class CustomerPublicRepository {
           listing["cover_storage_path"] as String? ??
           listing["listing_id"] as String? ??
           url;
-      unawaited(CustomerMediaCacheManager.instance.downloadFile(url, key: key));
+      unawaited(
+        CustomerMediaCacheManager.instance
+            .getSingleFile(url, key: key)
+            .then<void>((_) {})
+            .catchError((Object _) {}),
+      );
     }
   }
 
@@ -1485,13 +1493,18 @@ class CustomerPublicRepository {
       RegExp(r'\.(mp4|webm|mov)$', caseSensitive: false).hasMatch(value);
 
   void _prefetchListingDetailMedia(List<JsonMap> mediaItems) {
-    for (final JsonMap media in mediaItems.take(5)) {
+    for (final JsonMap media in mediaItems.take(1)) {
       final String? url = media["signed_url"] as String?;
       if (url == null || url.isEmpty || media["media_type"] == "video") {
         continue;
       }
       final String key = media["storage_path"] as String? ?? url;
-      unawaited(CustomerMediaCacheManager.instance.downloadFile(url, key: key));
+      unawaited(
+        CustomerMediaCacheManager.instance
+            .getSingleFile(url, key: key)
+            .then<void>((_) {})
+            .catchError((Object _) {}),
+      );
     }
   }
 
