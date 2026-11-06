@@ -28,3 +28,12 @@
 No APK/AAB was built, installed or published. Both mobile apps require the next signed release for installed users to receive these source changes. No customer payment, notification or account changes were made. No paid image-processing service was enabled. Physical-device playback and slow-network behavior still need release-device checks; automated platform fakes and Chromium playback do not establish behavior on every device.
 
 Public screenshots, non-sensitive timing results and build logs are in the ignored local `tmp/media-domain-20261106` directory. Production Auth recovery configuration is stored securely under the user's `Kodimali-Recovery/20261106-media-domain` directory outside the repository.
+
+
+## Follow-up: compact listing cards
+
+At the user's request, normal listing cards were restored to their earlier dimensions: square Customer media, 160px Manage previews, and 390px website cards with 224px media. Website card titles returned to their prior overlay position to fit the original card height. The large detail galleries, streaming, caching and official-domain changes remain in place.
+
+Both mobile analyzers passed. The website production build and TypeScript checks passed. Cloudflare production version: `404f1e25-b336-4df0-8d3c-1709fb4f4df7`. No mobile binaries were built.
+
+Live Chromium checks at 390px and 1440px confirmed 390px cards with 224px media, while detail galleries remained 432.5px and 831px high respectively. Homepage/detail requests returned HTTP 200 with no browser page errors.

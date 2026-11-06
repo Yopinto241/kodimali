@@ -385,8 +385,8 @@ class _ListingApprovalTabState extends State<ListingApprovalTab> {
                           padding: const EdgeInsets.only(bottom: 12),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(12),
-                            child: AspectRatio(
-                              aspectRatio: 4 / 5,
+                            child: SizedBox(
+                              height: 160,
                               child: listing['preview_media_type'] == 'video'
                                   ? AbsorbPointer(
                                       child: ListingVideo(

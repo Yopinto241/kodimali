@@ -73,11 +73,11 @@ export function PublicListingCard({
           <span className="listing-card-price">
             TZS {formattedPrice} / <UiText text={listing.price_period} />
           </span>
-        </div>
           <div className="listing-card-copy">
             <h3>{listing.title}</h3>
             <p>{listing.public_location_label}</p>
           </div>
+        </div>
         <p className="listing-card-link"><UiText text={"Tazama mali"} /><span aria-hidden="true">→</span>
         </p>
       </Link>

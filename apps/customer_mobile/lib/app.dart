@@ -3697,7 +3697,7 @@ class PublicListingCard extends StatelessWidget {
                     );
                   },
                   child: AspectRatio(
-                    aspectRatio: 4 / 5,
+                    aspectRatio: 1,
                     child: Stack(
                       fit: StackFit.expand,
                       children: <Widget>[
