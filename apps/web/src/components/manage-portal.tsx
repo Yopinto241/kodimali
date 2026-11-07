@@ -1491,7 +1491,7 @@ function AddListingForm({ agentId }: { agentId: string }) {
   useEffect(() => {
     void supabase.from("agent_service_categories").select("asset_categories(id, name, slug, field_schema)").eq("agent_id", agentId).abortSignal(AbortSignal.timeout(10000)).then(({ data, error }) => {
       if (error) setMessage("Your categories could not be loaded. Please reload and try again.");
-      else setCategories((data ?? []).map((row) => relation((row as Row).asset_categories)));
+      else setCategories((data ?? []).map((row) => relation((row as Row).asset_categories)).filter(category=>category.slug!=="lodges-guesthouses"));
     });
   }, [agentId, supabase]);
   const selectedCategory = categories.find((item) => item.id === categoryId);

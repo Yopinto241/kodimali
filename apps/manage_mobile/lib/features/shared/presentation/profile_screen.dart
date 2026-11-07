@@ -1,3 +1,4 @@
+import 'package:go_router/go_router.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'dart:io';
 
@@ -236,6 +237,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return ManagePageScrollView(
       children: <Widget>[
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.hotel_outlined),
+            title: const LocalizedUiText('Lodge workspace'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/lodges'),
+          ),
+        ),
         ManageHeroCard(
           title: heroName,
           subtitle: isAdmin

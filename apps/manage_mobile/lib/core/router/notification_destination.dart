@@ -4,6 +4,13 @@ String notificationDestination(Map<String, dynamic> data) {
     '',
   );
   final parts = route.split('/');
+  if (parts.first == 'lodges') {
+    final lodgeId = (data['lodgeId'] ?? (parts.length > 1 ? parts[1] : ''))
+        .toString();
+    if (RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(lodgeId)) {
+      return '/lodges/$lodgeId/reservations';
+    }
+  }
   final pathId = parts.length > 1 ? parts.last : '';
   final rawId = RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(pathId)
       ? pathId

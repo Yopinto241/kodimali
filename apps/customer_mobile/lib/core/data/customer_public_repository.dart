@@ -1,3 +1,4 @@
+import 'package:flutter_core/lodge_api.dart';
 import 'package:flutter_core/user_messages.dart';
 import 'dart:async';
 import 'dart:io';
@@ -13,6 +14,7 @@ class CustomerPublicRepository {
   CustomerPublicRepository(this._client);
 
   final SupabaseClient _client;
+  LodgeApi get lodges => LodgeApi(_client);
   static const String _agentPhotoBucket = "agent-profile-photos";
   // Long-lived URLs work with the disk cache instead of forcing repeated
   // signing and downloads while a customer browses between screens.

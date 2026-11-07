@@ -573,7 +573,9 @@ class _AddAssetScreenState extends State<AddAssetScreen>
       return;
     }
     setState(() {
-      _categories = categories;
+      _categories = categories
+          .where((category) => category["slug"] != "lodges-guesthouses")
+          .toList();
       if (_categories.isNotEmpty) {
         final String? selectedId = _nonEmptyId(_selectedCategory?["id"]);
         _selectedCategory = _categories.firstWhere(

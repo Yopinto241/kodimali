@@ -1,3 +1,4 @@
+import 'package:flutter_core/lodge_discovery.dart';
 import 'package:flutter_core/listing_media.dart';
 import 'package:flutter_core/push_payload.dart';
 import 'package:flutter_core/user_messages.dart';
@@ -126,6 +127,18 @@ class _CustomerAppState extends State<CustomerApp> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _openNotification(data);
       });
+      return;
+    }
+    if (route.startsWith('lodges/')) {
+      final id = route.split('/')[1];
+      navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => LodgeDiscoveryScreen(
+            api: CustomerPublicRepository(Supabase.instance.client).lodges,
+            lodgeId: id,
+          ),
+        ),
+      );
       return;
     }
     if (route.startsWith('chat/')) {
@@ -392,6 +405,21 @@ class _CustomerRootState extends State<CustomerRoot> {
               repository: widget.repository,
               listingId: id,
             ),
+          ),
+        ),
+      );
+      return;
+    }
+    if (uri.scheme == 'https' &&
+        uri.pathSegments.isNotEmpty &&
+        uri.pathSegments.first == 'lodges') {
+      _lastOpenedDeepLink = uri.toString();
+      _lastOpenedDeepLinkAt = now;
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => LodgeDiscoveryScreen(
+            api: widget.repository.lodges,
+            lodgeId: uri.pathSegments.length > 1 ? uri.pathSegments[1] : null,
           ),
         ),
       );
@@ -3221,6 +3249,9 @@ class _CategoryListingsScreenState extends State<CategoryListingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.category['slug'] == 'lodges-guesthouses') {
+      return LodgeDiscoveryScreen(api: widget.repository.lodges);
+    }
     return Scaffold(
       appBar: AppBar(
         title: Text(

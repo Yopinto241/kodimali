@@ -1,3 +1,4 @@
+import '../../features/lodges/lodge_workspace_screen.dart';
 import '../../features/shared/presentation/notification_destination_screen.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_models/shared_models.dart';
@@ -38,6 +39,7 @@ GoRouter createAppRouter(AppController controller) {
         return isAuthPath ? null : "/login";
       }
 
+      if (location == '/lodges' || location.startsWith('/lodges/')) return null;
       final AppRole? role = controller.highestRole;
       if (controller.workspaceRoles.length > 1 && location == "/splash") {
         return "/workspaces";
@@ -98,6 +100,17 @@ GoRouter createAppRouter(AppController controller) {
       return target;
     },
     routes: <RouteBase>[
+      GoRoute(
+        path: '/lodges',
+        builder: (context, state) => const LodgeWorkspaceScreen(),
+      ),
+      GoRoute(
+        path: '/lodges/:lodgeId/:section',
+        builder: (context, state) => LodgeWorkspaceScreen(
+          lodgeId: state.pathParameters['lodgeId'],
+          section: state.pathParameters['section']!,
+        ),
+      ),
       GoRoute(
         path: '/notification/:kind/:id',
         builder: (context, state) => NotificationDestinationScreen(

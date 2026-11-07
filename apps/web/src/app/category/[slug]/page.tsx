@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { SaveSearchButton } from "@/components/save-search-button";
 import { UiText } from "@/components/ui-text";
 import { CatalogFilters } from "@/components/catalog-filters";
@@ -17,6 +18,7 @@ const categoryCopy: Record<string, string> = {
 };
 export async function generateMetadata({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<SearchParams> }) {
   const { slug } = await params;
+  if (slug === "lodges-guesthouses") redirect("/lodges");
   const category = (await fetchCategories()).find(item => item.slug === slug);
   if (!category) notFound();
   const title = categoryCopy[slug] ?? `${category.name} Tanzania`;
@@ -39,6 +41,7 @@ function buildPageHref(slug: string, params: Record<string, string | string[] | 
 export default async function CategoryPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sw = (await cookies()).get("kodimali_language")?.value !== "en";
   const { slug } = await params;
+  if (slug === "lodges-guesthouses") redirect("/lodges");
   const query = await searchParams;
   const value = (key: string) => typeof query[key] === "string" ? query[key] as string : undefined;
   const currentPage = Math.max(1, Number.parseInt(value("page") ?? "1", 10) || 1);

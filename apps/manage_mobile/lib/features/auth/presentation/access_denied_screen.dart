@@ -1,3 +1,4 @@
+import 'package:go_router/go_router.dart';
 import 'package:flutter_core/localized_ui.dart';
 import 'package:flutter/material.dart';
 
@@ -29,6 +30,12 @@ class AccessDeniedScreen extends StatelessWidget {
                       const SizedBox(height: 12),
                       const LocalizedUiText(
                         "KODIMALI Manage App inatumika na agent na admin tu. Tumia akaunti iliyopewa ruhusa sahihi.",
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: () => context.go('/lodges'),
+                        icon: const Icon(Icons.hotel_outlined),
+                        label: const LocalizedUiText('Lodge workspace'),
                       ),
                       const SizedBox(height: 24),
                       SizedBox(

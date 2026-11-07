@@ -14,41 +14,49 @@ class WorkspaceSwitcherScreen extends StatelessWidget {
       appBar: AppBar(title: const LocalizedUiText('Choose workspace')),
       body: ListView(
         padding: const EdgeInsets.all(20),
-        children: controller.workspaceRoles
-            .map(
-              (role) => Card(
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(18),
-                  leading: Icon(switch (role) {
-                    AppRole.admin => Icons.admin_panel_settings_outlined,
-                    AppRole.agent => Icons.badge_outlined,
-                    AppRole.owner => Icons.home_work_outlined,
-                    _ => Icons.person_outline,
-                  }),
-                  title: Text(switch (role) {
-                    AppRole.admin => 'Administrator',
-                    AppRole.agent => 'Agent',
-                    AppRole.owner => 'Owner',
-                    _ => 'Customer',
-                  }),
-                  subtitle: const LocalizedUiText(
-                    'Continue with this role using the same account.',
+        children: [
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.hotel_outlined),
+              title: const LocalizedUiText('Lodge workspace'),
+              onTap: () => context.go('/lodges'),
+            ),
+          ),
+          ...controller.workspaceRoles
+              .map(
+                (role) => Card(
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(18),
+                    leading: Icon(switch (role) {
+                      AppRole.admin => Icons.admin_panel_settings_outlined,
+                      AppRole.agent => Icons.badge_outlined,
+                      AppRole.owner => Icons.home_work_outlined,
+                      _ => Icons.person_outline,
+                    }),
+                    title: Text(switch (role) {
+                      AppRole.admin => 'Administrator',
+                      AppRole.agent => 'Agent',
+                      AppRole.owner => 'Owner',
+                      _ => 'Customer',
+                    }),
+                    subtitle: const LocalizedUiText(
+                      'Continue with this role using the same account.',
+                    ),
+                    trailing: const Icon(Icons.arrow_forward),
+                    onTap: () {
+                      controller.selectWorkspace(role);
+                      context.go(
+                        workspaceLocation(
+                          role,
+                          agentBlocked: controller.isAgentAccessBlocked,
+                          eventsAgent: controller.isEventsAgent,
+                        ),
+                      );
+                    },
                   ),
-                  trailing: const Icon(Icons.arrow_forward),
-                  onTap: () {
-                    controller.selectWorkspace(role);
-                    context.go(
-                      workspaceLocation(
-                        role,
-                        agentBlocked: controller.isAgentAccessBlocked,
-                        eventsAgent: controller.isEventsAgent,
-                      ),
-                    );
-                  },
                 ),
               ),
-            )
-            .toList(),
+        ],
       ),
     );
   }

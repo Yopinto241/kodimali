@@ -34,6 +34,7 @@ export function ManageWorkspaceShell({ section, role, tabs, signOut, children, a
       {open ? <button className="manage-scrim" aria-label="Close" onClick={() => setOpen(false)} /> : null}
       <UiNav id="manage-navigation" className={`manage-sidebar ${open ? 'is-open' : ''}`} aria-label="Management navigation">
         {tabs.map(item => <Link prefetch={false} key={item.id} href={manageHref(item.id, role)} aria-current={section === item.id ? 'page' : undefined} onClick={() => setOpen(false)}><UiText text={item.label} /></Link>)}
+        <Link prefetch={false} href="/manage/lodges"><UiText text="Lodge workspace" /></Link>
         <Link prefetch={false} href="/account"><UiText text="Customer account" /></Link>
         {availableRoles.includes('admin') && role !== 'admin' && <Link prefetch={false} href="/admin"><UiText text="Admin workspace" /></Link>}
         {availableRoles.includes('agent') && role !== 'agent' && <Link prefetch={false} href="/agent"><UiText text="Agent workspace" /></Link>}
